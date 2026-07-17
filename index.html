@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPERATION SANDSTORM</title>
+<style>
+  :root { --gap: 10px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0c09; }
+  body {
+    font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    color: #e8e2d0; user-select: none; -webkit-user-select: none; cursor: default;
+  }
+  canvas { display: block; }
+
+  .mono { font-family: "Menlo", "Consolas", monospace; }
+  .title-font { font-family: "Arial Black", "Hiragino Sans", sans-serif; letter-spacing: .12em; }
+
+  /* ============ HUD ============ */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 10; }
+
+  /* クロスヘア */
+  #crosshair { position: fixed; inset: 0; }
+  .ch { position: absolute; background: #fff; box-shadow: 0 0 3px rgba(0,0,0,.9); }
+  .ch.t { left: 50%; top: 50%; width: 2px; height: 9px; transform: translate(-50%, -100%) translateY(calc(-1 * var(--gap))); }
+  .ch.b { left: 50%; top: 50%; width: 2px; height: 9px; transform: translate(-50%, 0)    translateY(var(--gap)); }
+  .ch.l { left: 50%; top: 50%; width: 9px; height: 2px; transform: translate(-100%, -50%) translateX(calc(-1 * var(--gap))); }
+  .ch.r { left: 50%; top: 50%; width: 9px; height: 2px; transform: translate(0, -50%)     translateX(var(--gap)); }
+  .ch.dot { left: 50%; top: 50%; width: 2px; height: 2px; transform: translate(-50%, -50%); }
+
+  /* ヒットマーカー */
+  #hitmarker { position: fixed; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+  #hitmarker .hm { position: absolute; width: 14px; height: 2px; background: #fff; box-shadow: 0 0 3px rgba(0,0,0,.9); }
+  #hitmarker .hm1 { transform: translate(-13px, -8px) rotate(45deg); }
+  #hitmarker .hm2 { transform: translate(0px, -8px) rotate(-45deg); }
+  #hitmarker .hm3 { transform: translate(-13px, 6px) rotate(-45deg); }
+  #hitmarker .hm4 { transform: translate(0px, 6px) rotate(45deg); }
+  #hitmarker.kill .hm { background: #ff4b3a; }
+  #hitmarker.show { animation: hmFade .18s ease-out forwards; }
+  @keyframes hmFade { 0% { opacity: 1; transform: scale(1.25); } 100% { opacity: 0; transform: scale(.9); } }
+
+  /* ダメージ方向インジケータ */
+  #dmgdir {
+    position: fixed; left: 50%; top: 50%; width: 150px; height: 150px;
+    margin: -75px 0 0 -75px; border-radius: 50%;
+    border: 4px solid transparent; border-top-color: rgba(255, 42, 25, .85);
+    opacity: 0; filter: blur(.5px);
+  }
+
+  /* ダメージヴィネット */
+  #vignette {
+    position: fixed; inset: 0; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 42%, rgba(160, 8, 0, .55) 100%);
+  }
+  #lowhp {
+    position: fixed; inset: 0; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 48%, rgba(140, 0, 0, .6) 100%);
+  }
+  #lowhp.on { animation: pulse 1.15s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: .12; } 50% { opacity: .55; } }
+
+  /* 体力 */
+  #healthbox { position: fixed; left: 28px; bottom: 26px; }
+  #healthnum { font-size: 30px; font-weight: 700; text-shadow: 0 1px 3px #000; line-height: 1; }
+  #healthnum small { font-size: 13px; color: #b9b09a; font-weight: 400; margin-left: 6px; }
+  #healthbar { width: 190px; height: 5px; background: rgba(255,255,255,.14); margin-top: 7px; }
+  #healthfill { height: 100%; width: 100%; background: #cfc48a; transition: width .15s, background .3s; }
+
+  /* 弾薬 */
+  #ammobox { position: fixed; right: 30px; bottom: 22px; text-align: right; }
+  #firemode { font-size: 11px; letter-spacing: .3em; color: #b9b09a; text-shadow: 0 1px 2px #000; }
+  #ammo { font-size: 38px; font-weight: 700; text-shadow: 0 1px 3px #000; line-height: 1.05; }
+  #ammo .reserve { font-size: 17px; color: #b9b09a; font-weight: 400; }
+  #ammo.empty { color: #ff5a44; }
+
+  /* リロードバー */
+  #reloadwrap { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); text-align: center; display: none; }
+  #reloadtext { font-size: 11px; letter-spacing: .35em; color: #e8dfb8; text-shadow: 0 1px 2px #000; margin-bottom: 5px; }
+  #reloadbar { width: 130px; height: 3px; background: rgba(255,255,255,.15); }
+  #reloadfill { height: 100%; width: 0%; background: #e8dfb8; }
+
+  /* 上部情報 */
+  #waveinfo {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; letter-spacing: .25em; color: #ddd3b4; text-shadow: 0 1px 3px #000; white-space: nowrap;
+  }
+  #scorebox { position: fixed; top: 18px; right: 28px; text-align: right; }
+  #score { font-size: 24px; font-weight: 700; text-shadow: 0 1px 3px #000; }
+  #scorebox small { font-size: 10px; letter-spacing: .3em; color: #b9b09a; }
+
+  /* キルフィード */
+  #killfeed { position: fixed; top: 78px; right: 28px; text-align: right; font-size: 12px; }
+  #killfeed .kf {
+    margin-top: 5px; padding: 4px 9px; background: rgba(10,10,8,.55);
+    border-right: 2px solid #cfc48a; color: #e8e2d0; animation: kfIn .18s ease-out;
+  }
+  #killfeed .kf.hs { border-right-color: #ff4b3a; color: #ffb3a8; }
+  @keyframes kfIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* 中央バナー */
+  #banner {
+    position: fixed; top: 30%; left: 0; right: 0; text-align: center;
+    font-size: 40px; font-weight: 900; letter-spacing: .3em; color: #efe6c4;
+    text-shadow: 0 2px 12px rgba(0,0,0,.8); opacity: 0; pointer-events: none;
+  }
+  #banner .sub { font-size: 14px; letter-spacing: .4em; color: #c9bfa0; margin-top: 10px; font-weight: 400; }
+  #banner.show { animation: bannerIn 2.6s ease-out forwards; }
+  @keyframes bannerIn {
+    0% { opacity: 0; transform: scale(1.06); } 12% { opacity: 1; transform: scale(1); }
+    78% { opacity: 1; } 100% { opacity: 0; }
+  }
+
+  /* フローティングスコア */
+  .floater {
+    position: fixed; font-size: 15px; font-weight: 700; color: #efe6c4;
+    text-shadow: 0 1px 3px #000; pointer-events: none; animation: floatUp .9s ease-out forwards;
+  }
+  .floater.hs { color: #ff6a55; font-size: 17px; }
+  @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-46px); } }
+
+  /* ============ オーバーレイ（メニュー等） ============ */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: radial-gradient(ellipse at center, rgba(14,15,11,.82) 0%, rgba(8,9,7,.94) 100%);
+  }
+  .overlay h1 { font-size: 46px; font-weight: 900; letter-spacing: .18em; color: #efe6c4; text-shadow: 0 3px 16px rgba(0,0,0,.9); }
+  .overlay h1 .accent { color: #d9a94f; }
+  .overlay .tagline { margin-top: 8px; font-size: 13px; letter-spacing: .5em; color: #a39a7e; }
+  .panel {
+    margin-top: 30px; padding: 20px 30px; border: 1px solid rgba(216,192,138,.28);
+    background: rgba(20,21,16,.55); text-align: left; font-size: 13px; line-height: 2.05; color: #cfc7ad;
+  }
+  .panel b { color: #efe6c4; font-family: "Menlo", monospace; font-weight: 700; }
+  .btn {
+    margin-top: 30px; padding: 13px 52px; font-size: 16px; letter-spacing: .35em;
+    color: #efe6c4; background: transparent; border: 1px solid #d8c08a; cursor: pointer;
+    font-family: inherit; transition: background .15s, color .15s;
+  }
+  .btn:hover { background: #d8c08a; color: #14150f; }
+  .note { margin-top: 20px; font-size: 11px; color: #8b846d; letter-spacing: .15em; }
+
+  #pause, #death { display: none; }
+  #death h1 { color: #ff5a44; }
+  .stats { margin-top: 26px; display: grid; grid-template-columns: auto auto; gap: 8px 34px; font-size: 14px; color: #cfc7ad; }
+  .stats b { color: #efe6c4; font-family: "Menlo", monospace; text-align: right; }
+
+  #err {
+    position: fixed; left: 8px; top: 8px; z-index: 999; display: none;
+    max-width: 60%; white-space: pre-wrap; color: #ff7b6b; background: rgba(0,0,0,.75);
+    font: 11px Menlo, monospace; padding: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="crosshair">
+    <div class="ch t"></div><div class="ch b"></div>
+    <div class="ch l"></div><div class="ch r"></div>
+    <div class="ch dot"></div>
+  </div>
+  <div id="hitmarker">
+    <div class="hm hm1"></div><div class="hm hm2"></div>
+    <div class="hm hm3"></div><div class="hm hm4"></div>
+  </div>
+  <div id="dmgdir"></div>
+  <div id="vignette"></div>
+  <div id="lowhp"></div>
+
+  <div id="healthbox">
+    <div id="healthnum">100<small>HP</small></div>
+    <div id="healthbar"><div id="healthfill"></div></div>
+  </div>
+
+  <div id="ammobox">
+    <div id="firemode">AUTO</div>
+    <div id="ammo">30<span class="reserve"> / 120</span></div>
+  </div>
+
+  <div id="reloadwrap">
+    <div id="reloadtext">RELOADING</div>
+    <div id="reloadbar"><div id="reloadfill"></div></div>
+  </div>
+
+  <div id="waveinfo" class="mono"></div>
+  <div id="scorebox"><small>SCORE</small><div id="score" class="mono">0</div></div>
+  <div id="killfeed"></div>
+  <div id="banner" class="title-font"></div>
+</div>
+
+<div id="menu" class="overlay">
+  <h1 class="title-font">OPERATION <span class="accent">SANDSTORM</span></h1>
+  <div class="tagline">砂 嵐 作 戦 ― FRONTLINE SURVIVAL</div>
+  <div class="panel">
+    <b>W A S D</b> 移動　　<b>SHIFT</b> ダッシュ　　<b>C</b> しゃがみ　　<b>SPACE</b> ジャンプ<br>
+    <b>左クリック</b> 射撃　　<b>右クリック</b> 照準（ADS）　　<b>R</b> リロード<br>
+    <b>ESC</b> ポーズ
+  </div>
+  <div style="margin-top:18px; font-size:13px; color:#a39a7e; line-height:1.9;">
+    迫撃砲支援が来るまで、この拠点を死守せよ。<br>
+    敵は波状攻撃を仕掛けてくる。ヘッドショットで効率よく排除しろ。
+  </div>
+  <button class="btn" id="startBtn">作戦開始</button>
+  <div class="note">※ 音が出ます　※ マウスポインタがロックされます</div>
+</div>
+
+<div id="pause" class="overlay">
+  <h1 class="title-font">PAUSED</h1>
+  <div class="tagline">一 時 停 止</div>
+  <button class="btn" id="resumeBtn">再 開</button>
+</div>
+
+<div id="death" class="overlay">
+  <h1 class="title-font">K.I.A.</h1>
+  <div class="tagline">戦 死</div>
+  <div class="stats">
+    <span>到達ウェーブ</span><b id="stWave">1</b>
+    <span>キル数</span><b id="stKills">0</b>
+    <span>ヘッドショット</span><b id="stHs">0</b>
+    <span>命中率</span><b id="stAcc">0%</b>
+    <span>スコア</span><b id="stScore">0</b>
+  </div>
+  <button class="btn" id="retryBtn">再出撃</button>
+</div>
+
+<div id="err"></div>
+
+<script src="./three.min.js"></script>
+<script src="./audio.js"></script>
+<script src="./world.js"></script>
+<script src="./effects.js"></script>
+<script src="./player.js"></script>
+<script src="./enemy.js"></script>
+<script src="./main.js"></script>
+</body>
+</html>
