@@ -272,10 +272,10 @@ function updatePlayer(dt) {
   let speed = player.crouching ? 2.4 : (player.sprinting ? 7.2 : 4.6);
   if (weapon.ads) speed *= 0.55;
 
-  // カメラ基準の移動
+  // カメラ基準の移動（YXZ・前方 -Z に合わせる）
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
-  const wx = (mx * cos - mz * sin);
-  const wz = (mx * sin + mz * cos);
+  const wx = (mx * cos + mz * sin);
+  const wz = (-mx * sin + mz * cos);
   const wl = Math.hypot(wx, wz) || 1;
   const accel = player.onGround ? 14 : 4;
   player.vel.x = lerp(player.vel.x, wx / wl * speed * (mx || mz ? 1 : 0), 1 - Math.exp(-accel * dt));
@@ -321,7 +321,7 @@ function updatePlayer(dt) {
   camera.position.set(
     player.pos.x + bobX * cos,
     player.pos.y + player.eyeH + bobY,
-    player.pos.z + bobX * sin
+    player.pos.z - bobX * sin
   );
 
   // リコイル回復
