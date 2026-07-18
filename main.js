@@ -20,6 +20,8 @@ const game = {
   spawnKinds: [], waveConcurrent: 5, accMul: 1,
   hurtFlash: 0, shotFired: false, deathCamT: 0,
   noLock: false,
+  startGen: 0,
+  deathUiGen: 0,
   tdm: {
     timeLeft: TDM_MATCH_SEC,
     blueKills: 0,
@@ -207,6 +209,10 @@ function startGame(mode, noLock) {
   AudioSys.init();
   game.mode = mode === 'tdm' ? 'tdm' : 'survival';
   resetGame();
+  game.startGen++;
+  game.deathUiGen++;
+  const startGen = game.startGen;
+  const startMode = game.mode;
   game.noLock = !!noLock;
   game.state = 'playing';
   $('menu').style.display = 'none';
@@ -221,9 +227,13 @@ function startGame(mode, noLock) {
   if (!noLock) document.body.requestPointerLock();
 
   if (game.mode === 'tdm') {
-    setTimeout(() => { if (game.state === 'playing') startTdmMatch(); }, 800);
+    setTimeout(() => {
+      if (game.state === 'playing' && game.startGen === startGen && game.mode === startMode) startTdmMatch();
+    }, 800);
   } else {
-    setTimeout(() => { if (game.state === 'playing') startWave(1); }, 1200);
+    setTimeout(() => {
+      if (game.state === 'playing' && game.startGen === startGen && game.mode === startMode) startWave(1);
+    }, 1200);
   }
 }
 
@@ -240,7 +250,11 @@ function gameOver() {
   $('stHs').textContent = game.headshots;
   $('stAcc').textContent = game.shots ? `${Math.round(game.hits / game.shots * 100)}%` : '0%';
   $('stScore').textContent = game.score;
-  setTimeout(() => { $('death').style.display = 'flex'; }, 1400);
+  game.deathUiGen++;
+  const deathUiGen = game.deathUiGen;
+  setTimeout(() => {
+    if (game.state === 'dead' && game.deathUiGen === deathUiGen) $('death').style.display = 'flex';
+  }, 1400);
 }
 
 function survivalVictory() {
@@ -293,11 +307,7 @@ function respawnPlayer() {
   player.recoilP = player.recoilY = 0;
   player.eyeH = 1.62;
   // TDM: 弾は死亡で初期ロードアウトにリセット（グレ/キットは持ち越し）
-  arsenal.slots = {
-    assault: { mag: 30, reserve: 90 },
-    pistol: { mag: 12, reserve: 36 },
-    sniper: { mag: 5, reserve: 10 },
-  };
+  arsenal.slots = makeTdmAmmoSlots();
   applyWeaponStats(arsenal.activeId);
   game.tdm.waitingRespawn = false;
   game.tdm.respawnT = 0;
@@ -397,7 +407,9 @@ function initMenus() {
     // 進行中の敵・ドロップを掃除
     for (let i = enemies.length - 1; i >= 0; i--) enemies[i].destroy();
     for (let i = loots.length - 1; i >= 0; i--) { scene.remove(loots[i].m); loots.splice(i, 1); }
+    if (typeof clearGrenades === 'function') clearGrenades();
     rebuildHitMeshes();
+    game.deathUiGen++;
     game.state = 'menu';
     game.tdm.waitingRespawn = false;
     if (document.pointerLockElement) document.exitPointerLock();
@@ -479,7 +491,7 @@ function tick(dt) {
   updateTracers(dt);
   updateParticles(dt);
   updateShells(dt);
-  updateGrenades(dt);
+  if (game.state === 'playing') updateGrenades(dt);
   updateDust(dt, camera.position);
 }
 

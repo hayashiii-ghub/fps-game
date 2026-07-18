@@ -166,13 +166,21 @@ function cycleWeapon(dir) {
   spawnFloater(WEAPON_DEFS[next].label, false);
 }
 
+function makeTdmAmmoSlots() {
+  return {
+    assault: { mag: 30, reserve: 90 },
+    pistol: { mag: 12, reserve: 36 },
+    sniper: { mag: 5, reserve: 10 },
+  };
+}
+
 function resetArsenal() {
   const tdm = game.mode === 'tdm';
   arsenal.owned = { assault: true, pistol: true, sniper: !!tdm };
-  arsenal.slots = {
-    assault: { mag: 30, reserve: tdm ? 90 : 120 },
-    pistol: { mag: 12, reserve: tdm ? 36 : 60 },
-    sniper: { mag: 5, reserve: tdm ? 10 : 15 },
+  arsenal.slots = tdm ? makeTdmAmmoSlots() : {
+    assault: { mag: 30, reserve: 120 },
+    pistol: { mag: 12, reserve: 60 },
+    sniper: { mag: 5, reserve: 15 },
   };
   arsenal.activeId = 'assault';
   weapon.kickZ = weapon.kickR = 0;
@@ -236,14 +244,13 @@ function startHeal() {
   if (player.medkits <= 0) { AudioSys.dry(); return; }
   if (player.hp >= 100) return;
   if (player.nadeAim) cancelNadeAim();
-  player.medkits--;
+  // キットは完了時に消費（キャンセルで失わない／途中HPチート防止）
   player.healing = true;
   player.healT = 0;
   player.healFrom = player.hp;
   player.healTo = Math.min(100, player.hp + 50);
   player.sprinting = false;
   weapon.ads = false;
-  updateMedkitHUD();
   showHealBar();
   AudioSys.pickup();
 }
@@ -251,6 +258,8 @@ function startHeal() {
 function cancelHeal() {
   if (!player.healing) return;
   player.healing = false;
+  player.hp = player.healFrom;
+  updateHealthHUD();
   hideHealBar();
 }
 
@@ -264,6 +273,8 @@ function updateHeal(dt) {
   if (fill) fill.style.width = `${u * 100}%`;
   if (u >= 1) {
     player.healing = false;
+    player.medkits = Math.max(0, player.medkits - 1);
+    updateMedkitHUD();
     hideHealBar();
     spawnFloater('応急処置 完了', false);
   }
@@ -305,6 +316,7 @@ function addReserveAmmo(amount) {
   const id = arsenal.activeId;
   const def = WEAPON_DEFS[id];
   const slot = arsenal.slots[id];
+  const before = slot.reserve + (id !== 'assault' ? arsenal.slots.assault.reserve : 0);
   const room = def.maxReserve - slot.reserve;
   let left = amount;
   if (room > 0) {
@@ -319,6 +331,8 @@ function addReserveAmmo(amount) {
   }
   if (arsenal.activeId === id) weapon.reserve = arsenal.slots[id].reserve;
   updateAmmoHUD();
+  const after = slot.reserve + (id !== 'assault' ? arsenal.slots.assault.reserve : 0);
+  return after > before;
 }
 
 /* ---------- 銃ビューモデル ---------- */
@@ -584,7 +598,7 @@ function startReload() {
   weapon.reloadT = 0;
   weapon.ads = false;
   document.getElementById('reloadwrap').style.display = 'block';
-  AudioSys.reload();
+  AudioSys.reload(weapon.reloadDur);
 }
 
 /* ---------- プレイヤー被弾 ---------- */
@@ -614,26 +628,45 @@ function damagePlayer(dmg, fromPos) {
   updateHealthHUD();
 }
 
-/* ---------- 移動衝突（円 vs Box3） ---------- */
+/* ---------- 移動衝突（水平円 vs メッシュローカル AABB＝OBB） ---------- */
+const _colLocal = new THREE.Vector3();
+const _colPush = new THREE.Vector3();
 function resolveCollision(p, radius, height) {
+  if (![p.x, p.y, p.z].every(Number.isFinite)) {
+    p.set(0, 0, 0);
+  }
+  const yMid = p.y + height * 0.45;
   for (const b of colliders) {
-    if (p.y + height < b.min.y || p.y + 0.25 > b.max.y) continue;
-    const cx = clamp(p.x, b.min.x, b.max.x);
-    const cz = clamp(p.z, b.min.z, b.max.z);
-    let dx = p.x - cx, dz = p.z - cz;
-    const d2 = dx * dx + dz * dz;
+    _colLocal.set(p.x, yMid, p.z).applyMatrix4(b.inv);
+    if (_colLocal.y < b.minY - radius || _colLocal.y > b.maxY + radius) continue;
+    const qx = clamp(_colLocal.x, b.minX, b.maxX);
+    const qz = clamp(_colLocal.z, b.minZ, b.maxZ);
+    let ox = _colLocal.x - qx;
+    let oz = _colLocal.z - qz;
+    const d2 = ox * ox + oz * oz;
     if (d2 >= radius * radius) continue;
     if (d2 > 1e-8) {
-      const d = Math.sqrt(d2), push = radius - d;
-      p.x += dx / d * push; p.z += dz / d * push;
+      const d = Math.sqrt(d2);
+      const push = radius - d;
+      ox = (ox / d) * push;
+      oz = (oz / d) * push;
     } else {
-      const px1 = p.x - b.min.x + radius, px2 = b.max.x - p.x + radius;
-      const pz1 = p.z - b.min.z + radius, pz2 = b.max.z - p.z + radius;
+      const px1 = _colLocal.x - b.minX + radius;
+      const px2 = b.maxX - _colLocal.x + radius;
+      const pz1 = _colLocal.z - b.minZ + radius;
+      const pz2 = b.maxZ - _colLocal.z + radius;
       const m = Math.min(px1, px2, pz1, pz2);
-      if (m === px1) p.x -= px1; else if (m === px2) p.x += px2;
-      else if (m === pz1) p.z -= pz1; else p.z += pz2;
+      if (m === px1) ox = -px1;
+      else if (m === px2) ox = px2;
+      else if (m === pz1) oz = -pz1;
+      else oz = pz2;
     }
+    _colPush.set(ox, 0, oz).transformDirection(b.matrix);
+    if (!Number.isFinite(_colPush.x) || !Number.isFinite(_colPush.z)) continue;
+    p.x += _colPush.x;
+    p.z += _colPush.z;
   }
+  if (![p.x, p.z].every(Number.isFinite)) p.set(0, 0, 0);
   p.x = clamp(p.x, -59, 59);
   p.z = clamp(p.z, -59, 59);
 }

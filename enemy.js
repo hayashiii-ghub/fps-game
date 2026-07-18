@@ -702,26 +702,33 @@ function updateLoot(dt) {
     }
     const d = l.m.position.distanceTo(player.pos);
     if (d < 1.3 && player.alive) {
+      let picked = false;
       if (l.type === 'ammo') {
-        addReserveAmmo(game.mode === 'tdm' ? 45 : 90);
-        spawnFloater(game.mode === 'tdm' ? '弾薬 +45' : '弾薬 +90', false);
+        const amount = game.mode === 'tdm' ? 45 : 90;
+        if (addReserveAmmo(amount)) {
+          picked = true;
+          spawnFloater(game.mode === 'tdm' ? '弾薬 +45' : '弾薬 +90', false);
+        } else spawnFloater('弾薬 MAX', false);
       } else if (l.type === 'sniper') {
         grantSniper();
+        picked = true;
       } else if (l.type === 'nade') {
-        if (addGrenades(1)) spawnFloater('グレネード +1', false);
-        else spawnFloater('グレネード MAX', false);
+        if (addGrenades(1)) {
+          picked = true;
+          spawnFloater('グレネード +1', false);
+        } else spawnFloater('グレネード MAX', false);
       } else if (l.type === 'med') {
-        if (addMedkits(1)) spawnFloater('応急キット +1', false);
-        else spawnFloater('応急キット MAX', false);
-      } else {
-        player.hp = Math.min(100, player.hp + 50);
-        updateHealthHUD();
-        spawnFloater('応急キット +50', false);
+        if (addMedkits(1)) {
+          picked = true;
+          spawnFloater('応急キット +1', false);
+        } else spawnFloater('応急キット MAX', false);
       }
-      AudioSys.pickup();
-      scene.remove(l.m);
-      loots.splice(i, 1);
-      updateAmmoHUD();
+      if (picked) {
+        AudioSys.pickup();
+        scene.remove(l.m);
+        loots.splice(i, 1);
+        updateAmmoHUD();
+      }
     }
   }
 }

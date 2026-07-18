@@ -6,7 +6,8 @@
 let renderer, scene, camera;
 let worldHemi = null, worldSun = null;
 const BASE_FOG_DENSITY = 0.0075;
-const colliders = [];     // THREE.Box3（移動衝突用）
+/** 移動衝突用 OBB（Y 回転）。AABB だと斜め建物の外側に見えない壁が出る */
+const colliders = [];
 const worldMeshes = [];   // 弾丸レイキャスト用
 
 /** Survival ステージ演出用（砂嵐など） */
@@ -223,7 +224,30 @@ function buildMaterials() {
  *  - 弾: intersectObjects(..., false) が子 Mesh に当たらず貫通する
  *  - 移動: setFromObject(Group) が空洞込みの巨大 AABB になる
  * ので、必ず葉 Mesh 単位で登録する。
+ * さらに回転メッシュを AABB にすると斜めの「見えない壁」になるため、
+ * 移動用は向き付きボックス（OBB）で登録する。
  */
+function pushObbCollider(mesh) {
+  mesh.updateMatrixWorld(true);
+  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+  const bb = mesh.geometry.boundingBox;
+  const inv = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+  // 特異行列や壊れた transform はスキップ（NaN が移動→音声へ伝播するのを防ぐ）
+  if (!inv.elements.every(Number.isFinite)) return;
+  const min = bb.min, max = bb.max;
+  if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) return;
+  // 極薄面（Plane 等）は移動判定から除外
+  const thick = Math.max(max.x - min.x, max.y - min.y, max.z - min.z);
+  if (thick < 1e-4) return;
+  colliders.push({
+    inv,
+    matrix: mesh.matrixWorld.clone(),
+    minX: min.x, maxX: max.x,
+    minY: min.y, maxY: max.y,
+    minZ: min.z, maxZ: max.z,
+  });
+}
+
 function addObstacle(root, useBoxCollider = true) {
   scene.add(root);
   root.updateMatrixWorld(true);
@@ -233,7 +257,7 @@ function addObstacle(root, useBoxCollider = true) {
     o.receiveShadow = true;
     worldMeshes.push(o);
     if (useBoxCollider && !o.userData.noCollide) {
-      colliders.push(new THREE.Box3().setFromObject(o));
+      pushObbCollider(o);
     }
   });
   return root;
@@ -467,7 +491,7 @@ function initWorld() {
     b.position.set(x, 0.8, z);
     scene.add(b); b.receiveShadow = true;
     worldMeshes.push(b);
-    colliders.push(new THREE.Box3().setFromObject(b));
+    pushObbCollider(b);
   }
 
   /* ---- 拠点レイアウト ---- */
