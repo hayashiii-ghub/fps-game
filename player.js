@@ -94,6 +94,7 @@ const weapon = {
   mag: 30, magSize: 30, reserve: 120,
   reloading: false, reloadT: 0, reloadDur: 2.1,
   lastShot: 0, fireInterval: 60 / 750,
+  boltUntil: 0,            // スナイパーコッキング終了時刻
   bloom: 0,
   ads: false, adsT: 0,
   gun: null, muzzle: null, flash: null, flashLight: null,
@@ -132,6 +133,7 @@ function applyWeaponStats(id) {
   weapon.semiLocked = false;
   weapon.reloading = false;
   weapon.reloadT = 0;
+  weapon.boltUntil = 0;
   weapon.ads = false;
   document.getElementById('reloadwrap').style.display = 'none';
 
@@ -479,6 +481,10 @@ const _up = new THREE.Vector3(0, 1, 0);
 const _camUp = new THREE.Vector3();
 const _muzzleW = new THREE.Vector3();
 
+function isSniperBolting() {
+  return arsenal.activeId === 'sniper' && game.time < weapon.boltUntil;
+}
+
 function currentSpread() {
   const def = activeDef();
   let s = weapon.ads ? def.spreadAds : def.spreadHip;
@@ -510,6 +516,7 @@ function tryFire(now) {
   game.shots++;
   game.shotFired = true;
 
+  // 弾道・リコイルは撃った瞬間の ADS で計算してから、スナイパーだけスコープ解除する
   const rec = weapon.ads ? def.adsRecoil : 1;
   player.recoilP += rand(def.recoilP[0], def.recoilP[1]) * rec;
   player.recoilY += rand(-def.recoilY, def.recoilY) * rec;
@@ -559,6 +566,13 @@ function tryFire(now) {
   weapon.flashLight.intensity = arsenal.activeId === 'sniper' ? 3.2 : 2.4;
 
   if (!scopeTracer) ejectShell(_muzzleW, _right, _up);
+
+  // 弾道確定後にボルト開始。先に ads=false すると腰撃ち散布（0.09）が乗る
+  if (arsenal.activeId === 'sniper') {
+    weapon.boltUntil = now + weapon.fireInterval;
+    weapon.ads = false;
+    AudioSys.bolt();
+  }
 
   AudioSys.shot();
   updateAmmoHUD();
@@ -638,9 +652,11 @@ function updatePlayer(dt) {
   player.crouching = !!k.KeyC;
   const shiftHeld = !!(k.ShiftLeft || k.ShiftRight);
   // しゃがみ中の Shift はスプリントではなくスコープ（C+Shift）
+  const bolting = isSniperBolting();
   player.sprinting = !player.healing && !player.nadeAim &&
     shiftHeld && mz < 0 && !player.crouching && !weapon.reloading && !input.rmb;
-  const wantAds = !player.nadeAim && !player.healing &&
+  // ボルトコッキング中はスコープ不可（撃てないのに覗ける違和感を防ぐ）
+  const wantAds = !player.nadeAim && !player.healing && !bolting &&
     (input.rmb || (player.crouching && shiftHeld)) && !weapon.reloading && !player.sprinting;
   weapon.ads = wantAds;
 
