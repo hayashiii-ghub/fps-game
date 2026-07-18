@@ -17,6 +17,7 @@ const game = {
   time: 0,
   wave: 0, score: 0, kills: 0, headshots: 0, shots: 0, hits: 0,
   spawnQueue: 0, spawnT: 0, intermission: 0, boomT: 8,
+  spawnKinds: [], waveConcurrent: 5, accMul: 1,
   hurtFlash: 0, shotFired: false, deathCamT: 0,
   noLock: false,
   tdm: {
@@ -79,7 +80,7 @@ function updateScoreHUD() {
 function updateWaveHUD() {
   if (game.mode === 'tdm') return;
   const alive = enemies.filter(e => e.alive).length;
-  $('waveinfo').textContent = `WAVE ${game.wave} ― 残敵 ${alive + game.spawnQueue}`;
+  $('waveinfo').textContent = `STAGE ${game.wave} ― 残敵 ${alive + game.spawnQueue}`;
 }
 function updateTdmHUD() {
   const timer = $('tdmtimer');
@@ -118,10 +119,29 @@ function spawnFloater(text, hs) {
 }
 function showBanner(text, sub) {
   const b = $('banner');
+  b.classList.remove('show', 'clear');
   b.innerHTML = `${text}<div class="sub">${sub || ''}</div>`;
-  b.classList.remove('show');
   void b.offsetWidth;
   b.classList.add('show');
+}
+
+/** Survival ステージクリア用（少し豪華） */
+function showStageClearBanner(stage) {
+  const def = typeof STAGE_DEFS !== 'undefined' ? STAGE_DEFS[stage] : null;
+  const theme = def && def.title
+    ? def.title.replace(/^STAGE\s*\d+\s*[―\-–]\s*/, '')
+    : '';
+  const b = $('banner');
+  b.classList.remove('show', 'clear');
+  b.innerHTML =
+    `<div class="clear-rule"></div>` +
+    `<div class="clear-label">AREA SECURED</div>` +
+    `STAGE ${stage} CLEAR` +
+    `<div class="sub">${theme ? theme + ' ― ' : ''}制圧完了　BONUS +250</div>` +
+    `<div class="clear-rule"></div>`;
+  void b.offsetWidth;
+  b.classList.add('show', 'clear');
+  if (AudioSys && typeof AudioSys.wave === 'function') AudioSys.wave();
 }
 
 function setHudMode() {
@@ -148,6 +168,7 @@ function resetGame() {
   Object.assign(game, {
     time: game.time, wave: 0, score: 0, kills: 0, headshots: 0, shots: 0, hits: 0,
     spawnQueue: 0, spawnT: 0, intermission: 0, boomT: rand(8, 20),
+    spawnKinds: [], waveConcurrent: 5, accMul: 1,
     hurtFlash: 0, shotFired: false, deathCamT: 0,
   });
   game.tdm = {
@@ -157,6 +178,7 @@ function resetGame() {
     respawnT: 0,
     waitingRespawn: false,
   };
+  if (typeof setAtmosphere === 'function') setAtmosphere();
 
   const spawn = game.mode === 'tdm'
     ? TDM_SPAWNS.blue[(Math.random() * TDM_SPAWNS.blue.length) | 0]
@@ -229,8 +251,8 @@ function survivalVictory() {
   if (typeof cancelNadeAim === 'function') cancelNadeAim();
   if (typeof cancelHeal === 'function') cancelHeal();
   if (document.pointerLockElement) document.exitPointerLock();
-  showResult('MISSION COMPLETE', 'WAVE 10 到達 ― 拠点死守成功', {
-    '到達ウェーブ': String(game.wave),
+  showResult('MISSION COMPLETE', 'STAGE 5 クリア ― 拠点死守成功', {
+    '到達ステージ': String(game.wave),
     'キル数': String(game.kills),
     'ヘッドショット': String(game.headshots),
     'スコア': String(game.score),
@@ -270,21 +292,12 @@ function respawnPlayer() {
   player.alive = true;
   player.recoilP = player.recoilY = 0;
   player.eyeH = 1.62;
-  player.grenades = Math.max(player.grenades, 1);
-  player.medkits = Math.max(player.medkits, 1);
-  // 弾切れ対策：マガジン補充（リザーブは維持）
-  saveActiveAmmo();
-  for (const id of WEAPON_ORDER) {
-    if (!arsenal.owned[id]) continue;
-    const def = WEAPON_DEFS[id];
-    const slot = arsenal.slots[id];
-    if (slot.mag < def.magSize && slot.reserve > 0) {
-      const need = def.magSize - slot.mag;
-      const take = Math.min(need, slot.reserve);
-      slot.mag += take;
-      slot.reserve -= take;
-    }
-  }
+  // TDM: 弾は死亡で初期ロードアウトにリセット（グレ/キットは持ち越し）
+  arsenal.slots = {
+    assault: { mag: 30, reserve: 90 },
+    pistol: { mag: 12, reserve: 36 },
+    sniper: { mag: 5, reserve: 10 },
+  };
   applyWeaponStats(arsenal.activeId);
   game.tdm.waitingRespawn = false;
   game.tdm.respawnT = 0;

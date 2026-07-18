@@ -20,8 +20,16 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
   const parts = [];
   const reg = (mesh, part) => { mesh.userData.part = part; parts.push(mesh); return mesh; };
   const isSniper = kind === 'sniper';
-  const bodyMat = team === 'blue' ? MAT.metalBlue : MAT.camo;
-  const darkMat = team === 'blue' ? MAT.metalGrey : MAT.camoDark;
+  let bodyMat, darkMat;
+  if (team === 'blue') {
+    bodyMat = MAT.metalBlue; darkMat = MAT.metalGrey;
+  } else if (kind === 'elite') {
+    bodyMat = MAT.burnt; darkMat = MAT.darkMetal;
+  } else if (kind === 'rusher') {
+    bodyMat = MAT.camoDark; darkMat = MAT.camo;
+  } else {
+    bodyMat = MAT.camo; darkMat = MAT.camoDark;
+  }
 
   // 脚
   const legL = new THREE.Group(), legR = new THREE.Group();
@@ -126,9 +134,10 @@ class Enemy {
 
     this.pos = new THREE.Vector3(x, 0, z);
     this.g.position.copy(this.pos);
+    if (kind === 'elite') this.g.scale.setScalar(1.12);
     scene.add(this.g);
 
-    this.hp = 100;
+    this.hp = kind === 'elite' ? 220 : (kind === 'rusher' ? 90 : 100);
     this.alive = true;
     this.state = 'patrol';          // patrol | combat | search
     this.alertT = 0;
@@ -139,7 +148,10 @@ class Enemy {
     this.strafeT = rand(1, 2.5);
     this.burstLeft = 0;
     this.shotT = 0;
-    this.burstCd = kind === 'sniper' ? rand(1.8, 2.8) : rand(1, 2);
+    this.burstCd = kind === 'sniper' ? rand(1.8, 2.8)
+      : kind === 'rusher' ? rand(0.6, 1.2)
+      : kind === 'elite' ? rand(0.8, 1.4)
+      : rand(0.8, 1.6);
     this.crouched = kind === 'sniper';
     this.walkPhase = rand(0, 6);
     this.speed = 0;
@@ -277,10 +289,11 @@ class Enemy {
       this.lastKnown.copy(tgt.pos);
       if (this.state !== 'combat') {
         this.state = 'combat';
-        // TDM は反応を速め、狙撃は予兆のためやや遅め
-        this.alertT = this.kind === 'sniper'
-          ? rand(0.9, 1.6)
-          : (game.mode === 'tdm' ? rand(0.25, 0.55) : rand(0.45, 1.0));
+        // 狙撃は予兆のため遅め。Survival も全体的に反応を速く
+        if (this.kind === 'sniper') this.alertT = rand(0.9, 1.6);
+        else if (this.kind === 'rusher') this.alertT = rand(0.15, 0.35);
+        else if (this.kind === 'elite') this.alertT = rand(0.2, 0.45);
+        else this.alertT = game.mode === 'tdm' ? rand(0.25, 0.55) : rand(0.28, 0.6);
       }
       this.suppressT = 0;
     } else if (this.state === 'combat') {
@@ -308,13 +321,17 @@ class Enemy {
       let adv = 0;
       if (this.kind === 'sniper') {
         if (dist > 52) adv = 1; else if (dist < 28) adv = -1;
+      } else if (this.kind === 'rusher') {
+        if (dist > 14) adv = 1; else if (dist < 3.5) adv = -1;
+      } else if (this.kind === 'elite') {
+        if (dist > 28) adv = 1; else if (dist < 10) adv = -1;
       } else {
-        if (dist > 34) adv = 1; else if (dist < 9) adv = -1;
+        if (dist > 32) adv = 1; else if (dist < 9) adv = -1;
       }
 
       // 遮蔽へ寄る：見通しが悪いときは前進、開いているときはストレイフ優先
       this.coverT -= dt;
-      if (!sees && this.coverT <= 0) {
+      if (!sees && this.coverT <= 0 && this.kind !== 'rusher') {
         this.coverT = rand(1.2, 2.4);
         this.moveTarget.set(
           clamp(tgt.pos.x + rand(-8, 8), -54, 54), 0,
@@ -323,16 +340,21 @@ class Enemy {
 
       this.strafeT -= dt;
       if (this.strafeT <= 0) { this.strafeDir *= -1; this.strafeT = rand(0.8, 2.2); }
-      const strafeAmt = this.kind === 'sniper' ? 0.25 : (adv === 0 ? 1 : 0.45);
+      const strafeAmt = this.kind === 'sniper' ? 0.25
+        : this.kind === 'rusher' ? 0.35
+        : (adv === 0 ? 1 : 0.45);
       moveX = fwdX * adv + -fwdZ * this.strafeDir * strafeAmt;
       moveZ = fwdZ * adv + fwdX * this.strafeDir * strafeAmt;
-      wantSpeed = this.kind === 'sniper'
-        ? (adv !== 0 ? 2.4 : 1.2)
-        : (adv !== 0 ? (game.mode === 'tdm' ? 5.0 : 4.3) : 2.6);
-      if (this.kind !== 'sniper') {
+      if (this.kind === 'sniper') wantSpeed = adv !== 0 ? 2.4 : 1.2;
+      else if (this.kind === 'rusher') wantSpeed = adv !== 0 ? 6.5 : 4.0;
+      else if (this.kind === 'elite') wantSpeed = adv !== 0 ? 3.1 : 1.7;
+      else wantSpeed = adv !== 0 ? (game.mode === 'tdm' ? 5.0 : 4.6) : 2.8;
+      if (this.kind === 'sniper') {
+        this.crouched = adv === 0;
+      } else if (this.kind !== 'rusher') {
         this.crouched = adv === 0 && Math.random() < 0.003 ? !this.crouched : this.crouched;
       } else {
-        this.crouched = adv === 0;
+        this.crouched = false;
       }
 
       if (this.alertT <= 0 && sees) this.updateFire(dt, dist, tgt);
@@ -410,8 +432,12 @@ class Enemy {
     } else {
       this.burstCd -= dt;
       if (this.burstCd <= 0) {
-        this.burstLeft = 3 + (Math.random() * 3 | 0);
-        this.burstCd = game.mode === 'tdm' ? rand(1.1, 2.2) : rand(1.6, 3.0);
+        this.burstLeft = this.kind === 'rusher' ? 4 + (Math.random() * 3 | 0)
+          : this.kind === 'elite' ? 4 + (Math.random() * 2 | 0)
+          : 3 + (Math.random() * 3 | 0);
+        this.burstCd = game.mode === 'tdm' ? rand(1.1, 2.2)
+          : this.kind === 'rusher' ? rand(0.9, 1.6)
+          : rand(1.2, 2.4);
       }
     }
   }
@@ -435,13 +461,17 @@ class Enemy {
     } else if (tdm) {
       p = clamp(0.34 - dist * 0.0032, 0.08, 0.34);
     } else {
-      p = clamp(0.26 - dist * 0.0035, 0.04, 0.26);
+      // Survival: 以前より命中を上げる
+      p = clamp(0.34 - dist * 0.0032, 0.07, 0.34);
     }
+    if (this.kind === 'rusher') p *= dist < 16 ? 1.3 : 0.65;
+    if (this.kind === 'elite') p *= 1.25;
+    p *= (game.accMul || 1);
     if (tgt && tgt.type === 'player') {
       if (player.crouching) p *= 0.7;
       if (player.sprinting) p *= 0.6;
     }
-    if (this.speed > 1) p *= 0.65;
+    if (this.speed > 1) p *= this.kind === 'rusher' ? 0.85 : 0.65;
     const stillSees = tgt && (tgt.type === 'player' ? this.canSeePlayer() : this.canSeePoint(tgt.pos));
     if (!stillSees) p = 0;
 
@@ -452,10 +482,14 @@ class Enemy {
       aim = chest.clone().add(new THREE.Vector3(rand(-0.08, 0.08), rand(-0.08, 0.08), rand(-0.08, 0.08)));
       let dmg;
       if (tdm) {
-        // プレイヤーと同装備ダメージ（アサルト胴 / 砂胴一撃）
+        // プレイヤーと同装備ダメージ（アサルト胴 / 砂胴95）
         dmg = this.kind === 'sniper' ? WEAPON_DEFS.sniper.dmg.torso : WEAPON_DEFS.assault.dmg.torso;
+      } else if (this.kind === 'elite') {
+        dmg = rand(14, 20) * (dist > 40 ? 0.8 : 1);
+      } else if (this.kind === 'sniper') {
+        dmg = rand(24, 34);
       } else {
-        dmg = this.kind === 'sniper' ? rand(22, 32) : rand(7, 12) * (dist > 40 ? 0.75 : 1);
+        dmg = rand(9, 14) * (dist > 40 ? 0.75 : 1);
       }
       if (tgt && tgt.type === 'player') {
         damagePlayer(dmg, this.pos);
@@ -540,12 +574,17 @@ class Enemy {
     // サバイバル
     game.kills++;
     if (headshot) game.headshots++;
-    const base = this.kind === 'sniper' ? 180 : 100;
+    const base = this.kind === 'elite' ? 250
+      : this.kind === 'sniper' ? 180
+      : this.kind === 'rusher' ? 120
+      : 100;
     const pts = headshot ? base + 50 : base;
     game.score += pts;
-    const label = this.kind === 'sniper'
-      ? (headshot ? `狙撃兵ヘッド ＋${pts}` : `狙撃兵排除 ＋${pts}`)
-      : (headshot ? `ヘッドショット ＋${pts}` : `敵兵排除 ＋${pts}`);
+    const name = this.kind === 'elite' ? '精鋭'
+      : this.kind === 'sniper' ? '狙撃兵'
+      : this.kind === 'rusher' ? '突撃兵'
+      : '敵兵';
+    const label = headshot ? `${name}ヘッド ＋${pts}` : `${name}排除 ＋${pts}`;
     addKillfeed(label, headshot);
     spawnFloater(headshot ? `HEADSHOT +${pts}` : `+${pts}`, headshot);
     updateScoreHUD();
@@ -687,17 +726,57 @@ function updateLoot(dt) {
   }
 }
 
-/* ---------- ウェーブ管理（SURVIVAL） ---------- */
-function waveSize(n) { return Math.min(3 + n * 2, 12); }
+/* ---------- ウェーブ管理（SURVIVAL・5ステージ） ---------- */
+const SURVIVAL_MAX = 5;
+const STAGE_DEFS = {
+  1: {
+    title: 'STAGE 1 ― 接触',
+    sub: '敵歩兵接近 ― 迎撃せよ',
+    concurrent: 4,
+    queue: ['grunt', 'grunt', 'grunt', 'grunt', 'grunt'],
+    fog: BASE_FOG_DENSITY, dim: false, accMul: 1.05,
+  },
+  2: {
+    title: 'STAGE 2 ― 狙撃線',
+    sub: '狙撃兵確認 ― 遮蔽を使え',
+    concurrent: 5,
+    queue: ['grunt', 'grunt', 'sniper', 'grunt', 'grunt', 'sniper', 'grunt'],
+    fog: BASE_FOG_DENSITY, dim: false, accMul: 1.15,
+  },
+  3: {
+    title: 'STAGE 3 ― 強襲',
+    sub: '突撃部隊 ― 間合いを取れ',
+    concurrent: 6,
+    queue: ['rusher', 'rusher', 'rusher', 'grunt', 'rusher', 'rusher', 'grunt', 'rusher', 'rusher', 'rusher'],
+    fog: BASE_FOG_DENSITY, dim: false, accMul: 1.2,
+  },
+  4: {
+    title: 'STAGE 4 ― 砂嵐',
+    sub: '視界不良 ― 音に頼れ',
+    concurrent: 5,
+    queue: ['grunt', 'rusher', 'sniper', 'grunt', 'rusher', 'grunt', 'rusher', 'grunt', 'rusher'],
+    fog: 0.018, dim: true, accMul: 1.4,
+  },
+  5: {
+    title: 'STAGE 5 ― 最終防衛',
+    sub: '精鋭部隊 ― 全滅させよ',
+    concurrent: 5,
+    queue: ['elite', 'grunt', 'grunt', 'elite', 'rusher', 'grunt', 'elite', 'rusher'],
+    fog: 0.009, dim: false, accMul: 1.35,
+  },
+};
 
 function startWave(n) {
+  const def = STAGE_DEFS[n] || STAGE_DEFS[1];
   game.wave = n;
-  const total = waveSize(n);
-  game.spawnQueue = total;
-  game.waveTotal = total;
+  game.spawnKinds = def.queue.slice();
+  game.spawnQueue = game.spawnKinds.length;
+  game.waveTotal = game.spawnQueue;
   game.spawnT = 0.5;
-  game.spawnSniper = n >= 2;
-  showBanner(`WAVE ${n}`, n >= 2 ? '狙撃兵確認 ― 警戒せよ' : '敵部隊接近 ― 迎撃せよ');
+  game.waveConcurrent = def.concurrent;
+  game.accMul = def.accMul;
+  if (typeof setAtmosphere === 'function') setAtmosphere({ density: def.fog, dim: def.dim });
+  showBanner(def.title, def.sub);
   AudioSys.wave();
   updateWaveHUD();
 }
@@ -709,20 +788,17 @@ function updateWaves(dt) {
     game.spawnT -= dt;
     if (game.spawnT <= 0) {
       const concurrent = enemies.filter(e => e.alive).length;
-      if (concurrent < Math.min(4 + game.wave, 8)) {
+      const cap = game.waveConcurrent || 5;
+      if (concurrent < cap) {
         const sp = pickSpawnPoint();
-        let kind = 'grunt';
-        if (game.spawnSniper && (game.spawnQueue === 1 || Math.random() < 0.35)) {
-          kind = 'sniper';
-          game.spawnSniper = false;
-        }
+        const kind = (game.spawnKinds && game.spawnKinds.shift()) || 'grunt';
         enemies.push(new Enemy(sp[0], sp[1], kind, 'red'));
         rebuildHitMeshes();
-        game.spawnQueue--;
-        game.spawnT = rand(0.3, 0.9);
+        game.spawnQueue = game.spawnKinds ? game.spawnKinds.length : 0;
+        game.spawnT = rand(0.25, 0.75);
         updateWaveHUD();
       } else {
-        game.spawnT = 0.5;
+        game.spawnT = 0.4;
       }
     }
   }
@@ -730,13 +806,10 @@ function updateWaves(dt) {
   if (game.intermission > 0) {
     game.intermission -= dt;
     document.getElementById('waveinfo').textContent =
-      `WAVE ${game.wave} CLEAR ― 次の波まで ${Math.ceil(game.intermission)}`;
+      `STAGE ${game.wave} CLEAR ― 次まで ${Math.ceil(game.intermission)}`;
     if (game.intermission <= 0) {
-      if (game.wave >= 10) {
-        survivalVictory();
-      } else {
-        startWave(game.wave + 1);
-      }
+      if (game.wave >= SURVIVAL_MAX) survivalVictory();
+      else startWave(game.wave + 1);
     }
   }
 
@@ -759,23 +832,24 @@ function checkWaveCleared() {
   updateWaveHUD();
   const alive = enemies.filter(e => e.alive).length;
   if (alive === 0 && game.spawnQueue === 0 && game.intermission <= 0) {
-    if (game.wave >= 10) {
+    if (game.wave >= SURVIVAL_MAX) {
       game.score += 500;
-      spawnFloater('WAVE 10 CLEAR +500', false);
+      spawnFloater('STAGE 5 CLEAR +500', false);
       updateScoreHUD();
       survivalVictory();
       return;
     }
-    game.intermission = 4;
+    game.intermission = 5;
     game.score += 250;
-    spawnFloater('WAVE BONUS +250', false);
+    showStageClearBanner(game.wave);
+    spawnFloater('STAGE BONUS +250', false);
     updateScoreHUD();
   }
 }
 
 /* ---------- TDM ---------- */
 function startTdmMatch() {
-  // 青: 味方AI 2 / 赤: 敵 3（うち1は狙撃）— 初期配置もばらけさせる
+  // 5v5: 青はプレイヤー＋味方AI4 / 赤は敵5（うち1は狙撃）
   const takeDistinct = (team, n) => {
     const pool = TDM_SPAWNS[team].slice();
     for (let i = pool.length - 1; i > 0; i--) {
@@ -784,19 +858,20 @@ function startTdmMatch() {
     }
     return pool.slice(0, n);
   };
-  const blueSp = takeDistinct('blue', 3);
-  const redSp = takeDistinct('red', 3);
-  // プレイヤーは resetGame で別スポーン済み。味方AIは残りから
-  enemies.push(new Enemy(blueSp[1][0], blueSp[1][1], 'grunt', 'blue'));
-  enemies.push(new Enemy(blueSp[2][0], blueSp[2][1], 'grunt', 'blue'));
-  enemies.push(new Enemy(redSp[0][0], redSp[0][1], 'grunt', 'red'));
-  enemies.push(new Enemy(redSp[1][0], redSp[1][1], 'grunt', 'red'));
-  enemies.push(new Enemy(redSp[2][0], redSp[2][1], 'sniper', 'red'));
+  const blueSp = takeDistinct('blue', 5);
+  const redSp = takeDistinct('red', 5);
+  for (let i = 1; i < 5; i++) {
+    enemies.push(new Enemy(blueSp[i][0], blueSp[i][1], 'grunt', 'blue'));
+  }
+  for (let i = 0; i < 4; i++) {
+    enemies.push(new Enemy(redSp[i][0], redSp[i][1], 'grunt', 'red'));
+  }
+  enemies.push(new Enemy(redSp[4][0], redSp[4][1], 'sniper', 'red'));
   for (const e of enemies) {
     e.g.rotation.y = Math.atan2(-e.pos.x, -e.pos.z);
   }
   rebuildHitMeshes();
-  showBanner('TEAM DEATHMATCH', '5分 ― キル数で勝敗');
+  showBanner('TEAM DEATHMATCH', '5v5・5分 ― キル数で勝敗');
   updateTdmHUD();
 }
 

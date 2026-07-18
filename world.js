@@ -4,8 +4,19 @@
    ============================================================ */
 
 let renderer, scene, camera;
+let worldHemi = null, worldSun = null;
+const BASE_FOG_DENSITY = 0.0075;
 const colliders = [];     // THREE.Box3（移動衝突用）
 const worldMeshes = [];   // 弾丸レイキャスト用
+
+/** Survival ステージ演出用（砂嵐など） */
+function setAtmosphere(opts = {}) {
+  const density = opts.density !== undefined ? opts.density : BASE_FOG_DENSITY;
+  const dim = !!opts.dim;
+  if (scene && scene.fog) scene.fog.density = density;
+  if (worldSun) worldSun.intensity = dim ? 0.5 : 1.05;
+  if (worldHemi) worldHemi.intensity = dim ? 0.45 : 0.95;
+}
 const SPAWN_POINTS = [
   [0, -56], [34, -48], [-34, -48], [54, -14], [-54, -14],
   [54, 30], [-54, 30], [26, 54], [-26, 54],
@@ -412,7 +423,7 @@ function initWorld() {
   document.body.appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0xbfb193, 0.0075);
+  scene.fog = new THREE.FogExp2(0xbfb193, BASE_FOG_DENSITY);
 
   camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 600);
   camera.rotation.order = 'YXZ';
@@ -426,17 +437,17 @@ function initWorld() {
   scene.add(sky);
 
   // 光
-  const hemi = new THREE.HemisphereLight(0x9fa8b2, 0x6b5f48, 0.95);
-  scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff0d8, 1.05);
-  sun.position.set(70, 95, 35);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -85; sun.shadow.camera.right = 85;
-  sun.shadow.camera.top = 85; sun.shadow.camera.bottom = -85;
-  sun.shadow.camera.near = 20; sun.shadow.camera.far = 260;
-  sun.shadow.bias = -0.0006;
-  scene.add(sun);
+  worldHemi = new THREE.HemisphereLight(0x9fa8b2, 0x6b5f48, 0.95);
+  scene.add(worldHemi);
+  worldSun = new THREE.DirectionalLight(0xfff0d8, 1.05);
+  worldSun.position.set(70, 95, 35);
+  worldSun.castShadow = true;
+  worldSun.shadow.mapSize.set(2048, 2048);
+  worldSun.shadow.camera.left = -85; worldSun.shadow.camera.right = 85;
+  worldSun.shadow.camera.top = 85; worldSun.shadow.camera.bottom = -85;
+  worldSun.shadow.camera.near = 20; worldSun.shadow.camera.far = 260;
+  worldSun.shadow.bias = -0.0006;
+  scene.add(worldSun);
 
   buildMaterials();
 

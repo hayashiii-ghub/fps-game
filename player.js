@@ -19,6 +19,7 @@ const player = {
   grenadeMax: 4,
   grenadeCd: 0,
   nadeAim: false,
+  moveMul: 1,          // 武器切替時の移動倍率（滑らかに追従）
   medkits: 0,
   medkitMax: 3,
   healing: false,
@@ -36,6 +37,7 @@ const WEAPON_DEFS = {
     id: 'assault', label: 'アサルト', mode: 'AUTO',
     magSize: 30, startReserve: 120, maxReserve: 360,
     fireInterval: 60 / 750, reloadDur: 2.1, auto: true,
+    moveMul: 1.0,          // 基準速
     spreadHip: 0.017, spreadAds: 0.0045,
     bloomAdd: 0.0038, bloomMax: 0.03, bloomDecay: 0.028,
     recoilP: [0.0055, 0.0085], recoilY: 0.0035,
@@ -49,19 +51,22 @@ const WEAPON_DEFS = {
     id: 'pistol', label: 'ハンドガン', mode: 'SEMI',
     magSize: 12, startReserve: 60, maxReserve: 120,
     fireInterval: 60 / 320, reloadDur: 1.35, auto: false,
-    spreadHip: 0.022, spreadAds: 0.01,
+    moveMul: 1.12,         // 近接応戦・逃げ切り用に速い
+    spreadHip: 0.022, spreadAds: 0.007,
     bloomAdd: 0.002, bloomMax: 0.018, bloomDecay: 0.04,
     recoilP: [0.004, 0.006], recoilY: 0.0025,
     kickZ: 0.03, kickR: 0.05, adsRecoil: 0.7,
-    adsFov: 62, adsSens: 0.75, scale: 0.88,
+    // 覗き込みではなく「腰撃ち固定」：FOV据え置き・銃は腰位置のまま
+    adsFov: 75, adsSens: 0.88, scale: 0.88,
     hip: { x: 0.2, y: -0.22, z: -0.36, rx: 0, ry: 0.06 },
-    ads: { x: 0.02, y: -0.14, z: -0.4, rx: 0, ry: 0 },
+    ads: { x: 0.18, y: -0.2, z: -0.37, rx: 0.02, ry: 0.05 },
     dmg: { head: 90, torso: 28, limb: 18 },
   },
   sniper: {
     id: 'sniper', label: 'スナイパー', mode: 'BOLT',
     magSize: 5, startReserve: 15, maxReserve: 40,
     fireInterval: 1.2, reloadDur: 2.7, auto: false,
+    moveMul: 0.9,          // 腰撃ちでも少し重い
     spreadHip: 0.09, spreadAds: 0.0007,
     bloomAdd: 0.01, bloomMax: 0.02, bloomDecay: 0.05,
     recoilP: [0.02, 0.028], recoilY: 0.006,
@@ -69,8 +74,8 @@ const WEAPON_DEFS = {
     adsFov: 22, adsSens: 0.38, scale: 1,
     hip: { x: 0.22, y: -0.2, z: -0.42, rx: 0.02, ry: 0.1 },
     ads: { x: 0, y: -0.1, z: -0.52, rx: 0, ry: 0 },
-    // 胴・頭は一撃、四肢は非致死
-    dmg: { head: 200, torso: 105, limb: 55 },
+    // 頭は一撃、胴は95%（非一撃）、四肢は非致死
+    dmg: { head: 200, torso: 95, limb: 55 },
   },
 };
 
@@ -175,6 +180,7 @@ function resetArsenal() {
   player.grenadeMax = tdm ? 4 : 4;
   player.grenadeCd = 0;
   player.nadeAim = false;
+  player.moveMul = WEAPON_DEFS.assault.moveMul;
   player.medkits = tdm ? 2 : 0;
   player.medkitMax = tdm ? 3 : 3;
   player.healing = false;
@@ -470,16 +476,18 @@ const _dir = new THREE.Vector3();
 const _from = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
+const _camUp = new THREE.Vector3();
 const _muzzleW = new THREE.Vector3();
 
 function currentSpread() {
   const def = activeDef();
   let s = weapon.ads ? def.spreadAds : def.spreadHip;
   const spd = Math.hypot(player.vel.x, player.vel.z);
-  s += (spd / 7) * 0.02;
-  if (!player.onGround) s += 0.03;
+  // ADS 中は移動ブレを抑える（特にスナイパーのスコープずれ防止）
+  s += (spd / 7) * 0.02 * (weapon.ads ? 0.2 : 1);
+  if (!player.onGround) s += weapon.ads ? 0.008 : 0.03;
   if (player.crouching) s *= 0.72;
-  return s + weapon.bloom;
+  return s + weapon.bloom * (weapon.ads && arsenal.activeId === 'sniper' ? 0.35 : 1);
 }
 
 function tryFire(now) {
@@ -509,11 +517,15 @@ function tryFire(now) {
   weapon.kickZ += def.kickZ;
   weapon.kickR += def.kickR;
 
+  // 照準は常にカメラ視線（画面中央＝スコープ中央）。散弾はカメラローカル軸で振る
   camera.getWorldDirection(_dir);
-  const sp = currentSpread();
-  _dir.x += rand(-sp, sp); _dir.y += rand(-sp, sp); _dir.z += rand(-sp, sp);
-  _dir.normalize();
   _from.copy(camera.getWorldPosition(new THREE.Vector3()));
+  _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  _camUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+  const sp = currentSpread();
+  _dir.addScaledVector(_right, rand(-sp, sp));
+  _dir.addScaledVector(_camUp, rand(-sp, sp));
+  _dir.normalize();
 
   const rc = new THREE.Raycaster(_from, _dir, 0.05, 300);
   const targets = hitMeshes.concat(worldMeshes);
@@ -533,16 +545,20 @@ function tryFire(now) {
   }
 
   weapon.muzzle.getWorldPosition(_muzzleW);
-  spawnTracer(_muzzleW, end, 0xffe9b8);
+  // スナイパーADS時は銃口オフセットのトレーサーだとスコープと見た目がズレるので視線起点にする
+  const scopeTracer = arsenal.activeId === 'sniper' && weapon.adsT > 0.45;
+  const tracerFrom = scopeTracer
+    ? _from.clone().addScaledVector(_dir, 0.4)
+    : _muzzleW;
+  spawnTracer(tracerFrom, end, 0xffe9b8);
 
-  weapon.flash.material.opacity = 0.95;
+  weapon.flash.material.opacity = scopeTracer ? 0 : 0.95;
   weapon.flash.material.rotation = rand(0, 6.28);
   weapon.flash.scale.setScalar(rand(0.16, 0.26));
-  weapon.flashLight.position.copy(_muzzleW);
+  weapon.flashLight.position.copy(scopeTracer ? tracerFrom : _muzzleW);
   weapon.flashLight.intensity = arsenal.activeId === 'sniper' ? 3.2 : 2.4;
 
-  _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
-  ejectShell(_muzzleW, _right, _up);
+  if (!scopeTracer) ejectShell(_muzzleW, _right, _up);
 
   AudioSys.shot();
   updateAmmoHUD();
@@ -632,8 +648,17 @@ function updatePlayer(dt) {
   player.eyeH = lerp(player.eyeH, player.targetEyeH, 1 - Math.exp(-12 * dt));
 
   let speed = player.crouching ? 2.4 : (player.sprinting ? 7.2 : 4.6);
-  if (weapon.ads) speed *= arsenal.activeId === 'sniper' ? 0.4 : 0.55;
-  // グレ構え中は武器持ちと同速（ADS だけ減速）
+  // 武器ごとの移動差（グレ構えはアサルト基準）。切替直後は滑らかに追従
+  const wantMoveMul = player.nadeAim
+    ? WEAPON_DEFS.assault.moveMul
+    : (activeDef().moveMul || 1);
+  player.moveMul = lerp(player.moveMul, wantMoveMul, 1 - Math.exp(-6 * dt));
+  speed *= player.moveMul;
+  if (weapon.ads && !player.nadeAim) {
+    if (arsenal.activeId === 'sniper') speed *= 0.4;
+    else if (arsenal.activeId === 'pistol') speed *= 0.45; // 腰撃ち固定の代償
+    else speed *= 0.55;
+  }
   if (player.healing) speed *= 0.35;
 
   updateHeal(dt);
@@ -780,6 +805,11 @@ function updateWeapon(dt) {
     g.visible = t < 0.72;
     if (scopeEl) scopeEl.style.opacity = String(clamp((t - 0.25) / 0.55, 0, 1));
     chEl.style.opacity = 0;
+  } else if (arsenal.activeId === 'pistol') {
+    // ハンドガンADS＝腰撃ち固定。レティクルは残し、広がりだけ絞る
+    g.visible = true;
+    if (scopeEl) scopeEl.style.opacity = '0';
+    chEl.style.opacity = player.sprinting ? 0 : 1;
   } else {
     g.visible = true;
     if (scopeEl) scopeEl.style.opacity = '0';
