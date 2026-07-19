@@ -42,9 +42,10 @@
   .ch.r { left: 50%; top: 50%; width: 9px; height: 2px; transform: translate(0, -50%)     translateX(var(--gap)); }
   .ch.dot { left: 50%; top: 50%; width: 2px; height: 2px; transform: translate(-50%, -50%); }
 
-  /* スナイパースコープ（ADS時。3Dスコープの黒塗り回避） */
+  /* スナイパースコープ（ADS時。3Dスコープの黒塗り回避）
+     z-index は HUD より下。覗き中も体力・弾薬・マップは見せる */
   #scopeoverlay {
-    position: fixed; inset: 0; opacity: 0; z-index: 8;
+    position: fixed; inset: 0; opacity: 0; z-index: 5;
     transition: opacity .05s linear;
   }
   #scopeoverlay .shade {
@@ -74,7 +75,7 @@
   }
 
   /* ヒットマーカー */
-  #hitmarker { position: fixed; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+  #hitmarker { position: fixed; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; z-index: 16; }
   #hitmarker .hm { position: absolute; width: 14px; height: 2px; background: #fff; box-shadow: 0 0 3px rgba(0,0,0,.9); }
   #hitmarker .hm1 { transform: translate(-13px, -8px) rotate(45deg); }
   #hitmarker .hm2 { transform: translate(0px, -8px) rotate(-45deg); }
@@ -86,7 +87,7 @@
 
   /* ダメージ方向インジケータ */
   #dmgdir {
-    position: fixed; left: 50%; top: 50%; width: 150px; height: 150px;
+    position: fixed; left: 50%; top: 50%; width: 150px; height: 150px; z-index: 16;
     margin: -75px 0 0 -75px; border-radius: 50%;
     border: 4px solid transparent; border-top-color: rgba(255, 42, 25, .85);
     opacity: 0; filter: blur(.5px);
@@ -104,21 +105,35 @@
   #lowhp.on { animation: pulse 1.15s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: .12; } 50% { opacity: .55; } }
 
+  /* ミニマップ */
+  #minimap {
+    position: fixed; left: 20px; top: 18px; z-index: 15;
+    width: 148px; height: 148px;
+    border: 1px solid rgba(232, 226, 208, .38);
+    background: rgba(18, 16, 10, .62);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, .55);
+    image-rendering: pixelated;
+  }
+  #minimaplabel {
+    position: fixed; left: 22px; top: 168px; z-index: 15;
+    font-size: 9px; letter-spacing: .28em; color: #a39a7e; text-shadow: 0 1px 2px #000;
+  }
+
   /* 体力 */
-  #healthbox { position: fixed; left: 28px; bottom: 26px; }
+  #healthbox { position: fixed; left: 28px; bottom: 26px; z-index: 15; }
   #healthnum { font-size: 30px; font-weight: 700; text-shadow: 0 1px 3px #000; line-height: 1; }
   #healthnum small { font-size: 13px; color: #b9b09a; font-weight: 400; margin-left: 6px; }
   #healthbar { width: 190px; height: 5px; background: rgba(255,255,255,.14); margin-top: 7px; }
   #healthfill { height: 100%; width: 100%; background: #cfc48a; transition: width .15s, background .3s; }
 
   /* 弾薬 */
-  #ammobox { position: fixed; right: 30px; bottom: 22px; text-align: right; }
+  #ammobox { position: fixed; right: 30px; bottom: 22px; text-align: right; z-index: 15; }
   #firemode { font-size: 11px; letter-spacing: .3em; color: #b9b09a; text-shadow: 0 1px 2px #000; }
   #ammo { font-size: 38px; font-weight: 700; text-shadow: 0 1px 3px #000; line-height: 1.05; }
   #ammo .reserve { font-size: 17px; color: #b9b09a; font-weight: 400; }
   #ammo.empty { color: #ff5a44; }
   #invbox {
-    position: fixed; right: 30px; bottom: 78px; text-align: right;
+    position: fixed; right: 30px; bottom: 78px; text-align: right; z-index: 15;
     font-size: 13px; letter-spacing: .12em; color: #cfc7ad; text-shadow: 0 1px 2px #000;
     line-height: 1.7;
   }
@@ -128,26 +143,26 @@
   #nadebox.aiming b { color: #ffd27a; }
 
   /* リロードバー */
-  #reloadwrap { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); text-align: center; display: none; }
+  #reloadwrap { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); text-align: center; display: none; z-index: 15; }
   #reloadtext { font-size: 11px; letter-spacing: .35em; color: #e8dfb8; text-shadow: 0 1px 2px #000; margin-bottom: 5px; }
   #reloadbar { width: 130px; height: 3px; background: rgba(255,255,255,.15); }
   #reloadfill { height: 100%; width: 0%; background: #e8dfb8; }
-  #healwrap { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); text-align: center; display: none; }
+  #healwrap { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); text-align: center; display: none; z-index: 15; }
   #healtext { font-size: 11px; letter-spacing: .35em; color: #b8e8c4; text-shadow: 0 1px 2px #000; margin-bottom: 5px; }
   #healbar { width: 130px; height: 3px; background: rgba(255,255,255,.15); }
   #healfill { height: 100%; width: 0%; background: #7dcea0; }
 
   /* 上部情報 */
   #waveinfo {
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 15;
     font-size: 13px; letter-spacing: .25em; color: #ddd3b4; text-shadow: 0 1px 3px #000; white-space: nowrap;
   }
-  #scorebox { position: fixed; top: 18px; right: 28px; text-align: right; }
+  #scorebox { position: fixed; top: 18px; right: 28px; text-align: right; z-index: 15; }
   #score { font-size: 24px; font-weight: 700; text-shadow: 0 1px 3px #000; }
   #scorebox small { font-size: 10px; letter-spacing: .3em; color: #b9b09a; }
 
   #tdmhud {
-    display: none; position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    display: none; position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 15;
     text-align: center; text-shadow: 0 1px 3px #000;
   }
   #tdmtimer {
@@ -159,7 +174,7 @@
   #tdmscore .red { color: #e07060; }
 
   #respawnwrap {
-    display: none; position: fixed; left: 50%; top: 62%; transform: translateX(-50%);
+    display: none; position: fixed; left: 50%; top: 62%; transform: translateX(-50%); z-index: 15;
     text-align: center; pointer-events: none;
   }
   #respawntext { font-size: 13px; letter-spacing: .35em; color: #e8dfb8; margin-bottom: 6px; }
@@ -194,7 +209,7 @@
   }
 
   /* キルフィード */
-  #killfeed { position: fixed; top: 78px; right: 28px; text-align: right; font-size: 12px; }
+  #killfeed { position: fixed; top: 78px; right: 28px; text-align: right; font-size: 12px; z-index: 15; }
   #killfeed .kf {
     margin-top: 5px; padding: 4px 9px; background: rgba(10,10,8,.55);
     border-right: 2px solid #cfc48a; color: #e8e2d0; animation: kfIn .18s ease-out;
@@ -204,7 +219,7 @@
 
   /* 中央バナー */
   #banner {
-    position: fixed; top: 28%; left: 0; right: 0; text-align: center;
+    position: fixed; top: 28%; left: 0; right: 0; text-align: center; z-index: 15;
     font-size: 40px; font-weight: 900; letter-spacing: .3em; color: #efe6c4;
     text-shadow: 0 2px 12px rgba(0,0,0,.8); opacity: 0; pointer-events: none;
   }
@@ -313,6 +328,9 @@
   <div id="vignette"></div>
   <div id="lowhp"></div>
 
+  <canvas id="minimap" width="160" height="160" aria-label="minimap"></canvas>
+  <div id="minimaplabel" class="mono">MAP</div>
+
   <div id="healthbox">
     <div id="healthnum">100<small>HP</small></div>
     <div id="healthbar"><div id="healthfill"></div></div>
@@ -408,11 +426,11 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./audio.js?v=jump0"></script>
-<script src="./world.js?v=jump0"></script>
-<script src="./effects.js?v=jump0"></script>
-<script src="./player.js?v=jump0"></script>
-<script src="./enemy.js?v=jump0"></script>
-<script src="./main.js?v=jump0"></script>
+<script src="./audio.js?v=map3"></script>
+<script src="./world.js?v=map3"></script>
+<script src="./effects.js?v=map3"></script>
+<script src="./player.js?v=map3"></script>
+<script src="./enemy.js?v=map3"></script>
+<script src="./main.js?v=map3"></script>
 </body>
 </html>

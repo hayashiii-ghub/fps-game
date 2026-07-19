@@ -450,6 +450,69 @@ function initMenus() {
 const clock = new THREE.Clock();
 let menuOrbitT = 0;
 
+/* ---------- ミニマップ（北上固定・障害物＋自機＋味方。敵は非表示） ---------- */
+const MINIMAP_HALF = 60;
+
+function updateMinimap() {
+  const canvas = document.getElementById('minimap');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(38, 32, 22, 0.98)';
+  ctx.fillRect(0, 0, W, H);
+
+  const toX = x => ((x + MINIMAP_HALF) / (MINIMAP_HALF * 2)) * W;
+  const toY = z => ((z + MINIMAP_HALF) / (MINIMAP_HALF * 2)) * H;
+
+  ctx.fillStyle = 'rgba(88, 78, 58, 0.9)';
+  for (const b of colliders) {
+    if (b.hx < 0.25 || b.hz < 0.25 || b.hy < 0.25) continue;
+    if (b.hx > 40 || b.hz > 40) continue; // 境界土手は描かない
+    const rw = (b.hx * 2) / (MINIMAP_HALF * 2) * W;
+    const rh = (b.hz * 2) / (MINIMAP_HALF * 2) * H;
+    ctx.save();
+    ctx.translate(toX(b.cx), toY(b.cz));
+    ctx.rotate(Math.atan2(b.sin, b.cos));
+    ctx.fillRect(-rw * 0.5, -rh * 0.5, rw, rh);
+    ctx.restore();
+  }
+
+  // 味方のみ表示（TDM の blue）。敵 red は出さない
+  if (typeof enemies !== 'undefined') {
+    for (const e of enemies) {
+      if (!e.alive || e.team !== 'blue') continue;
+      ctx.beginPath();
+      ctx.fillStyle = '#6eb0e0';
+      ctx.arc(toX(e.pos.x), toY(e.pos.z), 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  if (typeof player !== 'undefined' && player) {
+    const px = toX(player.pos.x);
+    const py = toY(player.pos.z);
+    ctx.save();
+    ctx.translate(px, py);
+    // yaw=0 で -Z（マップ上向き）。canvas は y 下向きなので -yaw
+    ctx.rotate(-player.yaw);
+    ctx.fillStyle = player.alive ? '#efe6c4' : '#888';
+    ctx.beginPath();
+    ctx.moveTo(0, -5.5);
+    ctx.lineTo(3.8, 4.5);
+    ctx.lineTo(0, 2.2);
+    ctx.lineTo(-3.8, 4.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = 'rgba(232, 226, 208, 0.28)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+}
+
 function tick(dt) {
   game.time += dt;
 
@@ -463,6 +526,7 @@ function tick(dt) {
     if (game.mode === 'survival') updateWaves(dt);
     else updateTdm(dt);
     updateLoot(dt);
+    updateMinimap();
     debugLogTick();
   } else if (game.state === 'menu') {
     menuOrbitT += dt * 0.06;
@@ -479,10 +543,11 @@ function tick(dt) {
     camera.position.set(player.pos.x, lerp(player.pos.y + player.eyeH, player.pos.y + 0.35, s), player.pos.z);
     camera.rotation.z = lerp(0, 0.55, s);
     updateEnemies(dt);
+    updateMinimap();
   } else if (game.state === 'result') {
     // 静止
   } else if (game.state === 'paused') {
-    // そのまま静止
+    updateMinimap();
   }
 
   game.hurtFlash = Math.max(0, game.hurtFlash - dt * 1.4);

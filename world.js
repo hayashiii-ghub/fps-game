@@ -368,7 +368,7 @@ function sandbags(x, z, rotY) {
   g.position.set(x, 0, z);
   g.rotation.y = rotY || 0;
   addObstacle(g, false);
-  // 見た目の Rough 高さ（最上段上面 ≈ 0.87）に合わせた 1 OBB。ジャンプで越えられる
+  // 見た目の Rough 高さ（最上段上面 ≈ 0.87）に合わせた 1 OBB
   pushYawObb(x, 0.44, z, 2.05, 0.44, 0.55, rotY || 0);
   return g;
 }
