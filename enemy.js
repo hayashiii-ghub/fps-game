@@ -162,8 +162,89 @@ class Enemy {
     this.target = null;
     this.coverT = 0;
     this.nadeFleeT = 0;
+    this.retreatT = 0;
+    this.flankT = 0;
+    this.reloadCueT = 0;
     this.respawnT = 0;
     this.pendingRespawn = false;
+  }
+
+  /** 脅威から見て遮蔽の裏側へ退避点を選ぶ */
+  pickRetreatPoint(threatPos) {
+    const away = new THREE.Vector3().subVectors(this.pos, threatPos);
+    away.y = 0;
+    if (away.lengthSq() < 0.01) away.set(rand(-1, 1), 0, rand(-1, 1));
+    away.normalize();
+
+    let best = null;
+    let bestScore = -1e9;
+    if (typeof colliders !== 'undefined') {
+      for (const c of colliders) {
+        if (!c || c.hy < 0.55 || c.hx > 20 || c.hz > 20) continue;
+        const dx = c.cx - this.pos.x, dz = c.cz - this.pos.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 2.5 || d > 16) continue;
+        const fromThreat = new THREE.Vector3(c.cx - threatPos.x, 0, c.cz - threatPos.z);
+        if (fromThreat.lengthSq() < 0.01) continue;
+        fromThreat.normalize();
+        const hx = Math.max(c.hx, 0.6) + 1.35;
+        const hz = Math.max(c.hz, 0.6) + 1.35;
+        const px = clamp(c.cx + fromThreat.x * hx, -54, 54);
+        const pz = clamp(c.cz + fromThreat.z * hz, -54, 54);
+        const toThreat = Math.hypot(px - threatPos.x, pz - threatPos.z);
+        const score = toThreat * 1.2 - d * 0.35 + c.hy * 0.8;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { x: px, z: pz };
+        }
+      }
+    }
+    if (best) return best;
+    return {
+      x: clamp(this.pos.x + away.x * rand(8, 13), -54, 54),
+      z: clamp(this.pos.z + away.z * rand(8, 13), -54, 54),
+    };
+  }
+
+  /** 被弾時: 自分は遮蔽へ、近くの味方は回り込み */
+  onDamagedBy(killer) {
+    const threat = (killer && killer.pos) ? killer.pos : player.pos;
+    this.retreatT = this.kind === 'rusher' ? rand(0.7, 1.3) : rand(1.5, 2.6);
+    const rp = this.pickRetreatPoint(threat);
+    this.moveTarget.set(rp.x, 0, rp.z);
+    this.flankT = 0;
+
+    for (const e of enemies) {
+      if (e === this || !e.alive || e.team !== this.team) continue;
+      if (e.retreatT > 0 || e.flankT > 0 || e.nadeFleeT > 0) continue;
+      if (e.pos.distanceTo(this.pos) > 24) continue;
+      if (e.state !== 'combat' && Math.random() > 0.4) continue;
+      if (Math.random() > 0.6) continue;
+      e.flankT = rand(2.2, 3.8);
+      const toThreat = new THREE.Vector3().subVectors(threat, e.pos);
+      toThreat.y = 0;
+      const len = toThreat.length() || 1;
+      toThreat.multiplyScalar(1 / len);
+      const side = Math.random() < 0.5 ? 1 : -1;
+      const px = -toThreat.z * side * rand(9, 15);
+      const pz = toThreat.x * side * rand(9, 15);
+      const ax = toThreat.x * rand(3, 9);
+      const az = toThreat.z * rand(3, 9);
+      e.moveTarget.set(
+        clamp(e.pos.x + px + ax, -54, 54), 0,
+        clamp(e.pos.z + pz + az, -54, 54));
+      e.state = 'combat';
+      e.lastKnown.copy(threat);
+    }
+  }
+
+  audioPanToPlayer() {
+    const rel = new THREE.Vector3().subVectors(this.pos, player.pos);
+    const len = rel.length();
+    if (len < 0.01) return 0;
+    rel.multiplyScalar(1 / len);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    return clamp(rel.dot(right), -1, 1) * 0.85;
   }
 
   eyePos() {
@@ -278,6 +359,9 @@ class Enemy {
     }
 
     if (this.nadeFleeT > 0) this.nadeFleeT -= dt;
+    if (this.retreatT > 0) this.retreatT -= dt;
+    if (this.flankT > 0) this.flankT -= dt;
+    if (this.reloadCueT > 0) this.reloadCueT -= dt;
     this.fleeGrenades();
 
     const tgt = this.pickTarget();
@@ -314,6 +398,36 @@ class Enemy {
       moveX = toT.x / dT; moveZ = toT.z / dT;
       wantSpeed = 6.2;
       this.faceTowards(this.moveTarget, dt, 8);
+    } else if (this.retreatT > 0) {
+      const toT = new THREE.Vector3().subVectors(this.moveTarget, this.pos);
+      const dT = toT.length();
+      const face = (tgt && tgt.pos) || this.lastKnown;
+      if (dT > 1.15) {
+        moveX = toT.x / dT; moveZ = toT.z / dT;
+        wantSpeed = this.kind === 'rusher' ? 6.4 : 5.6;
+        this.crouched = false;
+      } else {
+        this.crouched = this.kind !== 'rusher';
+        wantSpeed = 0;
+        if (this.alertT <= 0 && sees) this.updateFire(dt, dist, tgt);
+      }
+      this.faceTowards(face, dt, 7);
+    } else if (this.flankT > 0) {
+      const toT = new THREE.Vector3().subVectors(this.moveTarget, this.pos);
+      const dT = toT.length();
+      if (dT > 1.4) {
+        moveX = toT.x / dT; moveZ = toT.z / dT;
+        wantSpeed = this.kind === 'rusher' ? 6.2 : 4.8;
+      } else {
+        this.flankT = 0;
+      }
+      this.crouched = false;
+      if (tgt) {
+        this.faceTowards(tgt.pos, dt, 7);
+        if (this.alertT <= 0 && sees) this.updateFire(dt, dist, tgt);
+      } else {
+        this.faceTowards(this.moveTarget, dt, 5);
+      }
     } else if (this.state === 'combat' && tgt) {
       this.alertT -= dt;
       const toTgt = new THREE.Vector3().subVectors(tgt.pos, this.pos);
@@ -391,10 +505,19 @@ class Enemy {
     this.g.position.copy(this.pos);
 
     if (this.speed > 0.3) {
+      const prev = Math.sin(this.walkPhase);
       this.walkPhase += this.speed * dt * 2.4;
-      const sw = Math.sin(this.walkPhase) * 0.55 * clamp(this.speed / 4, 0, 1);
+      const cur = Math.sin(this.walkPhase);
+      const sw = cur * 0.55 * clamp(this.speed / 4, 0, 1);
       this.legL.rotation.x = sw;
       this.legR.rotation.x = -sw;
+      // 敵足音（距離減衰・パン）
+      if (prev >= 0 && cur < 0 && player.alive) {
+        const d = this.pos.distanceTo(player.pos);
+        if (d < 38) {
+          AudioSys.enemyStep(d, this.audioPanToPlayer(), this.speed > 4.2);
+        }
+      }
     } else {
       this.legL.rotation.x = lerp(this.legL.rotation.x, 0, 1 - Math.exp(-10 * dt));
       this.legR.rotation.x = lerp(this.legR.rotation.x, 0, 1 - Math.exp(-10 * dt));
@@ -420,6 +543,7 @@ class Enemy {
         this.fireOne(dist, tgt);
         this.burstCd = rand(2.4, 3.8);
         this.shotT = 0.15;
+        this.cueEnemyReload(dist);
       }
       return;
     }
@@ -428,6 +552,7 @@ class Enemy {
         this.fireOne(dist, tgt);
         this.burstLeft--;
         this.shotT = 60 / 680;
+        if (this.burstLeft <= 0) this.cueEnemyReload(dist);
       }
     } else {
       this.burstCd -= dt;
@@ -440,6 +565,14 @@ class Enemy {
           : rand(1.2, 2.4);
       }
     }
+  }
+
+  cueEnemyReload(dist) {
+    if (!player.alive || this.reloadCueT > 0) return;
+    const d = Number.isFinite(dist) ? dist : this.pos.distanceTo(player.pos);
+    if (d > 32) return;
+    this.reloadCueT = 1.6;
+    AudioSys.enemyReload(d, this.audioPanToPlayer());
   }
 
   fireOne(dist, tgt) {
@@ -515,21 +648,25 @@ class Enemy {
     }
   }
 
-  hit(dmg, part, point, dir, killer) {
+  hit(dmg, part, point, dir, killer, src) {
     if (!this.alive) return;
     this.hp -= dmg;
     bloodFX(point, dir);
     if (this.hp <= 0) {
-      this.die(part === 'head', killer);
+      this.die(part === 'head', killer, src);
     } else {
       this.state = 'combat';
       if (killer && killer.pos) this.lastKnown.copy(killer.pos);
       else if (this.team !== 'blue') this.lastKnown.copy(player.pos);
       this.alertT = Math.min(this.alertT, 0.25);
+      // 被弾で遮蔽退避＋近くの味方が回り込み
+      if (this.team !== 'blue' || (killer && killer !== player)) {
+        this.onDamagedBy(killer || player);
+      }
     }
   }
 
-  die(headshot, killer) {
+  die(headshot, killer, src) {
     this.alive = false;
     this.hp = 0;
     this.deathT = 0;
@@ -541,6 +678,14 @@ class Enemy {
       ? (killer.team || (killer === player ? 'blue' : null))
       : 'blue';
 
+    const recordPlayerKill = () => {
+      game.kills++;
+      if (headshot) game.headshots++;
+      const kd = this.pos.distanceTo(player.pos);
+      if (kd > (game.longestKill || 0)) game.longestKill = kd;
+      if (src && src.grenade) game.grenadeKills = (game.grenadeKills || 0) + 1;
+    };
+
     if (game.mode === 'tdm') {
       if (this.team === 'red') {
         game.tdm.blueKills++;
@@ -551,8 +696,7 @@ class Enemy {
         game.tdm.redKills++;
       }
       if (killerIsPlayer && this.team === 'red') {
-        game.kills++;
-        if (headshot) game.headshots++;
+        recordPlayerKill();
         const pts = headshot ? 150 : 100;
         game.score += pts;
         addKillfeed(headshot ? `ヘッドショット ＋${pts}` : `敵排除 ＋${pts}`, headshot);
@@ -572,8 +716,7 @@ class Enemy {
     }
 
     // サバイバル
-    game.kills++;
-    if (headshot) game.headshots++;
+    recordPlayerKill();
     const base = this.kind === 'elite' ? 250
       : this.kind === 'sniper' ? 180
       : this.kind === 'rusher' ? 120
@@ -590,6 +733,7 @@ class Enemy {
     updateScoreHUD();
     rebuildHitMeshes();
     if (this.kind === 'sniper') spawnLoot(this.pos, 'sniper');
+    else if (this.kind === 'elite' && !player.armor) spawnLoot(this.pos, 'armor');
     else maybeDrop(this.pos);
     checkWaveCleared();
   }
@@ -640,7 +784,103 @@ function hitEnemy(enemy, part, point, dir) {
 
 /* ---------- ドロップ ---------- */
 const loots = [];
-let ammoMat, medMat, sniperMat, nadeLootMat;
+let ammoMat, medMat, sniperMat, nadeLootMat, armorMat;
+
+/** マップ中央の取り合い補給（TDM専用の箱＋定期湧き。Survivalはクリア時ドロップのみ） */
+const SUPPLY_POS = { x: 0, z: 0 };
+let supplyMesh = null;
+let supplyNext = 99999;
+const supplyColliders = [];
+
+function ensureSupplyCrate() {
+  if (supplyMesh || typeof scene === 'undefined') return;
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.9, 1.55), MAT.metalGreen);
+  body.position.y = 0.45;
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.12, 1.62), MAT.metalGrey);
+  lid.position.y = 0.96;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.64, 0.16, 0.22), MAT.metalRed);
+  stripe.position.set(0, 0.52, 0);
+  markDecor(stripe);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.1, 6), MAT.darkMetal);
+  pole.position.set(0.62, 1.45, 0.62);
+  markDecor(pole);
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 0.03), MAT.metalRed);
+  flag.position.set(0.9, 2.25, 0.62);
+  markDecor(flag);
+  g.add(body); g.add(lid); g.add(stripe); g.add(pole); g.add(flag);
+  g.position.set(SUPPLY_POS.x, 0, SUPPLY_POS.z);
+  g.userData.isSupplyCrate = true;
+  scene.add(g);
+  g.updateMatrixWorld(true);
+  g.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    o.userData.isSupplyCrate = true;
+    worldMeshes.push(o);
+    if (!o.userData.noCollide) {
+      const before = colliders.length;
+      pushMeshCollider(o);
+      for (let i = before; i < colliders.length; i++) supplyColliders.push(colliders[i]);
+    }
+  });
+  supplyMesh = g;
+}
+
+function removeSupplyCrate() {
+  if (!supplyMesh) return;
+  scene.remove(supplyMesh);
+  const meshSet = new Set();
+  supplyMesh.traverse(o => { if (o.isMesh) meshSet.add(o); });
+  for (let i = worldMeshes.length - 1; i >= 0; i--) {
+    if (meshSet.has(worldMeshes[i])) worldMeshes.splice(i, 1);
+  }
+  for (const c of supplyColliders) {
+    const idx = colliders.indexOf(c);
+    if (idx >= 0) colliders.splice(idx, 1);
+  }
+  supplyColliders.length = 0;
+  supplyMesh = null;
+}
+
+function dropSupplyBundle(announce) {
+  // Survival クリア時は箱なしで中央に物資だけ。TDM は箱あり×2＋たまに防具
+  if (game.mode === 'tdm') ensureSupplyCrate();
+  const p = new THREE.Vector3(SUPPLY_POS.x, 0, SUPPLY_POS.z);
+  const copies = game.mode === 'tdm' ? 2 : 1;
+  for (let i = 0; i < copies; i++) {
+    spawnLoot(p, 'ammo');
+    spawnLoot(p, 'nade');
+    if (Math.random() < 0.55) spawnLoot(p, 'med');
+  }
+  if (game.mode === 'tdm' && Math.random() < 0.22) {
+    spawnLoot(p, 'armor');
+  }
+  if (announce !== false) {
+    spawnFloater(game.mode === 'tdm' ? '中央補給' : 'ステージ補給', false);
+  }
+}
+
+function resetSupply() {
+  if (game.mode === 'tdm') {
+    ensureSupplyCrate();
+    supplyNext = 3;
+  } else {
+    removeSupplyCrate();
+    supplyNext = 99999;
+  }
+}
+
+function updateSupply(dt) {
+  if (game.state !== 'playing' || game.mode !== 'tdm') return;
+  ensureSupplyCrate();
+  supplyNext -= dt;
+  if (supplyNext > 0) return;
+  dropSupplyBundle(true);
+  supplyNext = 42;
+}
+
 function initLoot() {
   ammoMat = new THREE.MeshLambertMaterial({ color: 0x4a5b2e });
   ammoMat.color.convertSRGBToLinear();
@@ -654,6 +894,8 @@ function initLoot() {
   sniperMat.color.convertSRGBToLinear();
   nadeLootMat = new THREE.MeshLambertMaterial({ color: 0x3d4f28 });
   nadeLootMat.color.convertSRGBToLinear();
+  armorMat = new THREE.MeshLambertMaterial({ color: 0x4a6a7a });
+  armorMat.color.convertSRGBToLinear();
 }
 function maybeDrop(pos) {
   const r = Math.random();
@@ -673,6 +915,10 @@ function spawnLoot(pos, type) {
     geo = new THREE.BoxGeometry(0.7, 0.12, 0.16);
     mat = sniperMat;
     y = 0.18;
+  } else if (type === 'armor') {
+    geo = new THREE.BoxGeometry(0.42, 0.28, 0.36);
+    mat = armorMat;
+    y = 0.2;
   } else if (type === 'ammo') {
     geo = new THREE.BoxGeometry(0.32, 0.2, 0.32);
     mat = ammoMat;
@@ -688,7 +934,7 @@ function spawnLoot(pos, type) {
   m.position.set(pos.x + rand(-0.5, 0.5), y, pos.z + rand(-0.5, 0.5));
   m.castShadow = true;
   scene.add(m);
-  loots.push({ m, type, t: 0, baseY: y });
+  loots.push({ m, type, t: 0, baseY: y, maxSaid: false });
 }
 function updateLoot(dt) {
   for (let i = loots.length - 1; i >= 0; i--) {
@@ -708,20 +954,32 @@ function updateLoot(dt) {
         if (addReserveAmmo(amount)) {
           picked = true;
           spawnFloater(game.mode === 'tdm' ? '弾薬 +45' : '弾薬 +90', false);
-        } else spawnFloater('弾薬 MAX', false);
+        } else if (!l.maxSaid) {
+          l.maxSaid = true;
+          spawnFloater('弾薬 MAX', false);
+        }
       } else if (l.type === 'sniper') {
         grantSniper();
+        picked = true;
+      } else if (l.type === 'armor') {
+        grantArmor();
         picked = true;
       } else if (l.type === 'nade') {
         if (addGrenades(1)) {
           picked = true;
           spawnFloater('グレネード +1', false);
-        } else spawnFloater('グレネード MAX', false);
+        } else if (!l.maxSaid) {
+          l.maxSaid = true;
+          spawnFloater('グレネード MAX', false);
+        }
       } else if (l.type === 'med') {
         if (addMedkits(1)) {
           picked = true;
           spawnFloater('応急キット +1', false);
-        } else spawnFloater('応急キット MAX', false);
+        } else if (!l.maxSaid) {
+          l.maxSaid = true;
+          spawnFloater('応急キット MAX', false);
+        }
       }
       if (picked) {
         AudioSys.pickup();
@@ -729,6 +987,9 @@ function updateLoot(dt) {
         loots.splice(i, 1);
         updateAmmoHUD();
       }
+    } else if (d >= 1.8) {
+      // 離れたら MAX 表示を再度出せるようにする（キット使用後など）
+      l.maxSaid = false;
     }
   }
 }
@@ -752,24 +1013,34 @@ const STAGE_DEFS = {
   },
   3: {
     title: 'STAGE 3 ― 強襲',
-    sub: '突撃部隊 ― 間合いを取れ',
-    concurrent: 6,
-    queue: ['rusher', 'rusher', 'rusher', 'grunt', 'rusher', 'rusher', 'grunt', 'rusher', 'rusher', 'rusher'],
+    sub: '精鋭確認 ― 防具を確保せよ',
+    concurrent: 5,
+    queue: [
+      'rusher', 'grunt', 'rusher', 'elite', 'grunt',
+      'rusher', 'grunt', 'rusher', 'sniper',
+    ],
     fog: BASE_FOG_DENSITY, dim: false, accMul: 1.2,
   },
   4: {
     title: 'STAGE 4 ― 砂嵐',
     sub: '視界不良 ― 音に頼れ',
-    concurrent: 5,
-    queue: ['grunt', 'rusher', 'sniper', 'grunt', 'rusher', 'grunt', 'rusher', 'grunt', 'rusher'],
-    fog: 0.018, dim: true, accMul: 1.4,
+    concurrent: 6,
+    queue: [
+      'grunt', 'rusher', 'sniper', 'grunt', 'rusher',
+      'grunt', 'rusher', 'sniper', 'rusher', 'grunt',
+    ],
+    fog: 0.018, dim: true, accMul: 1.3,
   },
   5: {
     title: 'STAGE 5 ― 最終防衛',
-    sub: '精鋭部隊 ― 全滅させよ',
-    concurrent: 5,
-    queue: ['elite', 'grunt', 'grunt', 'elite', 'rusher', 'grunt', 'elite', 'rusher'],
-    fog: 0.009, dim: false, accMul: 1.35,
+    sub: '最終山場 ― 精鋭・狙撃・突撃の混成',
+    concurrent: 7,
+    queue: [
+      'elite', 'rusher', 'grunt', 'sniper', 'elite',
+      'rusher', 'grunt', 'elite', 'rusher', 'sniper',
+      'elite', 'rusher',
+    ],
+    fog: 0.009, dim: false, accMul: 1.4, peak: true,
   },
 };
 
@@ -813,7 +1084,7 @@ function updateWaves(dt) {
   if (game.intermission > 0) {
     game.intermission -= dt;
     document.getElementById('waveinfo').textContent =
-      `STAGE ${game.wave} CLEAR ― 次まで ${Math.ceil(game.intermission)}`;
+      `補給タイム ― 次まで ${Math.ceil(game.intermission)}`;
     if (game.intermission <= 0) {
       if (game.wave >= SURVIVAL_MAX) survivalVictory();
       else startWave(game.wave + 1);
@@ -846,10 +1117,19 @@ function checkWaveCleared() {
       survivalVictory();
       return;
     }
-    game.intermission = 5;
-    game.score += 250;
+    const def = STAGE_DEFS[game.wave];
+    const peak = def && def.peak;
+    // Stage 5 のみ長め補給。通常は段階クリア後の短い補給
+    game.intermission = peak ? 14 : 10;
+    game.score += peak ? 350 : 250;
+    dropSupplyBundle(true);
+    // Stage 3 クリア時、防具未取得なら中央に保証ドロップ
+    if (game.wave === 3 && !player.armor) {
+      spawnLoot(new THREE.Vector3(SUPPLY_POS.x, 0, SUPPLY_POS.z), 'armor');
+    }
+    supplyNext = Math.max(supplyNext, game.intermission + 8);
     showStageClearBanner(game.wave);
-    spawnFloater('STAGE BONUS +250', false);
+    spawnFloater(peak ? 'FINAL CLEAR +350' : 'STAGE BONUS +250', false);
     updateScoreHUD();
   }
 }

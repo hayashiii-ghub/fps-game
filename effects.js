@@ -299,7 +299,7 @@ function explodeGrenade(pos) {
     let dmg = lerp(110, 28, t * t);
     if (e.team === 'blue') dmg *= 0.35;
     const dir = ep.clone().sub(pos).normalize();
-    e.hit(dmg, d < 4.4 ? 'torso' : 'limb', ep, dir, player);
+    e.hit(dmg, d < 4.4 ? 'torso' : 'limb', ep, dir, player, { grenade: true });
     if (d < 7) bloodFX(ep, dir);
   }
 

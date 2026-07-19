@@ -16,6 +16,7 @@ const game = {
   mode: 'survival',   // survival | tdm
   time: 0,
   wave: 0, score: 0, kills: 0, headshots: 0, shots: 0, hits: 0,
+  longestKill: 0, grenadeKills: 0,
   spawnQueue: 0, spawnT: 0, intermission: 0, boomT: 8,
   spawnKinds: [], waveConcurrent: 5, accMul: 1,
   hurtFlash: 0, shotFired: false, deathCamT: 0,
@@ -63,12 +64,18 @@ function updateMedkitHUD() {
   el.textContent = String(player.medkits);
   el.classList.toggle('empty', player.medkits <= 0);
 }
+function updateArmorHUD() {
+  const el = $('armorbadge');
+  if (!el) return;
+  el.style.display = player.armor ? 'block' : 'none';
+}
 function updateHealthHUD() {
   $('healthnum').innerHTML = `${Math.ceil(player.hp)}<small>HP</small>`;
   const f = $('healthfill');
   f.style.width = `${player.hp}%`;
   f.style.background = player.hp > 50 ? '#cfc48a' : player.hp > 25 ? '#d89050' : '#c0392b';
   $('lowhp').classList.toggle('on', player.hp <= 30 && player.alive);
+  updateArmorHUD();
 }
 function updateScoreHUD() {
   const box = $('scorebox');
@@ -139,7 +146,7 @@ function showStageClearBanner(stage) {
     `<div class="clear-rule"></div>` +
     `<div class="clear-label">AREA SECURED</div>` +
     `STAGE ${stage} CLEAR` +
-    `<div class="sub">${theme ? theme + ' ― ' : ''}制圧完了　BONUS +250</div>` +
+    `<div class="sub">${theme ? theme + ' ― ' : ''}制圧完了　中央で補給せよ</div>` +
     `<div class="clear-rule"></div>`;
   void b.offsetWidth;
   b.classList.add('show', 'clear');
@@ -169,10 +176,12 @@ function resetGame() {
 
   Object.assign(game, {
     time: game.time, wave: 0, score: 0, kills: 0, headshots: 0, shots: 0, hits: 0,
+    longestKill: 0, grenadeKills: 0,
     spawnQueue: 0, spawnT: 0, intermission: 0, boomT: rand(8, 20),
     spawnKinds: [], waveConcurrent: 5, accMul: 1,
     hurtFlash: 0, shotFired: false, deathCamT: 0,
   });
+  if (typeof resetSupply === 'function') resetSupply();
   game.tdm = {
     timeLeft: TDM_MATCH_SEC,
     blueKills: 0,
@@ -237,6 +246,14 @@ function startGame(mode, noLock) {
   }
 }
 
+function formatHsRate() {
+  return game.kills ? `${Math.round(game.headshots / game.kills * 100)}%` : '0%';
+}
+function formatLongestKill() {
+  const d = game.longestKill || 0;
+  return d > 0 ? `${Math.round(d)}m` : '—';
+}
+
 function gameOver() {
   game.state = 'dead';
   if (DEBUG) console.log('[FPS] DEAD', JSON.stringify({ wave: game.wave, kills: game.kills, score: game.score }));
@@ -248,7 +265,10 @@ function gameOver() {
   $('stWave').textContent = game.wave;
   $('stKills').textContent = game.kills;
   $('stHs').textContent = game.headshots;
+  $('stHsRate').textContent = formatHsRate();
   $('stAcc').textContent = game.shots ? `${Math.round(game.hits / game.shots * 100)}%` : '0%';
+  $('stLong').textContent = formatLongestKill();
+  $('stNade').textContent = String(game.grenadeKills || 0);
   $('stScore').textContent = game.score;
   game.deathUiGen++;
   const deathUiGen = game.deathUiGen;
@@ -269,6 +289,9 @@ function survivalVictory() {
     '到達ステージ': String(game.wave),
     'キル数': String(game.kills),
     'ヘッドショット': String(game.headshots),
+    'HS率': formatHsRate(),
+    '最長キル': formatLongestKill(),
+    'グレキル': String(game.grenadeKills || 0),
     'スコア': String(game.score),
   });
 }
@@ -340,6 +363,9 @@ function endTdmMatch() {
     'RED': String(r),
     'あなたのキル': String(game.kills),
     'ヘッドショット': String(game.headshots),
+    'HS率': formatHsRate(),
+    '最長キル': formatLongestKill(),
+    'グレキル': String(game.grenadeKills || 0),
   });
 }
 
@@ -490,6 +516,17 @@ function updateMinimap() {
     }
   }
 
+  // 中央補給箱（TDM のみ）
+  if (game.mode === 'tdm' && typeof SUPPLY_POS !== 'undefined' && supplyMesh) {
+    ctx.beginPath();
+    ctx.fillStyle = '#c9a24a';
+    ctx.arc(toX(SUPPLY_POS.x), toY(SUPPLY_POS.z), 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(20,16,10,0.55)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
   if (typeof player !== 'undefined' && player) {
     const px = toX(player.pos.x);
     const py = toY(player.pos.z);
@@ -526,6 +563,7 @@ function tick(dt) {
     if (game.mode === 'survival') updateWaves(dt);
     else updateTdm(dt);
     updateLoot(dt);
+    if (typeof updateSupply === 'function') updateSupply(dt);
     updateMinimap();
     debugLogTick();
   } else if (game.state === 'menu') {

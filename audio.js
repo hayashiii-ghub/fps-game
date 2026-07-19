@@ -116,6 +116,30 @@ const AudioSys = {
     this._noise(0.055, 'lowpass', run ? 700 : 480, run ? 0.11 : 0.06, 0.6 + Math.random() * 0.3);
   },
 
+  /* 敵の足音：距離減衰＋パン */
+  enemyStep(dist, pan, run) {
+    if (!this.ok) return;
+    const d = Number.isFinite(dist) ? dist : 30;
+    const g = Math.min(run ? 0.13 : 0.09, 5.2 / Math.max(d, 2.5));
+    if (g < 0.012) return;
+    this._noise(0.05, 'lowpass', run ? 620 : 430, g, 0.55 + Math.random() * 0.3, pan);
+  },
+
+  /* 敵のリロード：短い金属音を距離減衰 */
+  enemyReload(dist, pan) {
+    if (!this.ok) return;
+    const d = Number.isFinite(dist) ? dist : 25;
+    const scale = Math.min(1, 14 / Math.max(d, 4));
+    if (scale < 0.08) return;
+    const amp = 0.11 * scale;
+    this._noise(0.06, 'highpass', 1400, amp * 0.7, 1.1, pan);
+    this._noise(0.1, 'bandpass', 780, amp, 0.85, pan);
+    setTimeout(() => {
+      if (!this.ok) return;
+      this._noise(0.07, 'lowpass', 520, amp * 0.85, 0.7, pan);
+    }, 220);
+  },
+
   land() {
     if (!this.ok) return;
     this._noise(0.12, 'lowpass', 350, 0.25, 0.5);

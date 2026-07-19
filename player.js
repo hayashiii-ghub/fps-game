@@ -16,12 +16,14 @@ const player = {
   recoilP: 0, recoilY: 0,          // リコイルによる視点オフセット
   lean: 0,
   grenades: 1,
-  grenadeMax: 4,
+  grenadeMax: 5,
   grenadeCd: 0,
   nadeAim: false,
   moveMul: 1,          // 武器切替時の移動倍率（滑らかに追従）
   medkits: 0,
   medkitMax: 3,
+  armor: false,
+  dmgMul: 1,
   healing: false,
   healT: 0,
   healDur: 2,
@@ -187,20 +189,23 @@ function resetArsenal() {
   weapon.swayX = weapon.swayY = 0;
   weapon.adsT = 0;
   player.grenades = tdm ? 2 : 1;
-  player.grenadeMax = tdm ? 4 : 4;
+  player.grenadeMax = 5;
   player.grenadeCd = 0;
   player.nadeAim = false;
   player.moveMul = WEAPON_DEFS.assault.moveMul;
   player.medkits = tdm ? 2 : 0;
-  player.medkitMax = tdm ? 3 : 3;
+  player.medkitMax = 3;
   player.healing = false;
   player.healT = 0;
+  player.armor = false;
+  player.dmgMul = 1;
   clearGrenades();
   hideNadeArc();
   hideHealBar();
   applyWeaponStats('assault');
   updateGrenadeHUD();
   updateMedkitHUD();
+  if (typeof updateArmorHUD === 'function') updateArmorHUD();
 }
 
 function addGrenades(n) {
@@ -308,6 +313,19 @@ function grantSniper() {
   saveActiveAmmo();
   applyWeaponStats('sniper');
   spawnFloater('スナイパーライフル 取得', true);
+  return true;
+}
+
+/** Survival Stage 3 以降の防具：被ダメ約 28% 軽減（マッチ中永続） */
+function grantArmor() {
+  if (player.armor) {
+    spawnFloater('防具装備中', false);
+    return false;
+  }
+  player.armor = true;
+  player.dmgMul = 0.72;
+  spawnFloater('強化防具 取得', true);
+  if (typeof updateArmorHUD === 'function') updateArmorHUD();
   return true;
 }
 
@@ -605,7 +623,8 @@ function startReload() {
 function damagePlayer(dmg, fromPos) {
   if (!player.alive) return;
   if (player.healing) cancelHeal();
-  player.hp -= dmg;
+  const scaled = dmg * (Number.isFinite(player.dmgMul) ? player.dmgMul : 1);
+  player.hp -= scaled;
   player.lastDamage = game.time;
   AudioSys.hurt();
 

@@ -125,6 +125,10 @@
   #healthnum small { font-size: 13px; color: #b9b09a; font-weight: 400; margin-left: 6px; }
   #healthbar { width: 190px; height: 5px; background: rgba(255,255,255,.14); margin-top: 7px; }
   #healthfill { height: 100%; width: 100%; background: #cfc48a; transition: width .15s, background .3s; }
+  #armorbadge {
+    display: none; margin-top: 6px; font-size: 11px; letter-spacing: .22em;
+    color: #8eb4c8; text-shadow: 0 1px 2px #000;
+  }
 
   /* 弾薬 */
   #ammobox { position: fixed; right: 30px; bottom: 22px; text-align: right; z-index: 15; }
@@ -334,6 +338,7 @@
   <div id="healthbox">
     <div id="healthnum">100<small>HP</small></div>
     <div id="healthbar"><div id="healthfill"></div></div>
+    <div id="armorbadge">ARMOR −28%</div>
   </div>
 
   <div id="invbox">
@@ -408,7 +413,10 @@
     <span>到達ステージ</span><b id="stWave">1</b>
     <span>キル数</span><b id="stKills">0</b>
     <span>ヘッドショット</span><b id="stHs">0</b>
+    <span>HS率</span><b id="stHsRate">0%</b>
     <span>命中率</span><b id="stAcc">0%</b>
+    <span>最長キル</span><b id="stLong">—</b>
+    <span>グレキル</span><b id="stNade">0</b>
     <span>スコア</span><b id="stScore">0</b>
   </div>
   <button class="btn" id="retryBtn">再出撃</button>
@@ -426,11 +434,11 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./audio.js?v=map3"></script>
-<script src="./world.js?v=map3"></script>
-<script src="./effects.js?v=map3"></script>
-<script src="./player.js?v=map3"></script>
-<script src="./enemy.js?v=map3"></script>
-<script src="./main.js?v=map3"></script>
+<script src="./audio.js?v=play8"></script>
+<script src="./world.js?v=play8"></script>
+<script src="./effects.js?v=play8"></script>
+<script src="./player.js?v=play8"></script>
+<script src="./enemy.js?v=play8"></script>
+<script src="./main.js?v=play8"></script>
 </body>
 </html>
