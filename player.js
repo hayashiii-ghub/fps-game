@@ -628,22 +628,21 @@ function damagePlayer(dmg, fromPos) {
   updateHealthHUD();
 }
 
-/* ---------- 移動衝突（水平円 vs AABB / Y回転 OBB） ---------- */
+/* ---------- 移動衝突（水平円 vs 見た目どおりの Y回転 OBB） ---------- */
 /** 接触〜めり込み時の押し出しと法線。完全に外側なら null */
 function probeCircleVsBox(px, pz, radius, minX, maxX, minZ, maxZ) {
   const cx = clamp(px, minX, maxX);
   const cz = clamp(pz, minZ, maxZ);
   let dx = px - cx, dz = pz - cz;
   const d2 = dx * dx + dz * dz;
-  // 接触ぴったりは float で外側判定されやすいのでわずかに皮膚を持たせる
-  const touch = radius + 0.002;
-  if (d2 > touch * touch) return null;
+  if (d2 > radius * radius) return null;
   if (d2 > 1e-8) {
     const d = Math.sqrt(d2);
-    const push = Math.max(0, radius - d);
+    const push = radius - d;
     const nx = dx / d, nz = dz / d;
     return { ox: nx * push, oz: nz * push, pen: push, nx, nz };
   }
+  // 中心が箱内 → 最も近い面へ半径ぶん外へ
   const px1 = px - minX + radius, px2 = maxX - px + radius;
   const pz1 = pz - minZ + radius, pz2 = maxZ - pz + radius;
   const m = Math.min(px1, px2, pz1, pz2);
@@ -656,44 +655,48 @@ function probeCircleVsBox(px, pz, radius, minX, maxX, minZ, maxZ) {
   return { ox, oz, pen: Math.abs(m), nx: ox / len, nz: oz / len };
 }
 
+/** 中心がどれかの固体の内側か */
+function insideAnySolid(p, height) {
+  const yLow = p.y + 0.25;
+  const yHigh = p.y + height;
+  for (const b of colliders) {
+    if (yHigh < b.cy - b.hy || yLow > b.cy + b.hy) continue;
+    const dx = p.x - b.cx;
+    const dz = p.z - b.cz;
+    const lx = dx * b.cos + dz * b.sin;
+    const lz = -dx * b.sin + dz * b.cos;
+    if (Math.abs(lx) < b.hx && Math.abs(lz) < b.hz) return true;
+  }
+  return false;
+}
+
 /**
- * めり込みは最も深い1つだけ外へ。vel があれば壁への成分だけ消して滑らせる。
- * 角用に最大2パス。跳ね返しはしない。
+ * 最も深い1ヒットを外へ押し、壁へ食い込む速度だけ消す（スライド）。
  */
 function resolveCollision(p, radius, height, vel) {
   if (![p.x, p.y, p.z].every(Number.isFinite)) p.set(0, 0, 0);
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < 3; pass++) {
     let best = null;
     for (const b of colliders) {
-      let hit = null;
-      if (b.min) {
-        if (p.y + height < b.min.y || p.y + 0.25 > b.max.y) continue;
-        hit = probeCircleVsBox(p.x, p.z, radius, b.min.x, b.max.x, b.min.z, b.max.z);
-      } else {
-        if (p.y + height < b.cy - b.hy || p.y + 0.25 > b.cy + b.hy) continue;
-        const dx = p.x - b.cx;
-        const dz = p.z - b.cz;
-        const lx = dx * b.cos + dz * b.sin;
-        const lz = -dx * b.sin + dz * b.cos;
-        const local = probeCircleVsBox(lx, lz, radius, -b.hx, b.hx, -b.hz, b.hz);
-        if (!local) continue;
-        hit = {
-          ox: local.ox * b.cos - local.oz * b.sin,
-          oz: local.ox * b.sin + local.oz * b.cos,
-          pen: local.pen,
-          nx: local.nx * b.cos - local.nz * b.sin,
-          nz: local.nx * b.sin + local.nz * b.cos,
-        };
-      }
-      if (hit && (!best || hit.pen > best.pen)) best = hit;
+      if (p.y + height < b.cy - b.hy || p.y + 0.25 > b.cy + b.hy) continue;
+      const dx = p.x - b.cx;
+      const dz = p.z - b.cz;
+      const lx = dx * b.cos + dz * b.sin;
+      const lz = -dx * b.sin + dz * b.cos;
+      const local = probeCircleVsBox(lx, lz, radius, -b.hx, b.hx, -b.hz, b.hz);
+      if (!local) continue;
+      const hit = {
+        ox: local.ox * b.cos - local.oz * b.sin,
+        oz: local.ox * b.sin + local.oz * b.cos,
+        pen: local.pen,
+        nx: local.nx * b.cos - local.nz * b.sin,
+        nz: local.nx * b.sin + local.nz * b.cos,
+      };
+      if (!best || hit.pen > best.pen) best = hit;
     }
-    if (!best) break;
-    if (!Number.isFinite(best.nx) || !Number.isFinite(best.nz)) break;
-    if (best.pen >= 1e-6) {
-      p.x += best.ox;
-      p.z += best.oz;
-    }
-    // 壁に食い込む速度だけ落とす（接線はそのまま → 斜め滑り）
+    if (!best || best.pen < 1e-6) break;
+    p.x += best.ox;
+    p.z += best.oz;
     if (vel) {
       const vn = vel.x * best.nx + vel.z * best.nz;
       if (vn < 0) {
@@ -701,8 +704,6 @@ function resolveCollision(p, radius, height, vel) {
         vel.z -= best.nz * vn;
       }
     }
-    // 接触のみ（押し出しなし）なら角の2パス目は不要
-    if (best.pen < 1e-6) break;
   }
   if (![p.x, p.z].every(Number.isFinite)) p.set(0, 0, 0);
   p.x = clamp(p.x, -59, 59);
@@ -764,14 +765,32 @@ function updatePlayer(dt) {
     player.vel.y = 4.6;
     player.onGround = false;
   }
-  player.pos.x += player.vel.x * dt;
-  player.pos.z += player.vel.z * dt;
+  const colH = player.targetEyeH + 0.2;
+  if (!insideAnySolid(player.pos, colH)) {
+    player.safeX = player.pos.x;
+    player.safeZ = player.pos.z;
+  }
+  // 水平を数回に分けて進める（薄い障害の貫通防止）。余白や特殊押し出しはしない
+  const steps = 4;
+  const sdt = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    player.pos.x += player.vel.x * sdt;
+    player.pos.z += player.vel.z * sdt;
+    resolveCollision(player.pos, player.radius, colH, player.vel);
+  }
   player.pos.y += player.vel.y * dt;
   if (player.pos.y <= 0) {
     if (!player.onGround && player.vel.y < -5) { AudioSys.land(); weapon.kickR += 0.05; }
     player.pos.y = 0; player.vel.y = 0; player.onGround = true;
   }
-  resolveCollision(player.pos, player.radius, player.targetEyeH + 0.2, player.vel);
+  resolveCollision(player.pos, player.radius, colH, player.vel);
+  // 中心が固体の中に残ったら、そのフレームの移動を破棄
+  if (insideAnySolid(player.pos, colH) && player.safeX !== undefined) {
+    player.pos.x = player.safeX;
+    player.pos.z = player.safeZ;
+    player.vel.x = 0;
+    player.vel.z = 0;
+  }
 
   player.lean = lerp(player.lean, -mx * 0.014, 1 - Math.exp(-8 * dt));
 

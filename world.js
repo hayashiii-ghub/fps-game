@@ -6,7 +6,7 @@
 let renderer, scene, camera;
 let worldHemi = null, worldSun = null;
 const BASE_FOG_DENSITY = 0.0075;
-/** 移動衝突: THREE.Box3（軸揃え）または Y 回転 OBB `{cx,cy,cz,hx,hy,hz,cos,sin}` */
+/** 移動衝突: 全て Y 回転 OBB `{cx,cy,cz,hx,hy,hz,cos,sin}`（軸揃えは cos=1,sin=0） */
 const colliders = [];
 const worldMeshes = [];   // 弾丸レイキャスト用
 
@@ -224,8 +224,35 @@ function buildMaterials() {
  *  - 弾: intersectObjects(..., false) が子 Mesh に当たらず貫通する
  *  - 移動: setFromObject(Group) が空洞込みの巨大 AABB になる
  * ので、必ず葉 Mesh 単位で登録する。
- * 斜め（Y 回転）は AABB だと外側に見えない壁が出るので OBB、軸揃えは Box3。
+ * 移動コライダは全て Y 回転 OBB（斜めを AABB にすると外側に見えない壁が出る）。
  */
+/** 大きな固体は 0/90° に揃えて見た目と当たりを一致させる */
+function snapYawOrtho(yaw) {
+  const q = Math.PI * 0.5;
+  return Math.round((yaw || 0) / q) * q;
+}
+
+/** 移動用 Y 回転 OBB を明示登録（建物・コンテナなど固体用） */
+function pushYawObb(cx, cy, cz, hx, hy, hz, yaw) {
+  if (![cx, cy, cz, hx, hy, hz].every(Number.isFinite)) return;
+  if (hx < 1e-4 && hz < 1e-4) return;
+  const y = yaw || 0;
+  colliders.push({
+    cx, cy, cz, hx, hy, hz,
+    cos: Math.cos(y), sin: Math.sin(y),
+  });
+}
+
+/** ワールド AABB を OBB 形式（yaw=0）で登録 */
+function pushAabbOf(mesh) {
+  const world = new THREE.Box3().setFromObject(mesh);
+  const c = new THREE.Vector3();
+  const s = new THREE.Vector3();
+  world.getCenter(c);
+  world.getSize(s);
+  pushYawObb(c.x, c.y, c.z, s.x * 0.5, s.y * 0.5, s.z * 0.5, 0);
+}
+
 function pushMeshCollider(mesh) {
   mesh.updateMatrixWorld(true);
   if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
@@ -242,28 +269,18 @@ function pushMeshCollider(mesh) {
   const hx = Math.abs(size.x * scale.x) * 0.5;
   const hy = Math.abs(size.y * scale.y) * 0.5;
   const hz = Math.abs(size.z * scale.z) * 0.5;
-  if (![hx, hy, hz, center.x, center.y, center.z].every(Number.isFinite)) return;
+  if (![hx, hy, hz].every(Number.isFinite)) return;
   if (hx < 1e-4 && hz < 1e-4) return;
 
   const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
-  // 大きく傾いたメッシュはワールド AABB（車輪は noCollide 想定）
+  // 大きく傾いたメッシュはワールド AABB 相当（車輪は noCollide 想定）
   if (Math.abs(euler.x) > 0.35 || Math.abs(euler.z) > 0.35) {
-    colliders.push(new THREE.Box3().setFromObject(mesh));
-    return;
-  }
-  const yaw = euler.y;
-  // ほぼ 0/90° は AABB の方が安いし同等
-  if (Math.abs(Math.sin(yaw * 2)) < 0.04) {
-    colliders.push(new THREE.Box3().setFromObject(mesh));
+    pushAabbOf(mesh);
     return;
   }
   center.applyMatrix4(mesh.matrixWorld);
   if (![center.x, center.y, center.z].every(Number.isFinite)) return;
-  colliders.push({
-    cx: center.x, cy: center.y, cz: center.z,
-    hx, hy, hz,
-    cos: Math.cos(yaw), sin: Math.sin(yaw),
-  });
+  pushYawObb(center.x, center.y, center.z, hx, hy, hz, euler.y);
 }
 
 function addObstacle(root, useBoxCollider = true) {
@@ -293,7 +310,7 @@ function box(w, h, d, mat, x, y, z, rotY) {
   return addObstacle(m);
 }
 
-/* 建物（窓・扉は貼り付け） */
+/* 建物（窓・扉は貼り付け）— 移動当たりは本体寸法どおり1箱 */
 function building(x, z, w, h, d, rotY) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.concrete);
@@ -311,21 +328,27 @@ function building(x, z, w, h, d, rotY) {
   const door = markDecor(new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.3), MAT.darkMetal));
   door.position.set(w * 0.25, 1.15, d / 2 + 0.02);
   g.add(door);
-  // 屋上パラペット
-  const par = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.5, d + 0.3), MAT.concrete);
+  const par = markDecor(new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.5, d + 0.3), MAT.concrete));
   par.position.y = h + 0.2;
   g.add(par);
+  const yaw = snapYawOrtho(rotY);
   g.position.set(x, 0, z);
-  g.rotation.y = rotY || 0;
-  return addObstacle(g);
+  g.rotation.y = yaw;
+  addObstacle(g, false);
+  pushYawObb(x, h * 0.5, z, w * 0.5, h * 0.5, d * 0.5, yaw);
+  return g;
 }
 
-/* コンテナ */
+/* コンテナ — 見た目寸法どおり1箱（回転は 0/90°） */
 function container(x, z, rotY, mat, y) {
+  const baseY = y || 0;
+  const yaw = snapYawOrtho(rotY);
   const m = new THREE.Mesh(new THREE.BoxGeometry(6.1, 2.6, 2.45), mat);
-  m.position.set(x, (y || 0) + 1.3, z);
-  m.rotation.y = rotY;
-  return addObstacle(m);
+  m.position.set(x, baseY + 1.3, z);
+  m.rotation.y = yaw;
+  addObstacle(m, false);
+  pushYawObb(x, baseY + 1.3, z, 3.05, 1.3, 1.225, yaw);
+  return m;
 }
 
 /* 土嚢壁 */
@@ -345,12 +368,8 @@ function sandbags(x, z, rotY) {
   g.position.set(x, 0, z);
   g.rotation.y = rotY || 0;
   addObstacle(g, false);
-  const yaw = rotY || 0;
-  colliders.push({
-    cx: x, cy: 0.5, cz: z,
-    hx: 2.05, hy: 0.58, hz: 0.55,
-    cos: Math.cos(yaw), sin: Math.sin(yaw),
-  });
+  // 袋ごとの押し出し加算を避け、1 つの Y 回転 OBB にまとめる
+  pushYawObb(x, 0.5, z, 2.05, 0.58, 0.55, rotY || 0);
   return g;
 }
 
@@ -408,14 +427,18 @@ function wreck(x, z, rotY) {
     const w = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.3, 12), MAT.tire);
     w.rotation.x = Math.PI / 2;
     w.position.set(dx, 0.46, dz);
-    // 車輪は車体で足りる（薄い円柱の AABB が張り出すのを避ける）
     w.userData.noCollide = true;
     g.add(w);
   }
+  const yaw = rotY || 0;
   g.position.set(x, 0, z);
-  g.rotation.y = rotY;
+  g.rotation.y = yaw;
   g.rotation.z = rand(-0.05, 0.05);
-  return addObstacle(g);
+  addObstacle(g, false);
+  // ボディ＋キャビン＋横のタイヤまで覆う 1 箱（自動2箱だとタイヤがはみ出す）
+  // ローカル: x∈[-2.15,2.15] z∈[-1.46,1.46] y∈[0.3,2.18]
+  pushYawObb(x, 1.2, z, 2.2, 0.95, 1.42, yaw);
+  return g;
 }
 
 /* 木箱 */
@@ -520,7 +543,7 @@ function initWorld() {
     b.position.set(x, 0.8, z);
     scene.add(b); b.receiveShadow = true;
     worldMeshes.push(b);
-    colliders.push(new THREE.Box3().setFromObject(b));
+    pushYawObb(x, 0.8, z, w * 0.5, 1.3, d * 0.5, 0);
   }
 
   /* ---- 拠点レイアウト ---- */
@@ -618,7 +641,7 @@ function initWorld() {
   crate(30, -20, 1.05, 0.55); crate(31.2, -19.4, 0.95, -0.3);
   crate(-27, 20, 1.0, -0.35); crate(-28.2, 20.6, 1.05, 0.5);
   crate(0, -10, 1.1, 0.2); crate(1.3, -9.5, 1.0, -0.4); crate(0.5, -9.8, 0.95, 0.7, 1.05);
-  crate(36, 40, 1.05, 0.9); crate(-40, -40, 1.1, -0.6);
+  crate(36, 40, 1.05, 0.9); crate(-48, -36, 1.1, -0.6);
 
   wreck(14, 34, 2.4);
   wreck(-20, -36, -1.2);
