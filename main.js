@@ -369,6 +369,15 @@ function endTdmMatch() {
   });
 }
 
+/** 戦死／TDM リスポーン待ち共通のデスカム */
+function updateDeathCam(dt) {
+  game.deathCamT += dt;
+  const k = Math.min(game.deathCamT / 1.1, 1);
+  const s = k * k * (3 - 2 * k);
+  camera.position.set(player.pos.x, lerp(player.pos.y + player.eyeH, player.pos.y + 0.35, s), player.pos.z);
+  camera.rotation.z = lerp(0, 0.55, s);
+}
+
 function showResult(title, sub, stats) {
   const el = $('result');
   if (!el) return;
@@ -399,11 +408,7 @@ function updateTdm(dt) {
   }
   if (game.tdm.waitingRespawn) {
     game.tdm.respawnT -= dt;
-    game.deathCamT += dt;
-    const k = Math.min(game.deathCamT / 1.1, 1);
-    const s = k * k * (3 - 2 * k);
-    camera.position.set(player.pos.x, lerp(player.pos.y + player.eyeH, player.pos.y + 0.35, s), player.pos.z);
-    camera.rotation.z = lerp(0, 0.55, s);
+    updateDeathCam(dt);
     const fill = $('respawnfill');
     if (fill) fill.style.width = `${(1 - game.tdm.respawnT / TDM_RESPAWN_SEC) * 100}%`;
     const txt = $('respawntext');
@@ -430,10 +435,11 @@ function initMenus() {
     if (rw) rw.style.display = 'none';
     if (typeof cancelNadeAim === 'function') cancelNadeAim();
     if (typeof cancelHeal === 'function') cancelHeal();
-    // 進行中の敵・ドロップを掃除
+    // 進行中の敵・ドロップ・補給箱を掃除
     for (let i = enemies.length - 1; i >= 0; i--) enemies[i].destroy();
     for (let i = loots.length - 1; i >= 0; i--) { scene.remove(loots[i].m); loots.splice(i, 1); }
     if (typeof clearGrenades === 'function') clearGrenades();
+    if (typeof removeSupplyCrate === 'function') removeSupplyCrate();
     rebuildHitMeshes();
     game.deathUiGen++;
     game.state = 'menu';
@@ -575,11 +581,7 @@ function tick(dt) {
       if (arsenal.models[id]) arsenal.models[id].group.visible = false;
     }
   } else if (game.state === 'dead') {
-    game.deathCamT += dt;
-    const k = Math.min(game.deathCamT / 1.1, 1);
-    const s = k * k * (3 - 2 * k);
-    camera.position.set(player.pos.x, lerp(player.pos.y + player.eyeH, player.pos.y + 0.35, s), player.pos.z);
-    camera.rotation.z = lerp(0, 0.55, s);
+    updateDeathCam(dt);
     updateEnemies(dt);
     updateMinimap();
   } else if (game.state === 'result') {

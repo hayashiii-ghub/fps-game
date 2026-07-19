@@ -674,9 +674,6 @@ class Enemy {
     this.g.visible = true;
 
     const killerIsPlayer = !killer || killer === player || killer.type === 'player';
-    const killerTeam = killer
-      ? (killer.team || (killer === player ? 'blue' : null))
-      : 'blue';
 
     const recordPlayerKill = () => {
       game.kills++;
@@ -689,9 +686,6 @@ class Enemy {
     if (game.mode === 'tdm') {
       if (this.team === 'red') {
         game.tdm.blueKills++;
-        if (killerIsPlayer || killerTeam === 'blue') {
-          /* score already via blueKills */
-        }
       } else {
         game.tdm.redKills++;
       }
@@ -1127,7 +1121,6 @@ function checkWaveCleared() {
     if (game.wave === 3 && !player.armor) {
       spawnLoot(new THREE.Vector3(SUPPLY_POS.x, 0, SUPPLY_POS.z), 'armor');
     }
-    supplyNext = Math.max(supplyNext, game.intermission + 8);
     showStageClearBanner(game.wave);
     spawnFloater(peak ? 'FINAL CLEAR +350' : 'STAGE BONUS +250', false);
     updateScoreHUD();
