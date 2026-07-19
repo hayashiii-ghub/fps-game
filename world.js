@@ -6,7 +6,7 @@
 let renderer, scene, camera;
 let worldHemi = null, worldSun = null;
 const BASE_FOG_DENSITY = 0.0075;
-/** 移動衝突用 OBB（Y 回転）。AABB だと斜め建物の外側に見えない壁が出る */
+/** 移動衝突: THREE.Box3（軸揃え）または Y 回転 OBB `{cx,cy,cz,hx,hy,hz,cos,sin}` */
 const colliders = [];
 const worldMeshes = [];   // 弾丸レイキャスト用
 
@@ -224,27 +224,45 @@ function buildMaterials() {
  *  - 弾: intersectObjects(..., false) が子 Mesh に当たらず貫通する
  *  - 移動: setFromObject(Group) が空洞込みの巨大 AABB になる
  * ので、必ず葉 Mesh 単位で登録する。
- * さらに回転メッシュを AABB にすると斜めの「見えない壁」になるため、
- * 移動用は向き付きボックス（OBB）で登録する。
+ * 斜め（Y 回転）は AABB だと外側に見えない壁が出るので OBB、軸揃えは Box3。
  */
-function pushObbCollider(mesh) {
+function pushMeshCollider(mesh) {
   mesh.updateMatrixWorld(true);
   if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
   const bb = mesh.geometry.boundingBox;
-  const inv = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
-  // 特異行列や壊れた transform はスキップ（NaN が移動→音声へ伝播するのを防ぐ）
-  if (!inv.elements.every(Number.isFinite)) return;
-  const min = bb.min, max = bb.max;
-  if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) return;
-  // 極薄面（Plane 等）は移動判定から除外
-  const thick = Math.max(max.x - min.x, max.y - min.y, max.z - min.z);
-  if (thick < 1e-4) return;
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  bb.getSize(size);
+  bb.getCenter(center);
+
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  mesh.matrixWorld.decompose(pos, quat, scale);
+  const hx = Math.abs(size.x * scale.x) * 0.5;
+  const hy = Math.abs(size.y * scale.y) * 0.5;
+  const hz = Math.abs(size.z * scale.z) * 0.5;
+  if (![hx, hy, hz, center.x, center.y, center.z].every(Number.isFinite)) return;
+  if (hx < 1e-4 && hz < 1e-4) return;
+
+  const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
+  // 大きく傾いたメッシュはワールド AABB（車輪は noCollide 想定）
+  if (Math.abs(euler.x) > 0.35 || Math.abs(euler.z) > 0.35) {
+    colliders.push(new THREE.Box3().setFromObject(mesh));
+    return;
+  }
+  const yaw = euler.y;
+  // ほぼ 0/90° は AABB の方が安いし同等
+  if (Math.abs(Math.sin(yaw * 2)) < 0.04) {
+    colliders.push(new THREE.Box3().setFromObject(mesh));
+    return;
+  }
+  center.applyMatrix4(mesh.matrixWorld);
+  if (![center.x, center.y, center.z].every(Number.isFinite)) return;
   colliders.push({
-    inv,
-    matrix: mesh.matrixWorld.clone(),
-    minX: min.x, maxX: max.x,
-    minY: min.y, maxY: max.y,
-    minZ: min.z, maxZ: max.z,
+    cx: center.x, cy: center.y, cz: center.z,
+    hx, hy, hz,
+    cos: Math.cos(yaw), sin: Math.sin(yaw),
   });
 }
 
@@ -257,7 +275,7 @@ function addObstacle(root, useBoxCollider = true) {
     o.receiveShadow = true;
     worldMeshes.push(o);
     if (useBoxCollider && !o.userData.noCollide) {
-      pushObbCollider(o);
+      pushMeshCollider(o);
     }
   });
   return root;
@@ -319,12 +337,21 @@ function sandbags(x, z, rotY) {
       const b = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.3, 0.5), MAT.sandbag);
       b.position.set((i - (n - 1) / 2) * 0.7 + (row % 2 ? 0.18 : 0), 0.16 + row * 0.28, rand(-0.04, 0.04));
       b.rotation.y = rand(-0.08, 0.08);
+      // 弾は袋ごと。移動は下で1 OBB にまとめる（袋ごとの押し出し加算で飛ばないように）
+      b.userData.noCollide = true;
       g.add(b);
     }
   }
   g.position.set(x, 0, z);
   g.rotation.y = rotY || 0;
-  return addObstacle(g);
+  addObstacle(g, false);
+  const yaw = rotY || 0;
+  colliders.push({
+    cx: x, cy: 0.5, cz: z,
+    hx: 2.05, hy: 0.58, hz: 0.55,
+    cos: Math.cos(yaw), sin: Math.sin(yaw),
+  });
+  return g;
 }
 
 /* コンクリートT型バリア */
@@ -381,6 +408,8 @@ function wreck(x, z, rotY) {
     const w = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.3, 12), MAT.tire);
     w.rotation.x = Math.PI / 2;
     w.position.set(dx, 0.46, dz);
+    // 車輪は車体で足りる（薄い円柱の AABB が張り出すのを避ける）
+    w.userData.noCollide = true;
     g.add(w);
   }
   g.position.set(x, 0, z);
@@ -491,7 +520,7 @@ function initWorld() {
     b.position.set(x, 0.8, z);
     scene.add(b); b.receiveShadow = true;
     worldMeshes.push(b);
-    pushObbCollider(b);
+    colliders.push(new THREE.Box3().setFromObject(b));
   }
 
   /* ---- 拠点レイアウト ---- */

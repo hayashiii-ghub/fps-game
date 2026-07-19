@@ -628,46 +628,81 @@ function damagePlayer(dmg, fromPos) {
   updateHealthHUD();
 }
 
-/* ---------- 移動衝突（水平円 vs メッシュローカル AABB＝OBB） ---------- */
-const _colLocal = new THREE.Vector3();
-function resolveCollision(p, radius, height) {
-  if (![p.x, p.y, p.z].every(Number.isFinite)) {
-    p.set(0, 0, 0);
+/* ---------- 移動衝突（水平円 vs AABB / Y回転 OBB） ---------- */
+/** 接触〜めり込み時の押し出しと法線。完全に外側なら null */
+function probeCircleVsBox(px, pz, radius, minX, maxX, minZ, maxZ) {
+  const cx = clamp(px, minX, maxX);
+  const cz = clamp(pz, minZ, maxZ);
+  let dx = px - cx, dz = pz - cz;
+  const d2 = dx * dx + dz * dz;
+  // 接触ぴったりは float で外側判定されやすいのでわずかに皮膚を持たせる
+  const touch = radius + 0.002;
+  if (d2 > touch * touch) return null;
+  if (d2 > 1e-8) {
+    const d = Math.sqrt(d2);
+    const push = Math.max(0, radius - d);
+    const nx = dx / d, nz = dz / d;
+    return { ox: nx * push, oz: nz * push, pen: push, nx, nz };
   }
-  const yMid = p.y + height * 0.45;
-  for (const b of colliders) {
-    _colLocal.set(p.x, yMid, p.z).applyMatrix4(b.inv);
-    if (_colLocal.y < b.minY - radius || _colLocal.y > b.maxY + radius) continue;
-    const qx = clamp(_colLocal.x, b.minX, b.maxX);
-    const qz = clamp(_colLocal.z, b.minZ, b.maxZ);
-    let ox = _colLocal.x - qx;
-    let oz = _colLocal.z - qz;
-    const d2 = ox * ox + oz * oz;
-    if (d2 >= radius * radius) continue;
-    if (d2 > 1e-8) {
-      const d = Math.sqrt(d2);
-      const push = radius - d;
-      ox = (ox / d) * push;
-      oz = (oz / d) * push;
-    } else {
-      const px1 = _colLocal.x - b.minX + radius;
-      const px2 = b.maxX - _colLocal.x + radius;
-      const pz1 = _colLocal.z - b.minZ + radius;
-      const pz2 = b.maxZ - _colLocal.z + radius;
-      const m = Math.min(px1, px2, pz1, pz2);
-      if (m === px1) ox = -px1;
-      else if (m === px2) ox = px2;
-      else if (m === pz1) oz = -pz1;
-      else oz = pz2;
+  const px1 = px - minX + radius, px2 = maxX - px + radius;
+  const pz1 = pz - minZ + radius, pz2 = maxZ - pz + radius;
+  const m = Math.min(px1, px2, pz1, pz2);
+  let ox = 0, oz = 0;
+  if (m === px1) ox = -px1;
+  else if (m === px2) ox = px2;
+  else if (m === pz1) oz = -pz1;
+  else oz = pz2;
+  const len = Math.hypot(ox, oz) || 1;
+  return { ox, oz, pen: Math.abs(m), nx: ox / len, nz: oz / len };
+}
+
+/**
+ * めり込みは最も深い1つだけ外へ。vel があれば壁への成分だけ消して滑らせる。
+ * 角用に最大2パス。跳ね返しはしない。
+ */
+function resolveCollision(p, radius, height, vel) {
+  if (![p.x, p.y, p.z].every(Number.isFinite)) p.set(0, 0, 0);
+  for (let pass = 0; pass < 2; pass++) {
+    let best = null;
+    for (const b of colliders) {
+      let hit = null;
+      if (b.min) {
+        if (p.y + height < b.min.y || p.y + 0.25 > b.max.y) continue;
+        hit = probeCircleVsBox(p.x, p.z, radius, b.min.x, b.max.x, b.min.z, b.max.z);
+      } else {
+        if (p.y + height < b.cy - b.hy || p.y + 0.25 > b.cy + b.hy) continue;
+        const dx = p.x - b.cx;
+        const dz = p.z - b.cz;
+        const lx = dx * b.cos + dz * b.sin;
+        const lz = -dx * b.sin + dz * b.cos;
+        const local = probeCircleVsBox(lx, lz, radius, -b.hx, b.hx, -b.hz, b.hz);
+        if (!local) continue;
+        hit = {
+          ox: local.ox * b.cos - local.oz * b.sin,
+          oz: local.ox * b.sin + local.oz * b.cos,
+          pen: local.pen,
+          nx: local.nx * b.cos - local.nz * b.sin,
+          nz: local.nx * b.sin + local.nz * b.cos,
+        };
+      }
+      if (hit && (!best || hit.pen > best.pen)) best = hit;
     }
-    // transformDirection は正規化するので押し出し量が常に約1mになり瞬間移動する。
-    // 回転・スケールだけ掛けて距離は保つ。
-    const e = b.matrix.elements;
-    const wx = e[0] * ox + e[8] * oz;
-    const wz = e[2] * ox + e[10] * oz;
-    if (!Number.isFinite(wx) || !Number.isFinite(wz)) continue;
-    p.x += wx;
-    p.z += wz;
+    if (!best) break;
+    if (!Number.isFinite(best.nx) || !Number.isFinite(best.nz)) break;
+    if (best.pen >= 1e-6) {
+      p.x += best.ox;
+      p.z += best.oz;
+    }
+    // 壁に食い込む速度だけ落とす（接線はそのまま → 斜め滑り）
+    if (vel) {
+      const vn = vel.x * best.nx + vel.z * best.nz;
+      if (vn < 0) {
+        vel.x -= best.nx * vn;
+        vel.z -= best.nz * vn;
+      }
+    }
+    // 接触のみ（押し出しなし）なら角の2パス目は不要
+    if (best.pen < 1e-6) break;
   }
   if (![p.x, p.z].every(Number.isFinite)) p.set(0, 0, 0);
   p.x = clamp(p.x, -59, 59);
@@ -736,8 +771,7 @@ function updatePlayer(dt) {
     if (!player.onGround && player.vel.y < -5) { AudioSys.land(); weapon.kickR += 0.05; }
     player.pos.y = 0; player.vel.y = 0; player.onGround = true;
   }
-
-  resolveCollision(player.pos, player.radius, player.targetEyeH + 0.2);
+  resolveCollision(player.pos, player.radius, player.targetEyeH + 0.2, player.vel);
 
   player.lean = lerp(player.lean, -mx * 0.014, 1 - Math.exp(-8 * dt));
 
