@@ -770,7 +770,6 @@ function updatePlayer(dt) {
     player.safeX = player.pos.x;
     player.safeZ = player.pos.z;
   }
-  // 水平を数回に分けて進める（薄い障害の貫通防止）。余白や特殊押し出しはしない
   const steps = 4;
   const sdt = dt / steps;
   for (let i = 0; i < steps; i++) {

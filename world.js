@@ -368,8 +368,8 @@ function sandbags(x, z, rotY) {
   g.position.set(x, 0, z);
   g.rotation.y = rotY || 0;
   addObstacle(g, false);
-  // 袋ごとの押し出し加算を避け、1 つの Y 回転 OBB にまとめる
-  pushYawObb(x, 0.5, z, 2.05, 0.58, 0.55, rotY || 0);
+  // 見た目の Rough 高さ（最上段上面 ≈ 0.87）に合わせた 1 OBB。ジャンプで越えられる
+  pushYawObb(x, 0.44, z, 2.05, 0.44, 0.55, rotY || 0);
   return g;
 }
 
