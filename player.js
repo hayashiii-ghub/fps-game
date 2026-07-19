@@ -630,7 +630,6 @@ function damagePlayer(dmg, fromPos) {
 
 /* ---------- 移動衝突（水平円 vs メッシュローカル AABB＝OBB） ---------- */
 const _colLocal = new THREE.Vector3();
-const _colPush = new THREE.Vector3();
 function resolveCollision(p, radius, height) {
   if (![p.x, p.y, p.z].every(Number.isFinite)) {
     p.set(0, 0, 0);
@@ -661,10 +660,14 @@ function resolveCollision(p, radius, height) {
       else if (m === pz1) oz = -pz1;
       else oz = pz2;
     }
-    _colPush.set(ox, 0, oz).transformDirection(b.matrix);
-    if (!Number.isFinite(_colPush.x) || !Number.isFinite(_colPush.z)) continue;
-    p.x += _colPush.x;
-    p.z += _colPush.z;
+    // transformDirection は正規化するので押し出し量が常に約1mになり瞬間移動する。
+    // 回転・スケールだけ掛けて距離は保つ。
+    const e = b.matrix.elements;
+    const wx = e[0] * ox + e[8] * oz;
+    const wz = e[2] * ox + e[10] * oz;
+    if (!Number.isFinite(wx) || !Number.isFinite(wz)) continue;
+    p.x += wx;
+    p.z += wz;
   }
   if (![p.x, p.z].every(Number.isFinite)) p.set(0, 0, 0);
   p.x = clamp(p.x, -59, 59);
