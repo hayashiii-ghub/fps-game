@@ -66,7 +66,8 @@ const WEAPON_DEFS = {
     kickZ: 0.035, kickR: 0.06, adsRecoil: 0.6,
     adsFov: 50, adsSens: 0.68, scale: 0.84,
     hip: { x: 0.2, y: -0.18, z: -0.38, rx: 0, ry: 0.07 },
-    ads: { x: 0, y: -0.085, z: -0.44, rx: 0, ry: 0 },
+    // サイト(dot y=0.078)×scale がカメラ光軸に来るよう ads.y を合わせる
+    ads: { x: 0, y: -0.066, z: -0.44, rx: 0, ry: 0 },
     dmg: { head: 78, torso: 26, limb: 18 },
   },
   shotgun: {
@@ -82,7 +83,8 @@ const WEAPON_DEFS = {
     kickZ: 0.085, kickR: 0.11, adsRecoil: 0.5,
     adsFov: 58, adsSens: 0.7, scale: 0.98,
     hip: { x: 0.21, y: -0.19, z: -0.4, rx: 0, ry: 0.06 },
-    ads: { x: 0, y: -0.09, z: -0.46, rx: 0, ry: 0 },
+    // ビーズ(y=0.045)×scale がカメラ光軸に来るよう ads.y を合わせる
+    ads: { x: 0, y: -0.044, z: -0.46, rx: 0, ry: 0 },
     pellets: 8,
     // 1ペレットあたり（全弾命中で head112 / torso80）
     dmg: { head: 14, torso: 10, limb: 7 },
@@ -464,8 +466,9 @@ function buildAssaultModel() {
     new THREE.MeshBasicMaterial({ color: 0xff2211, fog: false }));
   dot.position.set(0, 0.098, -0.05);
   g.add(dot);
+  // 先端がリアサイト(dot y=0.098)と同高になるよう中心を配置
   const fs = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.05, 0.01), dm);
-  fs.position.set(0, 0.045, -0.44);
+  fs.position.set(0, 0.073, -0.44);
   g.add(fs);
   const gloveM = new THREE.MeshLambertMaterial({ color: 0x3d3a30 });
   gloveM.color.convertSRGBToLinear();
