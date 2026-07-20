@@ -345,6 +345,7 @@ function respawnPlayer() {
   updateGrenadeHUD();
   updateMedkitHUD();
   updateAmmoHUD();
+  player.spawnProtT = 2;
   spawnFloater('再出撃', false);
 }
 

@@ -167,6 +167,7 @@ class Enemy {
     this.reloadCueT = 0;
     this.respawnT = 0;
     this.pendingRespawn = false;
+    this.spawnProtT = game.mode === 'tdm' ? 2 : 0;
   }
 
   /** 脅威から見て遮蔽の裏側へ退避点を選ぶ */
@@ -362,6 +363,7 @@ class Enemy {
     if (this.retreatT > 0) this.retreatT -= dt;
     if (this.flankT > 0) this.flankT -= dt;
     if (this.reloadCueT > 0) this.reloadCueT -= dt;
+    if (this.spawnProtT > 0) this.spawnProtT = Math.max(0, this.spawnProtT - dt);
     this.fleeGrenades();
 
     const tgt = this.pickTarget();
@@ -650,6 +652,7 @@ class Enemy {
 
   hit(dmg, part, point, dir, killer, src) {
     if (!this.alive) return;
+    if (this.spawnProtT > 0) return;
     this.hp -= dmg;
     bloodFX(point, dir);
     if (this.hp <= 0) {
@@ -748,6 +751,7 @@ class Enemy {
     this.burstLeft = 0;
     this.burstCd = rand(0.8, 1.6);
     this.moveTarget.copy(this.pos);
+    this.spawnProtT = 2;
     rebuildHitMeshes();
   }
 
@@ -766,6 +770,7 @@ function distToSegment(p, a, b) {
 
 function hitEnemy(enemy, part, point, dir) {
   if (enemy.team === 'blue') return; // 味方撃ち無効
+  if (enemy.spawnProtT > 0) return;
   game.hits++;
   const def = activeDef();
   const dmg = (def.dmg && def.dmg[part]) || 30;
@@ -1151,6 +1156,7 @@ function startTdmMatch() {
     e.g.rotation.y = Math.atan2(-e.pos.x, -e.pos.z);
   }
   rebuildHitMeshes();
+  player.spawnProtT = 2;
   showBanner('TEAM DEATHMATCH', '5v5・5分 ― キル数で勝敗');
   updateTdmHUD();
 }

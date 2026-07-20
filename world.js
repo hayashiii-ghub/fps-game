@@ -612,13 +612,15 @@ const MAP_DEFS = {
     name: 'DESERT',
     build: buildDesertMap,
     fog: 0xbfb193, hemiSky: 0x9fa8b2, hemiGround: 0x6b5f48, sun: 0xfff0d8,
+    fogDensity: BASE_FOG_DENSITY,
     dust: 0xd8c8a2, minimapBg: 'rgba(38, 32, 22, 0.98)',
   },
   jungle: {
     name: 'JUNGLE',
     build: buildJungleMap,
-    fog: 0x9db49b, hemiSky: 0xa8bfa8, hemiGround: 0x44553a, sun: 0xf2ecd2,
-    dust: 0xa8c78e, minimapBg: 'rgba(24, 34, 20, 0.98)',
+    fog: 0x8faa8a, hemiSky: 0x9bb89a, hemiGround: 0x3a4a32, sun: 0xe8e4c8,
+    fogDensity: 0.0115,
+    dust: 0x9cbc82, minimapBg: 'rgba(24, 34, 20, 0.98)',
   },
 };
 
@@ -633,6 +635,7 @@ function buildMap(id) {
   worldMeshes.length = 0;
 
   scene.fog.color.setHex(def.fog);
+  scene.fog.density = def.fogDensity !== undefined ? def.fogDensity : BASE_FOG_DENSITY;
   worldHemi.color.setHex(def.hemiSky);
   worldHemi.groundColor.setHex(def.hemiGround);
   worldSun.color.setHex(def.sun);
@@ -812,12 +815,13 @@ function tree(x, z, s = 1) {
   trunk.position.y = h / 2;
   g.add(trunk);
   const mats = [MAT.leaf, MAT.leafDark, MAT.leafLight];
-  const n = 2 + (Math.random() < 0.6 ? 1 : 0);
+  // 樹冠を厚く重ねる（幹同士は離しても葉は被る）
+  const n = 3 + (Math.random() < 0.55 ? 1 : 0);
   for (let i = 0; i < n; i++) {
-    const r = rand(1.15, 1.85) * s;
+    const r = rand(1.25, 2.05) * s;
     const c = new THREE.Mesh(
       new THREE.IcosahedronGeometry(r, 0), mats[(Math.random() * mats.length) | 0]);
-    c.position.set(rand(-0.55, 0.55) * s, h - r * 0.55 + i * 0.62 * s, rand(-0.55, 0.55) * s);
+    c.position.set(rand(-0.7, 0.7) * s, h - r * 0.5 + i * 0.55 * s, rand(-0.7, 0.7) * s);
     c.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
     g.add(c);
   }
@@ -827,7 +831,7 @@ function tree(x, z, s = 1) {
   return g;
 }
 
-/* 茂み — 通り抜けられるが弾・視線は遮る（Sanhok の草むら的な隠れ場所） */
+/* 茂み — 見た目のみ（移動・弾・視線すべて素通し）。密林感用 */
 function thicket(x, z, s = 1) {
   const g = new THREE.Group();
   const n = 2 + (Math.random() * 2 | 0);
@@ -842,7 +846,8 @@ function thicket(x, z, s = 1) {
     g.add(b);
   }
   g.position.set(x, 0, z);
-  return addObstacle(g, false); // 移動コライダなし・弾は葉に当たる
+  mapGroup.add(g);
+  return g;
 }
 
 /* 草の束（見た目だけ。弾・移動・視線すべて素通し） */
@@ -973,7 +978,8 @@ function buildJungleMap() {
   box(0.8, 0.45, 0.7, MAT.stone, 4.2, 0.22, -3.6, 0.3);
 
   /* ---- 東: リゾート（狙撃ラインが通る開けたエリア） ---- */
-  keep(38, 4, 8); keep(30, 16, 7); keep(44, -6, 3);
+  keep(38, 4, 11); keep(30, 16, 9); keep(44, -6, 5);
+  keep(36, 10, 7); // 射線ポケットを森から守る
   building(38, 4, 10, 4.2, 7, -0.2);
   building(30, 16, 8, 3.6, 6, 0.35);
   watchtower(44, -6);
@@ -981,7 +987,8 @@ function buildJungleMap() {
   crate(41, 10, 1.05, 0.2); crate(42.2, 10.5, 0.95, -0.3);
 
   /* ---- 南: 港（コンテナ埠頭） ---- */
-  keep(-6, -43, 9); keep(3, -37, 6);
+  keep(-6, -43, 12); keep(3, -37, 8);
+  keep(0, -40, 9); // 埠頭レーンを開けたまま
   container(-10, -44, 0.04, MAT.metalGreen);
   container(-3.6, -44, -0.03, MAT.metalGrey);
   container(2.8, -44, 0.06, MAT.metalGreen);
@@ -1034,12 +1041,16 @@ function buildJungleMap() {
   wreck(24, 22, 1.2);      keep(24, 22, 4);
   wreck(-34, -30, -0.6);   keep(-34, -30, 4);
 
-  /* ---- 密林（熱帯樹＋茂み＋草） ---- */
-  scatter(46, 10, 56, ko, (x, z) => {
-    tree(x, z, rand(0.85, 1.35));
-    ko.push([x, z, 2.2]); // 木同士も少し離す
+  /* ---- レーン間の岩遮蔽（固体カバー・3箇所） ---- */
+  bigRock(10, 6, 1.55, 0.4);   keep(10, 6, 2.8);   // 中央遺跡〜東リゾートの中間
+  bigRock(-18, 2, 1.7, 1.1);   keep(-18, 2, 3.0);   // 中央〜西採石場のアプローチ
+  bigRock(6, -18, 1.45, 0.2);  keep(6, -18, 2.6);   // 中央〜南港手前（埠頭は開けたまま）
+
+  /* ---- 密林（熱帯樹＋茂み＋草）— 拠点外・レーン間を厚く、樹冠は重ねる ---- */
+  scatter(70, 8, 56, ko, (x, z) => {
+    tree(x, z, rand(0.9, 1.4));
+    ko.push([x, z, 1.45]); // 幹は離しつつ葉は被せる
   });
-  scatter(34, 6, 56, ko, (x, z) => thicket(x, z, rand(0.8, 1.5)));
-  // 草はキープアウト済みの円だけ避ける（建物・岩の中に生えないように）
-  scatter(80, 0, 56, ko, (x, z) => grassTuft(x, z, rand(0.8, 1.4)));
+  scatter(68, 4, 56, ko, (x, z) => thicket(x, z, rand(0.85, 1.55)));
+  scatter(95, 0, 56, ko, (x, z) => grassTuft(x, z, rand(0.85, 1.45)));
 }

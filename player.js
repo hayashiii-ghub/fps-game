@@ -29,6 +29,8 @@ const player = {
   healDur: 2,
   healFrom: 100,
   healTo: 100,
+  /** TDM リスポーン直後の無敵残り秒 */
+  spawnProtT: 0,
 };
 
 /** @type {'assault'|'smg'|'shotgun'|'sniper'|'pistol'} */
@@ -255,6 +257,7 @@ function resetArsenal() {
   player.healT = 0;
   player.armor = false;
   player.dmgMul = 1;
+  player.spawnProtT = 0;
   clearGrenades();
   hideNadeArc();
   hideHealBar();
@@ -776,6 +779,7 @@ function startReload() {
 /* ---------- プレイヤー被弾 ---------- */
 function damagePlayer(dmg, fromPos) {
   if (!player.alive) return;
+  if (player.spawnProtT > 0) return;
   if (player.healing) cancelHeal();
   const scaled = dmg * (Number.isFinite(player.dmgMul) ? player.dmgMul : 1);
   player.hp -= scaled;
@@ -887,6 +891,7 @@ function resolveCollision(p, radius, height, vel) {
 function updatePlayer(dt) {
   if (!player.alive) return;
 
+  if (player.spawnProtT > 0) player.spawnProtT = Math.max(0, player.spawnProtT - dt);
   if (weapon.switchLock > 0) weapon.switchLock = Math.max(0, weapon.switchLock - dt);
   if (player.grenadeCd > 0) player.grenadeCd = Math.max(0, player.grenadeCd - dt);
 
