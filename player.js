@@ -56,7 +56,7 @@ const WEAPON_DEFS = {
   },
   smg: {
     id: 'smg', label: 'SMG', mode: 'AUTO',
-    magSize: 32, startReserve: 128, tdmReserve: 96, maxReserve: 384,
+    magSize: 25, startReserve: 100, tdmReserve: 75, maxReserve: 300,
     fireInterval: 60 / 850, reloadDur: 1.7, auto: true,
     moveMul: 1.06,         // 軽快
     adsMoveMul: 0.6,
@@ -69,6 +69,8 @@ const WEAPON_DEFS = {
     // サイト(dot y=0.078)×scale がカメラ光軸に来るよう ads.y を合わせる
     ads: { x: 0, y: -0.066, z: -0.44, rx: 0, ry: 0 },
     dmg: { head: 78, torso: 26, limb: 18 },
+    // start までフル、end で min、以降は min 維持
+    dmgFalloff: { start: 18, end: 35, min: 0.65 },
   },
   shotgun: {
     id: 'shotgun', label: 'ショットガン', mode: 'PUMP',
@@ -76,8 +78,8 @@ const WEAPON_DEFS = {
     fireInterval: 0.9, reloadDur: 2.6, auto: false,
     moveMul: 0.97,
     adsMoveMul: 0.5,
-    // ペレットの拡散円錐（遠距離は自然に減衰する設計）
-    spreadHip: 0.042, spreadAds: 0.03,
+    // 集弾をややタイトに＋距離威力減衰（拡散と二重で遠距離を抑える）
+    spreadHip: 0.036, spreadAds: 0.022,
     bloomAdd: 0.004, bloomMax: 0.02, bloomDecay: 0.05,
     recoilP: [0.016, 0.022], recoilY: 0.006,
     kickZ: 0.085, kickR: 0.11, adsRecoil: 0.5,
@@ -86,8 +88,9 @@ const WEAPON_DEFS = {
     // ビーズ(y=0.045)×scale がカメラ光軸に来るよう ads.y を合わせる
     ads: { x: 0, y: -0.044, z: -0.46, rx: 0, ry: 0 },
     pellets: 8,
-    // 1ペレットあたり（全弾命中で head112 / torso80）
+    // 1ペレットあたり（近距離全弾命中で head112 / torso80）
     dmg: { head: 14, torso: 10, limb: 7 },
+    dmgFalloff: { start: 12, end: 25, min: 0.5 },
     pump: true,
   },
   pistol: {
@@ -105,6 +108,7 @@ const WEAPON_DEFS = {
     hip: { x: 0.2, y: -0.22, z: -0.36, rx: 0, ry: 0.06 },
     ads: { x: 0.18, y: -0.2, z: -0.37, rx: 0.02, ry: 0.05 },
     dmg: { head: 90, torso: 28, limb: 18 },
+    dmgFalloff: { start: 15, end: 30, min: 0.7 },
   },
   sniper: {
     id: 'sniper', label: 'スナイパー', mode: 'BOLT',
@@ -128,7 +132,7 @@ const arsenal = {
   owned: { assault: true, smg: true, shotgun: false, sniper: false, pistol: true },
   slots: {
     assault: { mag: 30, reserve: 120 },
-    smg: { mag: 32, reserve: 128 },
+    smg: { mag: 25, reserve: 100 },
     shotgun: { mag: 6, reserve: 24 },
     sniper: { mag: 5, reserve: 15 },
     pistol: { mag: 12, reserve: 60 },
@@ -155,6 +159,16 @@ const weapon = {
 const input = { keys: {}, lmb: false, rmb: false };
 
 function activeDef() { return WEAPON_DEFS[arsenal.activeId]; }
+
+/** 距離によるダメージ倍率。dmgFalloff が無い武器は常に 1。 */
+function weaponDamageMul(def, dist) {
+  const f = def && def.dmgFalloff;
+  if (!f) return 1;
+  if (dist <= f.start) return 1;
+  if (dist >= f.end) return f.min;
+  const t = (dist - f.start) / (f.end - f.start);
+  return 1 + (f.min - 1) * t;
+}
 
 function ownedIds() {
   return WEAPON_ORDER.filter(id => arsenal.owned[id]);

@@ -773,7 +773,9 @@ function hitEnemy(enemy, part, point, dir) {
   if (enemy.spawnProtT > 0) return;
   game.hits++;
   const def = activeDef();
-  const dmg = (def.dmg && def.dmg[part]) || 30;
+  const base = (def.dmg && def.dmg[part]) || 30;
+  const dist = point.distanceTo(camera.position);
+  const dmg = Math.max(1, Math.round(base * weaponDamageMul(def, dist)));
   const willKill = enemy.hp - dmg <= 0;
   AudioSys.hitmark(willKill);
   if (part === 'head') AudioSys.headshot();
