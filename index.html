@@ -187,8 +187,8 @@
 
   .menu-stack {
     width: min(720px, calc(100vw - 48px));
-    margin-top: 30px;
-    display: flex; flex-direction: column; gap: 14px;
+    margin-top: 22px;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .menu-stack .panel { margin-top: 0; width: 100%; box-sizing: border-box; }
   .mode-card {
@@ -197,19 +197,32 @@
   }
   .mode-card .mc {
     display: block; width: 100%; box-sizing: border-box;
-    padding: 16px 18px; border: 1px solid rgba(216,192,138,.28);
-    background: rgba(20,21,16,.55); font-size: 12px; line-height: 1.75; color: #cfc7ad;
+    padding: 13px 18px; border: 1px solid rgba(216,192,138,.24);
+    border-left: 3px solid rgba(216,192,138,.42);
+    background: rgba(14,15,11,.74); font-size: 11.5px; line-height: 1.7; color: #cfc7ad;
     font-family: inherit; text-align: left; cursor: pointer;
-    transition: background .15s, border-color .15s, color .15s;
+    transition: background .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
   }
   .mode-card .mc:hover {
-    background: rgba(216,192,138,.16);
-    border-color: #d8c08a;
-    color: #efe6c4;
+    background: rgba(216,192,138,.14);
+    border-color: #d8c08a; border-left-color: #d9a94f;
+    color: #efe6c4; transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.5), 0 0 14px rgba(217,169,79,.16);
   }
   .mode-card .mc:focus { outline: none; border-color: #d8c08a; }
   .mode-card .mc h3 {
     font-size: 13px; letter-spacing: .25em; color: #efe6c4; margin-bottom: 6px; font-weight: 700;
+  }
+  .mode-card .mc.sel {
+    border-color: #d8c08a; border-left-color: #d9a94f;
+    background: rgba(216,192,138,.15);
+    color: #efe6c4;
+    box-shadow: 0 0 12px rgba(217,169,79,.22);
+  }
+  .mode-card .mc.sel h3 { color: #d9a94f; }
+  .sect-label {
+    font-size: 10px; letter-spacing: .34em; color: #a39a7e; text-align: left;
+    margin-bottom: -4px; padding-left: 2px;
   }
 
   /* キルフィード */
@@ -274,6 +287,62 @@
   .overlay h1 { font-size: 46px; font-weight: 900; letter-spacing: .18em; color: #efe6c4; text-shadow: 0 3px 16px rgba(0,0,0,.9); }
   .overlay h1 .accent { color: #d9a94f; }
   .overlay .tagline { margin-top: 8px; font-size: 13px; letter-spacing: .5em; color: #a39a7e; }
+
+  /* ============ ロビー演出 ============ */
+  .menu-overlay {
+    background: linear-gradient(180deg,
+      rgba(8,9,7,.76) 0%, rgba(8,9,7,.3) 30%, rgba(8,9,7,.18) 52%, rgba(8,9,7,.72) 100%);
+    justify-content: flex-start; padding-top: 8.5vh; overflow: hidden;
+  }
+  .menu-overlay h1 { font-size: 56px; }
+  .menu-overlay h1::after {
+    content: ''; display: block; width: 132px; height: 3px; margin: 16px auto 0;
+    background: #d9a94f; box-shadow: 0 0 14px rgba(217,169,79,.65);
+  }
+  .menu-eyebrow { font-size: 10px; letter-spacing: .62em; color: #a39a7e; margin-bottom: 12px; }
+  .menu-status { margin-top: 14px; font-size: 11px; letter-spacing: .32em; color: #cfc7ad; font-family: "Menlo", monospace; }
+  .blink { animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .letterbox { position: fixed; left: 0; right: 0; height: 5vh; background: #050604; z-index: 60; }
+  .letterbox.top { top: 0; } .letterbox.bottom { bottom: 0; }
+  .cb { position: fixed; width: 24px; height: 24px; z-index: 60; opacity: .75; pointer-events: none; }
+  .cb.tl { top: 6.8vh; left: 16px; border-top: 1px solid #d8c08a; border-left: 1px solid #d8c08a; }
+  .cb.tr { top: 6.8vh; right: 16px; border-top: 1px solid #d8c08a; border-right: 1px solid #d8c08a; }
+  .cb.bl { bottom: 6.8vh; left: 16px; border-bottom: 1px solid #d8c08a; border-left: 1px solid #d8c08a; }
+  .cb.br { bottom: 6.8vh; right: 16px; border-bottom: 1px solid #d8c08a; border-right: 1px solid #d8c08a; }
+  #scanlines {
+    position: fixed; inset: 0; z-index: 69; pointer-events: none; opacity: .3;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+  }
+  #deploy {
+    position: fixed; inset: 0; z-index: 80; background: #050604;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .28s linear;
+  }
+  #deploy.on { opacity: 1; pointer-events: all; }
+  .deploy-text { font-family: "Menlo", monospace; letter-spacing: .5em; color: #d9a94f; font-size: 15px; }
+
+  /* 武器選択チップ */
+  .chip-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; }
+  .wchip {
+    padding: 9px 12px; background: rgba(14,15,11,.74);
+    border: 1px solid rgba(216,192,138,.22); border-left: 3px solid rgba(216,192,138,.38);
+    color: #cfc7ad; text-align: left; cursor: pointer; font-family: inherit;
+    font-size: 10.5px; line-height: 1.55; letter-spacing: .04em;
+    transition: background .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
+  }
+  .wchip h4 { font-size: 12px; letter-spacing: .2em; color: #efe6c4; margin-bottom: 2px; font-weight: 700; }
+  .wchip:hover { background: rgba(216,192,138,.12); color: #efe6c4; transform: translateY(-2px); }
+  .wchip:focus { outline: none; border-color: #d8c08a; }
+  .wchip.sel {
+    border-color: #d8c08a; border-left-color: #d9a94f;
+    background: rgba(216,192,138,.15); color: #efe6c4;
+    box-shadow: 0 0 12px rgba(217,169,79,.22);
+  }
+  .wchip.sel h4 { color: #d9a94f; }
+  .menu-foot {
+    font-size: 10.5px; letter-spacing: .12em; color: #8b846d; line-height: 1.9;
+  }
   .panel {
     margin-top: 30px; padding: 20px 30px; border: 1px solid rgba(216,192,138,.28);
     background: rgba(20,21,16,.55); text-align: left; font-size: 13px; line-height: 2.05; color: #cfc7ad;
@@ -373,21 +442,48 @@
   </div>
 </div>
 
-<div id="menu" class="overlay">
+<div id="menu" class="overlay menu-overlay">
+  <div class="letterbox top"></div>
+  <div class="letterbox bottom"></div>
+  <div class="cb tl"></div><div class="cb tr"></div><div class="cb bl"></div><div class="cb br"></div>
+  <div class="menu-eyebrow">TACTICAL BROWSER FPS</div>
   <h1 class="title-font">OPERATION <span class="accent">SANDSTORM</span></h1>
-  <div class="tagline">砂 嵐 作 戦 ― SELECT OPERATION</div>
+  <div class="menu-status"><span class="blink">▮</span> AWAITING ORDERS ― LOADOUT / MAP / MODE</div>
   <div class="menu-stack">
-    <div class="panel">
-      <b>W A S D</b> 移動　　<b>SHIFT</b> ダッシュ　　<b>C</b> しゃがみ　　<b>SPACE</b> ジャンプ<br>
-      <b>左クリック</b> 射撃　　<b>右クリック</b> 照準（ADS）　　<b>C + SHIFT</b> スコープ（しゃがみ照準）<br>
-      <b>R</b> リロード　　<b>G</b> グレネード構え / 解除　　<b>F</b> 応急キット使用<br>
-      <b>Q / E</b> 武器切替　　<b>ESC</b> ポーズ
+    <div class="sect-label mono">MAIN WEAPON</div>
+    <div class="chip-row" id="mainWeaponRow">
+      <button type="button" class="wchip" data-w="assault"><h4>ASSAULT</h4>AUTO ― 汎用・中遠距離</button>
+      <button type="button" class="wchip" data-w="smg"><h4>SMG</h4>AUTO ― 高連射・近中距離</button>
+      <button type="button" class="wchip" data-w="shotgun"><h4>SHOTGUN</h4>PUMP ― 散弾・近距離決戦</button>
+      <button type="button" class="wchip" data-w="sniper"><h4>SNIPER</h4>BOLT ― 一撃・遠距離</button>
     </div>
+    <div class="sect-label mono">SUB WEAPON</div>
+    <div class="chip-row" id="subWeaponRow">
+      <button type="button" class="wchip" data-w="assault"><h4>ASSAULT</h4>AUTO ― 汎用・中遠距離</button>
+      <button type="button" class="wchip" data-w="smg"><h4>SMG</h4>AUTO ― 高連射・近中距離</button>
+      <button type="button" class="wchip" data-w="shotgun"><h4>SHOTGUN</h4>PUMP ― 散弾・近距離決戦</button>
+      <button type="button" class="wchip" data-w="sniper"><h4>SNIPER</h4>BOLT ― 一撃・遠距離</button>
+    </div>
+    <div class="sect-label mono">SIDEARM ― HANDGUN（全員常備・特殊枠）</div>
+    <div class="sect-label mono">MAP</div>
+    <div class="mode-card">
+      <button type="button" class="mc sel" id="mapDesertBtn">
+        <h3>DESERT</h3>
+        砂漠の拠点。開けた射線とコンテナ群。<br>
+        遠距離の撃ち合いが主体。
+      </button>
+      <button type="button" class="mc" id="mapJungleBtn">
+        <h3>JUNGLE</h3>
+        密林。遺跡・港・採石場・岩窟。<br>
+        茂みは弾を遮るが通り抜けられる。
+      </button>
+    </div>
+    <div class="sect-label mono">MODE</div>
     <div class="mode-card">
       <button type="button" class="mc" id="startSurvivalBtn">
         <h3>SURVIVAL</h3>
         5ステージ防衛。各ステージにテーマあり。<br>
-        狙撃銃は敵狙撃兵撃破で入手。自動回復あり。
+        狙撃銃は敵狙撃兵撃破でも入手。自動回復あり。
       </button>
       <button type="button" class="mc" id="startTdmBtn">
         <h3>TEAM DEATHMATCH</h3>
@@ -395,9 +491,16 @@
         グレ2・キット2。撃破ドロップあり。自動回復なし。
       </button>
     </div>
+    <div class="menu-foot mono">
+      WASD 移動　SHIFT ダッシュ　C しゃがみ　SPACE ジャンプ　左 射撃　右 照準<br>
+      R リロード　G グレネード　F キット　Q/E 武器切替　ESC ポーズ
+    </div>
   </div>
   <div class="note">※ 音が出ます　※ マウスポインタがロックされます</div>
 </div>
+
+<div id="deploy"><div class="deploy-text">DEPLOYING<span class="blink">_</span></div></div>
+<div id="scanlines"></div>
 
 <div id="pause" class="overlay">
   <h1 class="title-font">PAUSED</h1>
@@ -434,11 +537,11 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./audio.js?v=play9"></script>
-<script src="./world.js?v=play9"></script>
-<script src="./effects.js?v=play9"></script>
-<script src="./player.js?v=play9"></script>
-<script src="./enemy.js?v=play9"></script>
-<script src="./main.js?v=play9"></script>
+<script src="./audio.js?v=play11"></script>
+<script src="./world.js?v=play11"></script>
+<script src="./effects.js?v=play11"></script>
+<script src="./player.js?v=play11"></script>
+<script src="./enemy.js?v=play11"></script>
+<script src="./main.js?v=play11"></script>
 </body>
 </html>

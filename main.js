@@ -14,6 +14,9 @@ const TDM_RESPAWN_SEC = 4.5;
 const game = {
   state: 'menu',      // menu | playing | paused | dead | result
   mode: 'survival',   // survival | tdm
+  map: 'desert',      // desert | jungle
+  loadoutMain: 'assault',  // assault | smg | shotgun | sniper
+  loadoutSub: 'smg',       // 同上（メインと重複不可）
   time: 0,
   wave: 0, score: 0, kills: 0, headshots: 0, shots: 0, hits: 0,
   longestKill: 0, grenadeKills: 0,
@@ -217,6 +220,7 @@ function resetGame() {
 function startGame(mode, noLock) {
   AudioSys.init();
   game.mode = mode === 'tdm' ? 'tdm' : 'survival';
+  ensureMapBuilt(game.map);
   resetGame();
   game.startGen++;
   game.deathUiGen++;
@@ -418,9 +422,61 @@ function updateTdm(dt) {
 }
 
 /* ---------- ポインタロック / メニュー配線 ---------- */
+/** ロビーのマップ選択。選ぶと背景のマップも即切り替わる */
+function applyMapSelection(id) {
+  game.map = (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[id]) ? id : 'desert';
+  const d = $('mapDesertBtn'), j = $('mapJungleBtn');
+  if (d) d.classList.toggle('sel', game.map === 'desert');
+  if (j) j.classList.toggle('sel', game.map === 'jungle');
+  ensureMapBuilt(game.map);
+}
+
+/** ロビーの武器選択（メイン/サブ・重複不可） */
+function applyLoadoutSelection(slot, id) {
+  if (typeof LOADOUT_POOL === 'undefined' || !LOADOUT_POOL.includes(id)) return;
+  if (slot === 'main') {
+    game.loadoutMain = id;
+    if (game.loadoutSub === id) game.loadoutSub = LOADOUT_POOL.find(w => w !== id);
+  } else {
+    game.loadoutSub = id;
+    if (game.loadoutMain === id) game.loadoutMain = LOADOUT_POOL.find(w => w !== id);
+  }
+  updateLoadoutUI();
+}
+
+function updateLoadoutUI() {
+  document.querySelectorAll('#mainWeaponRow .wchip').forEach(b =>
+    b.classList.toggle('sel', b.dataset.w === game.loadoutMain));
+  document.querySelectorAll('#subWeaponRow .wchip').forEach(b =>
+    b.classList.toggle('sel', b.dataset.w === game.loadoutSub));
+}
+
+/** メニュー操作の短いクリック音 */
+function uiBlip() {
+  AudioSys.init();
+  if (AudioSys.ok) AudioSys._clickAt(0, 1900, 0.06);
+}
+
+/** 出撃フェードを挟んで開始（ポインタロックはジェスチャ内で即要求） */
+function deployAndStart(mode) {
+  startGame(mode, false);
+  const d = $('deploy');
+  if (!d) return;
+  d.classList.add('on');
+  setTimeout(() => d.classList.remove('on'), 650);
+}
+
 function initMenus() {
-  $('startSurvivalBtn').addEventListener('click', () => startGame('survival', false));
-  $('startTdmBtn').addEventListener('click', () => startGame('tdm', false));
+  $('startSurvivalBtn').addEventListener('click', () => deployAndStart('survival'));
+  $('startTdmBtn').addEventListener('click', () => deployAndStart('tdm'));
+  const mapD = $('mapDesertBtn'), mapJ = $('mapJungleBtn');
+  if (mapD) mapD.addEventListener('click', () => { applyMapSelection('desert'); uiBlip(); });
+  if (mapJ) mapJ.addEventListener('click', () => { applyMapSelection('jungle'); uiBlip(); });
+  document.querySelectorAll('#mainWeaponRow .wchip').forEach(b =>
+    b.addEventListener('click', () => { applyLoadoutSelection('main', b.dataset.w); uiBlip(); }));
+  document.querySelectorAll('#subWeaponRow .wchip').forEach(b =>
+    b.addEventListener('click', () => { applyLoadoutSelection('sub', b.dataset.w); uiBlip(); }));
+  updateLoadoutUI();
   $('retryBtn').addEventListener('click', () => {
     $('death').style.display = 'none';
     startGame(game.mode, false);
@@ -492,7 +548,7 @@ function updateMinimap() {
   const W = canvas.width;
   const H = canvas.height;
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(38, 32, 22, 0.98)';
+  ctx.fillStyle = (typeof MINIMAP_BG !== 'undefined') ? MINIMAP_BG : 'rgba(38, 32, 22, 0.98)';
   ctx.fillRect(0, 0, W, H);
 
   const toX = x => ((x + MINIMAP_HALF) / (MINIMAP_HALF * 2)) * W;
@@ -573,10 +629,13 @@ function tick(dt) {
     updateMinimap();
     debugLogTick();
   } else if (game.state === 'menu') {
-    menuOrbitT += dt * 0.06;
-    camera.position.set(Math.cos(menuOrbitT) * 42, 13, Math.sin(menuOrbitT) * 42);
-    camera.lookAt(0, 2, 0);
-    camera.fov = 60; camera.updateProjectionMatrix();
+    // ロビー背景：低空をゆっくり滑るシネマティックドリー
+    menuOrbitT += dt * 0.055;
+    const mr = 35 + Math.sin(menuOrbitT * 0.7) * 4;
+    const mh = 6.8 + Math.sin(menuOrbitT * 0.43) * 2.2;
+    camera.position.set(Math.cos(menuOrbitT) * mr, mh, Math.sin(menuOrbitT) * mr);
+    camera.lookAt(Math.cos(menuOrbitT + 2.7) * 9, 1.7, Math.sin(menuOrbitT + 2.7) * 9);
+    camera.fov = 55; camera.updateProjectionMatrix();
     for (const id of WEAPON_ORDER) {
       if (arsenal.models[id]) arsenal.models[id].group.visible = false;
     }
@@ -664,6 +723,9 @@ function boot() {
 
   if (DEBUG) {
     setTimeout(() => {
+      if (PARAMS.has('map')) applyMapSelection(PARAMS.get('map'));
+      if (PARAMS.has('main')) game.loadoutMain = PARAMS.get('main');
+      if (PARAMS.has('sub')) game.loadoutSub = PARAMS.get('sub');
       const mode = PARAMS.get('mode') === 'tdm' ? 'tdm' : 'survival';
       startGame(mode, true);
       if (mode === 'survival') {

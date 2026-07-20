@@ -31,15 +31,18 @@ const player = {
   healTo: 100,
 };
 
-/** @type {'assault'|'pistol'|'sniper'} */
-const WEAPON_ORDER = ['assault', 'pistol', 'sniper'];
+/** @type {'assault'|'smg'|'shotgun'|'sniper'|'pistol'} */
+const WEAPON_ORDER = ['assault', 'smg', 'shotgun', 'sniper', 'pistol'];
+/** メイン/サブのロードアウト選択肢（ハンドガンは常備の特殊枠） */
+const LOADOUT_POOL = ['assault', 'smg', 'shotgun', 'sniper'];
 
 const WEAPON_DEFS = {
   assault: {
     id: 'assault', label: 'アサルト', mode: 'AUTO',
-    magSize: 30, startReserve: 120, maxReserve: 360,
+    magSize: 30, startReserve: 120, tdmReserve: 90, maxReserve: 360,
     fireInterval: 60 / 750, reloadDur: 2.1, auto: true,
     moveMul: 1.0,          // 基準速
+    adsMoveMul: 0.55,
     spreadHip: 0.017, spreadAds: 0.0045,
     bloomAdd: 0.0038, bloomMax: 0.03, bloomDecay: 0.028,
     recoilP: [0.0055, 0.0085], recoilY: 0.0035,
@@ -49,11 +52,46 @@ const WEAPON_DEFS = {
     ads: { x: 0, y: -0.09, z: -0.47, rx: 0, ry: 0 },
     dmg: { head: 110, torso: 34, limb: 24 },
   },
+  smg: {
+    id: 'smg', label: 'SMG', mode: 'AUTO',
+    magSize: 32, startReserve: 128, tdmReserve: 96, maxReserve: 384,
+    fireInterval: 60 / 850, reloadDur: 1.7, auto: true,
+    moveMul: 1.06,         // 軽快
+    adsMoveMul: 0.6,
+    spreadHip: 0.02, spreadAds: 0.009,
+    bloomAdd: 0.0028, bloomMax: 0.034, bloomDecay: 0.032,
+    recoilP: [0.0038, 0.0058], recoilY: 0.003,
+    kickZ: 0.035, kickR: 0.06, adsRecoil: 0.6,
+    adsFov: 50, adsSens: 0.68, scale: 0.84,
+    hip: { x: 0.2, y: -0.18, z: -0.38, rx: 0, ry: 0.07 },
+    ads: { x: 0, y: -0.085, z: -0.44, rx: 0, ry: 0 },
+    dmg: { head: 78, torso: 26, limb: 18 },
+  },
+  shotgun: {
+    id: 'shotgun', label: 'ショットガン', mode: 'PUMP',
+    magSize: 6, startReserve: 24, tdmReserve: 18, maxReserve: 60,
+    fireInterval: 0.9, reloadDur: 2.6, auto: false,
+    moveMul: 0.97,
+    adsMoveMul: 0.5,
+    // ペレットの拡散円錐（遠距離は自然に減衰する設計）
+    spreadHip: 0.042, spreadAds: 0.03,
+    bloomAdd: 0.004, bloomMax: 0.02, bloomDecay: 0.05,
+    recoilP: [0.016, 0.022], recoilY: 0.006,
+    kickZ: 0.085, kickR: 0.11, adsRecoil: 0.5,
+    adsFov: 58, adsSens: 0.7, scale: 0.98,
+    hip: { x: 0.21, y: -0.19, z: -0.4, rx: 0, ry: 0.06 },
+    ads: { x: 0, y: -0.09, z: -0.46, rx: 0, ry: 0 },
+    pellets: 8,
+    // 1ペレットあたり（全弾命中で head112 / torso80）
+    dmg: { head: 14, torso: 10, limb: 7 },
+    pump: true,
+  },
   pistol: {
     id: 'pistol', label: 'ハンドガン', mode: 'SEMI',
-    magSize: 12, startReserve: 60, maxReserve: 120,
+    magSize: 12, startReserve: 60, tdmReserve: 36, maxReserve: 120,
     fireInterval: 60 / 320, reloadDur: 1.35, auto: false,
     moveMul: 1.12,         // 近接応戦・逃げ切り用に速い
+    adsMoveMul: 0.45,      // 腰撃ち固定の代償
     spreadHip: 0.022, spreadAds: 0.007,
     bloomAdd: 0.002, bloomMax: 0.018, bloomDecay: 0.04,
     recoilP: [0.004, 0.006], recoilY: 0.0025,
@@ -66,9 +104,10 @@ const WEAPON_DEFS = {
   },
   sniper: {
     id: 'sniper', label: 'スナイパー', mode: 'BOLT',
-    magSize: 5, startReserve: 15, maxReserve: 40,
+    magSize: 5, startReserve: 15, tdmReserve: 10, maxReserve: 40,
     fireInterval: 1.2, reloadDur: 2.7, auto: false,
     moveMul: 0.9,          // 腰撃ちでも少し重い
+    adsMoveMul: 0.4,
     spreadHip: 0.09, spreadAds: 0.0007,
     bloomAdd: 0.01, bloomMax: 0.02, bloomDecay: 0.05,
     recoilP: [0.02, 0.028], recoilY: 0.006,
@@ -82,11 +121,13 @@ const WEAPON_DEFS = {
 };
 
 const arsenal = {
-  owned: { assault: true, pistol: true, sniper: false },
+  owned: { assault: true, smg: true, shotgun: false, sniper: false, pistol: true },
   slots: {
     assault: { mag: 30, reserve: 120 },
-    pistol: { mag: 12, reserve: 60 },
+    smg: { mag: 32, reserve: 128 },
+    shotgun: { mag: 6, reserve: 24 },
     sniper: { mag: 5, reserve: 15 },
+    pistol: { mag: 12, reserve: 60 },
   },
   activeId: 'assault',
   models: {},   // id -> { group, muzzle, flash }
@@ -169,22 +210,37 @@ function cycleWeapon(dir) {
 }
 
 function makeTdmAmmoSlots() {
-  return {
-    assault: { mag: 30, reserve: 90 },
-    pistol: { mag: 12, reserve: 36 },
-    sniper: { mag: 5, reserve: 10 },
-  };
+  const slots = {};
+  for (const id of WEAPON_ORDER) {
+    const def = WEAPON_DEFS[id];
+    slots[id] = { mag: def.magSize, reserve: def.tdmReserve };
+  }
+  return slots;
+}
+
+/** ロードアウト（メイン＋サブ・重複不可）に基づく所持武器。ハンドガンは常備 */
+function ownedFromLoadout() {
+  const owned = { assault: false, smg: false, shotgun: false, sniper: false, pistol: true };
+  const main = LOADOUT_POOL.includes(game.loadoutMain) ? game.loadoutMain : 'assault';
+  const sub = LOADOUT_POOL.includes(game.loadoutSub) ? game.loadoutSub : 'smg';
+  owned[main] = true;
+  if (sub !== main) owned[sub] = true;
+  return owned;
 }
 
 function resetArsenal() {
   const tdm = game.mode === 'tdm';
-  arsenal.owned = { assault: true, pistol: true, sniper: !!tdm };
-  arsenal.slots = tdm ? makeTdmAmmoSlots() : {
-    assault: { mag: 30, reserve: 120 },
-    pistol: { mag: 12, reserve: 60 },
-    sniper: { mag: 5, reserve: 15 },
-  };
-  arsenal.activeId = 'assault';
+  arsenal.owned = ownedFromLoadout();
+  if (tdm) {
+    arsenal.slots = makeTdmAmmoSlots();
+  } else {
+    arsenal.slots = {};
+    for (const id of WEAPON_ORDER) {
+      const def = WEAPON_DEFS[id];
+      arsenal.slots[id] = { mag: def.magSize, reserve: def.startReserve };
+    }
+  }
+  arsenal.activeId = LOADOUT_POOL.includes(game.loadoutMain) ? game.loadoutMain : 'assault';
   weapon.kickZ = weapon.kickR = 0;
   weapon.swayX = weapon.swayY = 0;
   weapon.adsT = 0;
@@ -192,7 +248,7 @@ function resetArsenal() {
   player.grenadeMax = 5;
   player.grenadeCd = 0;
   player.nadeAim = false;
-  player.moveMul = WEAPON_DEFS.assault.moveMul;
+  player.moveMul = WEAPON_DEFS[arsenal.activeId].moveMul;
   player.medkits = tdm ? 2 : 0;
   player.medkitMax = 3;
   player.healing = false;
@@ -202,7 +258,7 @@ function resetArsenal() {
   clearGrenades();
   hideNadeArc();
   hideHealBar();
-  applyWeaponStats('assault');
+  applyWeaponStats(arsenal.activeId);
   updateGrenadeHUD();
   updateMedkitHUD();
   if (typeof updateArmorHUD === 'function') updateArmorHUD();
@@ -331,26 +387,24 @@ function grantArmor() {
 
 function addReserveAmmo(amount) {
   saveActiveAmmo();
-  const id = arsenal.activeId;
-  const def = WEAPON_DEFS[id];
-  const slot = arsenal.slots[id];
-  const before = slot.reserve + (id !== 'assault' ? arsenal.slots.assault.reserve : 0);
-  const room = def.maxReserve - slot.reserve;
+  // アクティブ武器優先。あふれた分は他の所持武器へ順に分配
+  const order = [arsenal.activeId,
+    ...WEAPON_ORDER.filter(id => id !== arsenal.activeId && arsenal.owned[id])];
+  const totalOf = () => WEAPON_ORDER.reduce(
+    (t, id) => t + (arsenal.owned[id] ? arsenal.slots[id].reserve : 0), 0);
+  const before = totalOf();
   let left = amount;
-  if (room > 0) {
+  for (const id of order) {
+    if (left <= 0) break;
+    const slot = arsenal.slots[id];
+    const room = WEAPON_DEFS[id].maxReserve - slot.reserve;
     const take = Math.min(room, left);
     slot.reserve += take;
     left -= take;
   }
-  if (left > 0 && id !== 'assault') {
-    const a = arsenal.slots.assault;
-    const ad = WEAPON_DEFS.assault;
-    a.reserve = Math.min(a.reserve + left, ad.maxReserve);
-  }
-  if (arsenal.activeId === id) weapon.reserve = arsenal.slots[id].reserve;
+  weapon.reserve = arsenal.slots[arsenal.activeId].reserve;
   updateAmmoHUD();
-  const after = slot.reserve + (id !== 'assault' ? arsenal.slots.assault.reserve : 0);
-  return after > before;
+  return totalOf() > before;
 }
 
 /* ---------- 銃ビューモデル ---------- */
@@ -488,12 +542,105 @@ function buildSniperModel() {
   return { group: g, muzzle, flash };
 }
 
+function buildSmgModel() {
+  const g = new THREE.Group();
+  const gm = MAT.gunmetal, dm = MAT.darkMetal;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.08, 0.34), gm);
+  g.add(body);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.16, 8), dm);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0, 0.012, -0.25);
+  g.add(barrel);
+  const shroud = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 8), gm);
+  shroud.rotation.x = Math.PI / 2;
+  shroud.position.set(0, 0.012, -0.2);
+  g.add(shroud);
+  // 折り畳みストック
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.05, 0.2), dm);
+  stock.position.set(0.024, -0.01, 0.2);
+  g.add(stock);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.05), dm);
+  grip.position.set(0, -0.085, 0.08);
+  grip.rotation.x = 0.3;
+  g.add(grip);
+  // カーブマガジン
+  const magM = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.16, 0.055), gm);
+  magM.position.set(0, -0.12, -0.03);
+  magM.rotation.x = 0.22;
+  g.add(magM);
+  const sightBase = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.018, 0.07), dm);
+  sightBase.position.set(0, 0.052, -0.02);
+  g.add(sightBase);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.003, 8, 18), dm);
+  ring.position.set(0, 0.078, -0.02);
+  g.add(ring);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.003, 6, 6),
+    new THREE.MeshBasicMaterial({ color: 0xff2211, fog: false }));
+  dot.position.set(0, 0.078, -0.02);
+  g.add(dot);
+  const gloveM = new THREE.MeshLambertMaterial({ color: 0x3d3a30 });
+  gloveM.color.convertSRGBToLinear();
+  const handR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.045, 0.08), gloveM);
+  handR.position.set(0.005, -0.08, 0.08);
+  g.add(handR);
+  const handL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.09), gloveM);
+  handL.position.set(-0.005, -0.045, -0.16);
+  g.add(handL);
+  const { muzzle, flash } = attachMuzzleFlash(g, new THREE.Vector3(0, 0.012, -0.34));
+  flash.scale.setScalar(0.18);
+  return { group: g, muzzle, flash };
+}
+
+function buildShotgunModel() {
+  const g = new THREE.Group();
+  const gm = MAT.gunmetal, dm = MAT.darkMetal;
+  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.085, 0.3), gm);
+  g.add(receiver);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.52, 10), gm);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0, 0.018, -0.4);
+  g.add(barrel);
+  // マガジンチューブ
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.46, 8), dm);
+  tube.rotation.x = Math.PI / 2;
+  tube.position.set(0, -0.022, -0.38);
+  g.add(tube);
+  // ポンプ（前床）
+  const pump = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.14, 8), dm);
+  pump.rotation.x = Math.PI / 2;
+  pump.position.set(0, -0.022, -0.3);
+  g.add(pump);
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.09, 0.24), dm);
+  stock.position.set(0, -0.025, 0.3);
+  g.add(stock);
+  const gripCap = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.07, 0.06), dm);
+  gripCap.position.set(0, -0.09, 0.14);
+  gripCap.rotation.x = 0.4;
+  g.add(gripCap);
+  const bead = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 6), dm);
+  bead.position.set(0, 0.045, -0.64);
+  g.add(bead);
+  const gloveM = new THREE.MeshLambertMaterial({ color: 0x3d3a30 });
+  gloveM.color.convertSRGBToLinear();
+  const handR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.045, 0.08), gloveM);
+  handR.position.set(0.005, -0.085, 0.13);
+  g.add(handR);
+  const handL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.1), gloveM);
+  handL.position.set(-0.005, -0.05, -0.3);
+  g.add(handL);
+  const { muzzle, flash } = attachMuzzleFlash(g, new THREE.Vector3(0, 0.018, -0.67));
+  flash.scale.setScalar(0.3);
+  return { group: g, muzzle, flash };
+}
+
 function buildGun() {
   const flashLight = new THREE.PointLight(0xffb36b, 0, 14);
   scene.add(flashLight);
   weapon.flashLight = flashLight;
 
   arsenal.models.assault = buildAssaultModel();
+  arsenal.models.smg = buildSmgModel();
+  arsenal.models.shotgun = buildShotgunModel();
   arsenal.models.pistol = buildPistolModel();
   arsenal.models.sniper = buildSniperModel();
   for (const id of WEAPON_ORDER) {
@@ -562,25 +709,31 @@ function tryFire(now) {
   _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
   _camUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
   const sp = currentSpread();
-  _dir.addScaledVector(_right, rand(-sp, sp));
-  _dir.addScaledVector(_camUp, rand(-sp, sp));
-  _dir.normalize();
-
-  const rc = new THREE.Raycaster(_from, _dir, 0.05, 300);
+  const pellets = def.pellets || 1;
   const targets = hitMeshes.concat(worldMeshes);
-  const hits = rc.intersectObjects(targets, false);
+  const tracerEnds = [];
 
-  let end = null;
-  if (hits.length) {
-    const h = hits[0];
-    end = h.point;
-    if (h.object.userData.enemy && h.object.userData.enemy.alive) {
-      hitEnemy(h.object.userData.enemy, h.object.userData.part, h.point, _dir);
+  for (let p = 0; p < pellets; p++) {
+    const pdir = _dir.clone();
+    pdir.addScaledVector(_right, rand(-sp, sp));
+    pdir.addScaledVector(_camUp, rand(-sp, sp));
+    pdir.normalize();
+    const rc = new THREE.Raycaster(_from, pdir, 0.05, 300);
+    const hits = rc.intersectObjects(targets, false);
+    let end = null;
+    if (hits.length) {
+      const h = hits[0];
+      end = h.point;
+      if (h.object.userData.enemy && h.object.userData.enemy.alive) {
+        hitEnemy(h.object.userData.enemy, h.object.userData.part, h.point, pdir);
+      } else {
+        impactFX(h.point);
+      }
     } else {
-      impactFX(h.point);
+      end = _from.clone().addScaledVector(pdir, 250);
     }
-  } else {
-    end = _from.clone().addScaledVector(_dir, 250);
+    // トレーサーは散弾全てだとうるさいので代表的な数本だけ
+    if (p === 0 || (pellets > 1 && p < 4)) tracerEnds.push(end);
   }
 
   weapon.muzzle.getWorldPosition(_muzzleW);
@@ -589,11 +742,11 @@ function tryFire(now) {
   const tracerFrom = scopeTracer
     ? _from.clone().addScaledVector(_dir, 0.4)
     : _muzzleW;
-  spawnTracer(tracerFrom, end, 0xffe9b8);
+  for (const end of tracerEnds) spawnTracer(tracerFrom, end, 0xffe9b8);
 
   weapon.flash.material.opacity = scopeTracer ? 0 : 0.95;
   weapon.flash.material.rotation = rand(0, 6.28);
-  weapon.flash.scale.setScalar(rand(0.16, 0.26));
+  weapon.flash.scale.setScalar(rand(0.16, 0.26) * (pellets > 1 ? 1.5 : 1));
   weapon.flashLight.position.copy(scopeTracer ? tracerFrom : _muzzleW);
   weapon.flashLight.intensity = arsenal.activeId === 'sniper' ? 3.2 : 2.4;
 
@@ -605,8 +758,9 @@ function tryFire(now) {
     weapon.ads = false;
     AudioSys.bolt();
   }
+  if (def.pump && AudioSys.pump) AudioSys.pump();
 
-  AudioSys.shot();
+  AudioSys.shot(arsenal.activeId);
   updateAmmoHUD();
 }
 
@@ -761,11 +915,7 @@ function updatePlayer(dt) {
     : (activeDef().moveMul || 1);
   player.moveMul = lerp(player.moveMul, wantMoveMul, 1 - Math.exp(-6 * dt));
   speed *= player.moveMul;
-  if (weapon.ads && !player.nadeAim) {
-    if (arsenal.activeId === 'sniper') speed *= 0.4;
-    else if (arsenal.activeId === 'pistol') speed *= 0.45; // 腰撃ち固定の代償
-    else speed *= 0.55;
-  }
+  if (weapon.ads && !player.nadeAim) speed *= activeDef().adsMoveMul || 0.55;
   if (player.healing) speed *= 0.35;
 
   updateHeal(dt);

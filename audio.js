@@ -5,6 +5,15 @@
 const AudioSys = {
   ctx: null, master: null, noiseBuf: null,
 
+  /* 武器別の銃声シグネチャ（shot() の4層のパラメータ） */
+  SHOT_DEFS: {
+    assault: { crack: 3400, crackG: 0.5, bodyF: 2400, bodyEnd: 300, bodyDur: 0.14, bodyG: 0.8, thumpF: 110, thumpG: 0.45, tailG: 0.3, tailDur: 0.34 },
+    smg: { crack: 4200, crackG: 0.42, bodyF: 2600, bodyEnd: 430, bodyDur: 0.1, bodyG: 0.62, thumpF: 135, thumpG: 0.32, tailG: 0.2, tailDur: 0.24 },
+    shotgun: { crack: 2400, crackG: 0.4, bodyF: 1500, bodyEnd: 140, bodyDur: 0.26, bodyG: 1.0, thumpF: 86, thumpG: 0.65, tailG: 0.5, tailDur: 0.6 },
+    pistol: { crack: 3800, crackG: 0.5, bodyF: 2500, bodyEnd: 350, bodyDur: 0.11, bodyG: 0.72, thumpF: 120, thumpG: 0.4, tailG: 0.22, tailDur: 0.26 },
+    sniper: { crack: 3000, crackG: 0.55, bodyF: 1900, bodyEnd: 120, bodyDur: 0.3, bodyG: 1.0, thumpF: 84, thumpG: 0.6, tailG: 0.55, tailDur: 0.8 },
+  },
+
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -30,8 +39,13 @@ const AudioSys = {
   },
 
   _noise(dur, filterType, freq, gain, rate, pan) {
+    return this._noiseAt(0, dur, filterType, freq, gain, rate, pan);
+  },
+
+  /** 遅延スケジュール版ノイズ。フィルタを返すので掃引できる */
+  _noiseAt(delay, dur, filterType, freq, gain, rate, pan) {
     const amp = Number.isFinite(gain) ? Math.max(gain, 1e-4) : 0.05;
-    const t0 = this.t;
+    const t0 = this.t + (Number.isFinite(delay) ? Math.max(delay, 0) : 0);
     if (!this._finite(dur, freq, amp, t0) || dur <= 0) return null;
     const src = this.ctx.createBufferSource();
     src.buffer = this.noiseBuf;
@@ -40,7 +54,8 @@ const AudioSys = {
     const f = this.ctx.createBiquadFilter();
     f.type = filterType; f.frequency.value = freq;
     const g = this.ctx.createGain();
-    g.gain.setValueAtTime(amp, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(amp, t0 + Math.min(0.008, dur * 0.2));
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     src.connect(f); f.connect(g);
     let out = g;
@@ -71,38 +86,64 @@ const AudioSys = {
     o.start(t0); o.stop(t0 + dur + 0.05);
   },
 
-  /* プレイヤー銃声：鋭いクラック + 低いサンプ */
-  shot() {
+  /* プレイヤー銃声：クラック + ブラスト胴 + 低音サンプ + 環境テイルの4層 */
+  shot(id) {
     if (!this.ok) return;
-    const f = this._noise(0.16, 'lowpass', 3200, 0.85, 0.9 + Math.random() * 0.25);
-    if (f) f.frequency.exponentialRampToValueAtTime(280, this.t + 0.13);
-    this._tone('triangle', 120, 48, 0.09, 0.5);
+    const d = AudioSys.SHOT_DEFS[id] || AudioSys.SHOT_DEFS.assault;
+    // 1. 超音速クラック（数msの硬い立ち上がり）
+    this._noise(0.028, 'highpass', d.crack, d.crackG, 1.7);
+    // 2. 銃口ブラストの胴（ローパス掃引）
+    const f = this._noise(d.bodyDur, 'lowpass', d.bodyF, d.bodyG, 0.9 + Math.random() * 0.25);
+    if (f) f.frequency.exponentialRampToValueAtTime(d.bodyEnd, this.t + d.bodyDur * 0.85);
+    // 3. 胴に響く低音
+    this._tone('triangle', d.thumpF, 42, 0.1, d.thumpG);
+    // 4. 環境の反響尾（2タップの遅れエコー）
+    this._noiseAt(0.07 + Math.random() * 0.02, d.tailDur, 'lowpass', 700, d.tailG * 0.5, 0.6);
+    this._noiseAt(0.16 + Math.random() * 0.03, d.tailDur * 1.2, 'lowpass', 380, d.tailG * 0.3, 0.45);
+  },
+
+  /* ショットガンのポンプアクション（射撃直後に呼ぶ） */
+  pump() {
+    if (!this.ok) return;
+    // 引き
+    this._scrapeAt(0.14, 0.12, 800, 0.15);
+    this._metalResAt(0.19, 480, 0.1, 0.06);
+    // 押し戻し＋閉鎖
+    this._scrapeAt(0.32, 0.1, 1050, 0.14);
+    this._metalResAt(0.4, 700, 0.15, 0.08);
+    this._clickAt(0.44, 1250, 0.09);
   },
 
   /* スナイパーのボルトコッキング（射撃後のダウンタイム用） */
   bolt() {
     if (!this.ok) return;
     // ハンドル上げ
-    this._metalAt(0.14, 520, 0.15, 0.07);
+    this._metalResAt(0.14, 520, 0.14, 0.07);
     this._clickAt(0.18, 700, 0.1);
     // ボルト引く＋薬莢排出感
     this._scrapeAt(0.28, 0.22, 950, 0.14);
-    this._metalAt(0.42, 1400, 0.1, 0.05);  // エジェクションの軽い金属音
+    this._metalResAt(0.42, 1400, 0.08, 0.05);  // エジェクションの軽い金属音
     this._thudAt(0.48, 140, 0.1);
     // 押し込み
     this._scrapeAt(0.58, 0.2, 1100, 0.13);
     // チャンバーロック
-    this._metalAt(0.78, 680, 0.22, 0.1);
+    this._metalResAt(0.78, 680, 0.2, 0.1);
     this._clickAt(0.86, 1550, 0.13);
   },
 
-  /* 敵の銃声：距離で減衰・パン付き */
+  /* 敵の銃声：距離で減衰・パン付き＋距離に応じた遅れエコー */
   enemyShot(dist, pan) {
     if (!this.ok) return;
     const d = Number.isFinite(dist) ? dist : 40;
     const g = Math.min(0.5, 13 / Math.max(d, 4));
     const f = this._noise(0.22, 'lowpass', 950, g, 0.7 + Math.random() * 0.2, pan);
     if (f) f.frequency.exponentialRampToValueAtTime(160, this.t + 0.2);
+    // 至近距離は銃口のクラックが乗る
+    if (d < 26) this._noise(0.03, 'highpass', 2400, g * 0.5, 1.5, pan);
+    // 遅れて届く環境エコー（距離が遠いほど遅れ大・尾長め）
+    const echoDelay = 0.1 + Math.min(0.3, d / 340);
+    this._noiseAt(echoDelay, 0.38, 'lowpass', 430, g * 0.38, 0.5, pan);
+    this._noiseAt(echoDelay + 0.12, 0.5, 'lowpass', 260, g * 0.22, 0.4, pan);
   },
 
   /* 弾が頭の近くを通過する音 */
@@ -208,6 +249,41 @@ const AudioSys = {
     o.start(t0); o.stop(t0 + d + 0.02);
   },
 
+  /** 金属の共鳴（非整数倍の部分音を重ねる＝インハーモニックで金属っぽい） */
+  _metalResAt(delay, freq, gain, dur) {
+    const t0 = this.t + (Number.isFinite(delay) ? delay : 0);
+    const d = Number.isFinite(dur) && dur > 0 ? dur : 0.08;
+    const amp = Number.isFinite(gain) && gain > 0 ? gain : 0.15;
+    if (!this._finite(t0, freq, amp, d)) return;
+    // アタックのシャリ
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.playbackRate.value = 1.5;
+    const nf = this.ctx.createBiquadFilter();
+    nf.type = 'highpass'; nf.frequency.value = freq * 0.9;
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t0);
+    ng.gain.exponentialRampToValueAtTime(amp * 0.6, t0 + 0.003);
+    ng.gain.exponentialRampToValueAtTime(0.001, t0 + d * 0.5);
+    src.connect(nf); nf.connect(ng); ng.connect(this.master);
+    src.start(t0); src.stop(t0 + d);
+    // 部分音列（金属棒のような非調和比）
+    const partials = [1, 1.51, 2.28, 3.41];
+    const weights = [1, 0.55, 0.3, 0.15];
+    for (let i = 0; i < partials.length; i++) {
+      const o = this.ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = freq * partials[i] * (1 + (Math.random() - 0.5) * 0.012);
+      const g = this.ctx.createGain();
+      const a = amp * weights[i];
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(a, 1e-4), t0 + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + d * (1 - i * 0.16));
+      o.connect(g); g.connect(this.master);
+      o.start(t0); o.stop(t0 + d + 0.03);
+    }
+  },
+
   /** 金属が擦れるスクレイプ */
   _scrapeAt(delay, dur, freq, gain) {
     const t0 = this.t + (Number.isFinite(delay) ? delay : 0);
@@ -268,7 +344,7 @@ const AudioSys = {
       ? Math.max(0.55, Math.min(1.35, reloadDur / 2.1))
       : 1;
     // マガジンキャッチ解放
-    this._metalAt(0.04 * s, 1350, 0.14, 0.06);
+    this._metalResAt(0.04 * s, 1350, 0.13, 0.06);
     this._clickAt(0.08 * s, 980, 0.1);
     // マガジン抜き
     this._scrapeAt(0.28 * s, 0.22 * s, 700, 0.1);
@@ -276,10 +352,10 @@ const AudioSys = {
     // 新マガジン挿入
     this._scrapeAt(1.05 * s, 0.18 * s, 850, 0.11);
     this._thudAt(1.28 * s, 220, 0.24);
-    this._metalAt(1.38 * s, 1100, 0.16, 0.07);
+    this._metalResAt(1.38 * s, 1100, 0.15, 0.07);
     // チャージハンドル／ボルト前進
     this._scrapeAt(1.72 * s, 0.14 * s, 1200, 0.13);
-    this._metalAt(1.88 * s, 780, 0.2, 0.09);
+    this._metalResAt(1.88 * s, 780, 0.19, 0.09);
     this._clickAt(1.95 * s, 1600, 0.12);
   },
 
