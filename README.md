@@ -1,7 +1,7 @@
-# OPERATION SANDSTORM
+# KIMI GROK FPS
 
 ブラウザで遊べる FPS。three.js 製・ビルド不要・オフライン動作。
-マップは砂漠（DESERT）と密林（JUNGLE）の2つ。
+マップは砂漠（DESERT）と密林（JUNGLE）の2つ（今後も追加予定）。
 
 **▶ プレイ: https://hayashiii-ghub.github.io/fps-game/**
 
