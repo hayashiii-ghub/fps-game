@@ -53,6 +53,8 @@ const WEAPON_DEFS = {
     hip: { x: 0.21, y: -0.19, z: -0.4, rx: 0, ry: 0.08 },
     ads: { x: 0, y: -0.09, z: -0.47, rx: 0, ry: 0 },
     dmg: { head: 110, torso: 34, limb: 24 },
+    // 弱めの減衰：中距離まではフル、遠距離だけ少し落とす（近接武器より緩い）
+    dmgFalloff: { start: 28, end: 50, min: 0.82 },
   },
   smg: {
     id: 'smg', label: 'SMG', mode: 'AUTO',
