@@ -79,19 +79,19 @@ const WEAPON_DEFS = {
     magSize: 6, startReserve: 24, tdmReserve: 18, maxReserve: 60,
     fireInterval: 0.9, reloadDur: 2.6, auto: false,
     moveMul: 0.97,
-    adsMoveMul: 0.5,
+    adsMoveMul: 0.5,       // 腰撃ち固定の代償（減速）
     // 集弾をややタイトに＋距離威力減衰（拡散と二重で遠距離を抑える）
     spreadHip: 0.036, spreadAds: 0.022,
     bloomAdd: 0.004, bloomMax: 0.02, bloomDecay: 0.05,
     recoilP: [0.016, 0.022], recoilY: 0.006,
-    kickZ: 0.085, kickR: 0.11, adsRecoil: 0.5,
-    adsFov: 58, adsSens: 0.7, scale: 0.98,
+    kickZ: 0.085, kickR: 0.11, adsRecoil: 0.7,
+    // 覗き込みではなく「腰撃ち固定」：FOV据え置き・銃は腰位置のまま
+    adsFov: 75, adsSens: 0.88, scale: 0.98,
     hip: { x: 0.21, y: -0.19, z: -0.4, rx: 0, ry: 0.06 },
-    // ビーズ(y=0.045)×scale がカメラ光軸に来るよう ads.y を合わせる
-    ads: { x: 0, y: -0.044, z: -0.46, rx: 0, ry: 0 },
+    ads: { x: 0.19, y: -0.18, z: -0.41, rx: 0.01, ry: 0.05 },
     pellets: 8,
-    // 1ペレットあたり（近距離全弾命中で torso 104 / head 144）
-    dmg: { head: 18, torso: 13, limb: 9 },
+    // 1ペレットあたり（近距離全弾命中で torso 120 / head 160）
+    dmg: { head: 20, torso: 15, limb: 10 },
     dmgFalloff: { start: 12, end: 25, min: 0.5 },
     pump: true,
   },
@@ -1149,8 +1149,8 @@ function updateWeapon(dt) {
     g.visible = t < 0.72;
     if (scopeEl) scopeEl.style.opacity = String(clamp((t - 0.25) / 0.55, 0, 1));
     chEl.style.opacity = 0;
-  } else if (arsenal.activeId === 'pistol') {
-    // ハンドガンADS＝腰撃ち固定。レティクルは残し、広がりだけ絞る
+  } else if (arsenal.activeId === 'pistol' || arsenal.activeId === 'shotgun') {
+    // ハンドガン／ショットガンADS＝腰撃ち固定。レティクルは残し、広がりだけ絞る
     g.visible = true;
     if (scopeEl) scopeEl.style.opacity = '0';
     chEl.style.opacity = player.sprinting ? 0 : 1;

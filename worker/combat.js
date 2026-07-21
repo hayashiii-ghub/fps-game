@@ -6,8 +6,8 @@ import { clamp } from './pose.js';
 export const WEAPON_DMG = {
   assault: { head: 70, torso: 34, limb: 24 },
   smg: { head: 50, torso: 26, limb: 18 },
-  // 近距離胴全弾 (13×8=104) で一撃。頭 18×8 / 肢 9×8
-  shotgun: { head: 18, torso: 13, limb: 9 },
+  // 近距離胴全弾 (15×8=120) で一撃。頭 20×8 / 肢 10×8
+  shotgun: { head: 20, torso: 15, limb: 10 },
   pistol: { head: 55, torso: 28, limb: 18 },
   sniper: { head: 200, torso: 95, limb: 55 },
 };
