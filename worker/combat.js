@@ -81,10 +81,16 @@ export function validateHit({
   return { ok: true, dmg, dist };
 }
 
+export function scaleByArmor(dmg, victim) {
+  if (!victim || !victim.armor) return dmg;
+  return Math.max(1, Math.round(dmg * 0.72));
+}
+
 export function applyDamage(victim, dmg) {
-  const hp = Math.max(0, (victim.hp || 0) - dmg);
+  const scaled = scaleByArmor(dmg, victim);
+  const hp = Math.max(0, (victim.hp || 0) - scaled);
   const kill = hp <= 0;
-  return { hp, kill };
+  return { hp, kill, dmg: scaled };
 }
 
 export { clamp };

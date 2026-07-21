@@ -917,6 +917,7 @@ function resetSupply() {
 
 function updateSupply(dt) {
   if (game.state !== 'playing' || game.mode !== 'tdm') return;
+  if (game.online) return; // オンラインは Room DO が補給を権威化
   ensureSupplyCrate();
   supplyNext -= dt;
   if (supplyNext > 0) return;
@@ -947,12 +948,13 @@ function maybeDrop(pos) {
   else if (r < 0.82) spawnLoot(pos, 'nade');
 }
 function tdmDrop(pos) {
+  if (game.online) return; // 死亡ドロップはサーバー
   const r = Math.random();
   if (r < 0.4) spawnLoot(pos, 'ammo');
   else if (r < 0.7) spawnLoot(pos, 'med');
   else spawnLoot(pos, 'nade');
 }
-function spawnLoot(pos, type) {
+function spawnLootAt(pos, type, opts) {
   let geo, mat, y = 0.12;
   if (type === 'sniper') {
     geo = new THREE.BoxGeometry(0.7, 0.12, 0.16);
@@ -974,10 +976,23 @@ function spawnLoot(pos, type) {
     mat = medMat;
   }
   const m = new THREE.Mesh(geo, mat);
-  m.position.set(pos.x + rand(-0.5, 0.5), y, pos.z + rand(-0.5, 0.5));
+  const jitter = !(opts && opts.jitter === false);
+  m.position.set(
+    pos.x + (jitter ? rand(-0.5, 0.5) : 0),
+    y,
+    pos.z + (jitter ? rand(-0.5, 0.5) : 0),
+  );
   m.castShadow = true;
   scene.add(m);
-  loots.push({ m, type, t: 0, baseY: y, maxSaid: false });
+  const entry = {
+    m, type, t: 0, baseY: y, maxSaid: false,
+    netId: opts && opts.netId ? opts.netId : null,
+  };
+  loots.push(entry);
+  return entry;
+}
+function spawnLoot(pos, type) {
+  return spawnLootAt(pos, type, null);
 }
 function updateLoot(dt) {
   for (let i = loots.length - 1; i >= 0; i--) {
@@ -985,12 +1000,20 @@ function updateLoot(dt) {
     l.t += dt;
     l.m.rotation.y += dt * 1.5;
     l.m.position.y = l.baseY + Math.sin(l.t * 3) * 0.03;
-    if (l.t > 25) {
+    if (!l.netId && l.t > 25) {
       l.m.visible = Math.sin(l.t * 10) > 0;
       if (l.t > 30) { scene.remove(l.m); loots.splice(i, 1); continue; }
     }
     const d = l.m.position.distanceTo(player.pos);
     if (d < 1.3 && player.alive) {
+      if (l.netId && game.online && typeof Online !== 'undefined') {
+        if (!l.claiming) {
+          l.claiming = true;
+          Online.claimLoot(l.netId);
+          setTimeout(() => { l.claiming = false; }, 450);
+        }
+        continue;
+      }
       let picked = false;
       if (l.type === 'ammo') {
         const amount = game.mode === 'tdm' ? 45 : 90;
@@ -1181,8 +1204,9 @@ function startTdmMatch() {
   if (game.online) {
     player.spawnProtT = 2;
     const code = (typeof Net !== 'undefined' && Net.getState().room) || '';
-    showBanner('ONLINE TDM', `ROOM ${code} ― 位置同期`);
+    showBanner('ONLINE TDM', `ROOM ${code} ― LIVE`);
     updateTdmHUD();
+    if (typeof ensureSupplyCrate === 'function') ensureSupplyCrate();
     if (typeof Online !== 'undefined') Online.onMatchStart();
     return;
   }

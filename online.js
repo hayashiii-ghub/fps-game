@@ -1,12 +1,16 @@
 /**
- * オンライン対戦クライアント（リモート表示 + pose + 被弾）
+ * オンライン対戦クライアント（リモート表示 + pose + 被弾 + ギア）
  */
 const Online = (() => {
   /** @type {Map<string, object>} */
   const remotes = new Map();
+  /** @type {Map<string, object>} */
+  const netLoots = new Map();
   let sendAcc = 0;
   let myTeam = 'blue';
   let unsub = null;
+  /** 自分が投げたグレの boom FX を二重にしない */
+  const localNadeFxSkip = new Set();
 
   function ensureHook() {
     if (unsub || typeof Net === 'undefined') return;
@@ -14,8 +18,12 @@ const Online = (() => {
       if (ev === 'welcome') {
         myTeam = data.team || 'blue';
         if (data.score) applyScore(data.score);
+        if (data.inv) applyInv(data.inv, true);
         if (Array.isArray(data.peers)) {
           for (const p of data.peers) ensureRemote(p.id, p.team || 'red');
+        }
+        if (Array.isArray(data.loots)) {
+          for (const l of data.loots) spawnNetLoot(l);
         }
         rebuildOnlineHits();
       } else if (ev === 'peer') {
@@ -31,8 +39,27 @@ const Online = (() => {
         applyScore(data);
       } else if (ev === 'respawn') {
         onPeerRespawn(data);
+      } else if (ev === 'nade_throw') {
+        onNadeThrow(data);
+      } else if (ev === 'nade_boom') {
+        onNadeBoom(data);
+      } else if (ev === 'healed') {
+        onHealed(data);
+      } else if (ev === 'inv') {
+        applyInv(data, data.id === Net.getState().selfId);
+      } else if (ev === 'loot_spawn') {
+        spawnNetLoot(data.loot);
+      } else if (ev === 'loot_gone') {
+        removeNetLoot(data.lootId);
+      } else if (ev === 'loot_clear') {
+        clearNetLoots();
+      } else if (ev === 'loot_grant') {
+        onLootGrant(data);
+      } else if (ev === 'supply') {
+        if (typeof spawnFloater === 'function') spawnFloater('中央補給', false);
       } else if (ev === 'status' && data.state === 'closed') {
         clearRemotes();
+        clearNetLoots();
       }
     });
   }
@@ -44,16 +71,42 @@ const Online = (() => {
     if (typeof updateTdmHUD === 'function') updateTdmHUD();
   }
 
-  function ensureRemote(id, team) {
+  function applyInv(inv, isSelf) {
+    if (!isSelf || !inv || !game.online) return;
+    if (Number.isFinite(inv.grenades)) {
+      player.grenades = inv.grenades;
+      if (typeof updateGrenadeHUD === 'function') updateGrenadeHUD();
+    }
+    if (Number.isFinite(inv.medkits)) {
+      player.medkits = inv.medkits;
+      if (typeof updateMedkitHUD === 'function') updateMedkitHUD();
+    }
+    if (typeof inv.armor === 'boolean') {
+      player.armor = inv.armor;
+      player.dmgMul = inv.armor ? 0.72 : 1;
+      if (typeof updateArmorHUD === 'function') updateArmorHUD();
+    }
+    if (Number.isFinite(inv.hp) && player.alive) {
+      player.hp = inv.hp;
+      if (typeof updateHealthHUD === 'function') updateHealthHUD();
+    }
+  }
+
+  function ensureRemote(id, team, weapon) {
     if (!id || (typeof Net !== 'undefined' && id === Net.getState().selfId)) return null;
+    const kind = weapon === 'sniper' ? 'sniper' : 'grunt';
     let r = remotes.get(id);
     if (r) {
       if (team && r.team !== team) {
         removeRemote(id);
         r = null;
+      } else if (r.weapon !== (weapon || r.weapon) && (weapon === 'sniper' || r.weapon === 'sniper')) {
+        // スナイパー切替時だけモデル差し替え
+        removeRemote(id);
+        r = null;
       } else return r;
     }
-    const m = buildEnemyModel('grunt', team === 'blue' ? 'blue' : 'red');
+    const m = buildEnemyModel(kind, team === 'blue' ? 'blue' : 'red');
     m.group.name = `remote:${id}`;
     for (const mesh of m.parts) {
       mesh.userData.remoteId = id;
@@ -63,6 +116,7 @@ const Online = (() => {
     r = {
       id,
       team: team === 'blue' ? 'blue' : 'red',
+      weapon: weapon || 'assault',
       g: m.group,
       parts: m.parts,
       pos: new THREE.Vector3(),
@@ -98,12 +152,13 @@ const Online = (() => {
     for (const p of snap.players) {
       if (!p || !p.id || p.id === selfId) continue;
       seen.add(p.id);
-      const r = ensureRemote(p.id, p.team);
+      const r = ensureRemote(p.id, p.team, p.weapon);
       if (!r) continue;
       r.tx = p.x;
       r.tz = p.z;
       r.tyaw = p.yaw;
       r.crouch = !!p.crouch;
+      r.weapon = p.weapon || r.weapon;
       r.alive = p.alive !== false;
       r.g.visible = r.alive;
       if (!r.placed) {
@@ -123,6 +178,110 @@ const Online = (() => {
     Net.sendHit(targetId, part || 'torso', weapon);
   }
 
+  function notifyNadeThrow(from, vel) {
+    if (!game.online || typeof Net === 'undefined') return;
+    Net.sendNadeThrow({
+      x: from.x, y: from.y, z: from.z,
+      vx: vel.x, vy: vel.y, vz: vel.z,
+    });
+  }
+
+  function claimNadeBoom(pos) {
+    if (!game.online || typeof Net === 'undefined') return;
+    const key = `${pos.x.toFixed(2)},${pos.z.toFixed(2)}`;
+    localNadeFxSkip.add(key);
+    setTimeout(() => localNadeFxSkip.delete(key), 800);
+    Net.sendNadeBoom(pos);
+  }
+
+  function onNadeThrow(data) {
+    if (!game.online || !data) return;
+    const selfId = Net.getState().selfId;
+    if (data.id === selfId) return;
+    if (typeof spawnRemoteGrenade === 'function') {
+      spawnRemoteGrenade(
+        new THREE.Vector3(data.x, data.y, data.z),
+        new THREE.Vector3(data.vx, data.vy, data.vz),
+      );
+    }
+  }
+
+  function onNadeBoom(data) {
+    if (!game.online || !data) return;
+    const key = `${Number(data.x).toFixed(2)},${Number(data.z).toFixed(2)}`;
+    if (localNadeFxSkip.has(key)) return;
+    if (typeof explodeGrenadeFX === 'function') {
+      explodeGrenadeFX(new THREE.Vector3(data.x, data.y, data.z));
+    }
+  }
+
+  function claimHeal() {
+    if (!game.online || typeof Net === 'undefined') return;
+    Net.sendHeal();
+  }
+
+  function onHealed(data) {
+    if (!game.online || !data) return;
+    const selfId = Net.getState().selfId;
+    if (data.id !== selfId) return;
+    player.hp = Math.max(0, Number(data.hp) || player.hp);
+    if (Number.isFinite(data.medkits)) player.medkits = data.medkits;
+    if (typeof updateHealthHUD === 'function') updateHealthHUD();
+    if (typeof updateMedkitHUD === 'function') updateMedkitHUD();
+  }
+
+  function spawnNetLoot(loot) {
+    if (!loot || !loot.id || netLoots.has(loot.id)) return;
+    if (typeof spawnLootAt === 'function') {
+      const entry = spawnLootAt(
+        new THREE.Vector3(loot.x, 0, loot.z),
+        loot.type,
+        { netId: loot.id, jitter: false },
+      );
+      if (entry) netLoots.set(loot.id, entry);
+    }
+  }
+
+  function removeNetLoot(lootId) {
+    const entry = netLoots.get(lootId);
+    if (!entry) return;
+    if (entry.m) scene.remove(entry.m);
+    if (typeof loots !== 'undefined') {
+      const i = loots.indexOf(entry);
+      if (i >= 0) loots.splice(i, 1);
+    }
+    netLoots.delete(lootId);
+  }
+
+  function clearNetLoots() {
+    for (const id of [...netLoots.keys()]) removeNetLoot(id);
+  }
+
+  function claimLoot(lootId) {
+    if (!game.online || typeof Net === 'undefined') return;
+    Net.sendLootPick(lootId);
+  }
+
+  function onLootGrant(data) {
+    if (!game.online || !data) return;
+    if (data.inv) applyInv(data.inv, true);
+    if (data.type === 'ammo' && typeof addReserveAmmo === 'function') {
+      addReserveAmmo(45);
+      if (typeof spawnFloater === 'function') spawnFloater('弾薬 +45', false);
+    } else if (data.type === 'nade' && typeof spawnFloater === 'function') {
+      spawnFloater('グレネード +1', false);
+    } else if (data.type === 'med' && typeof spawnFloater === 'function') {
+      spawnFloater('応急キット +1', false);
+    } else if (data.type === 'armor') {
+      player.armor = true;
+      player.dmgMul = 0.72;
+      if (typeof updateArmorHUD === 'function') updateArmorHUD();
+      if (typeof spawnFloater === 'function') spawnFloater('強化防具 取得', true);
+    }
+    if (typeof AudioSys !== 'undefined') AudioSys.pickup();
+    if (typeof updateAmmoHUD === 'function') updateAmmoHUD();
+  }
+
   function onDmg(data) {
     if (!game.online || !data) return;
     applyScore(data.score);
@@ -137,7 +296,8 @@ const Online = (() => {
       if (typeof showHitmarker === 'function') showHitmarker(!!data.kill);
       if (data.kill) {
         game.kills++;
-        addKillfeed('撃破', true);
+        if (data.weapon === 'grenade') game.grenadeKills = (game.grenadeKills || 0) + 1;
+        addKillfeed(data.weapon === 'grenade' ? 'グレネード撃破' : '撃破', true);
       }
     }
 
@@ -155,10 +315,14 @@ const Online = (() => {
 
   function applyServerDamage(data) {
     if (!player.alive) return;
-    // サーバー hp を正とする
+    if (player.healing && typeof cancelHeal === 'function') cancelHeal();
     const from = new THREE.Vector3(player.pos.x, 0, player.pos.z);
-    const atk = remotes.get(data.attacker);
-    if (atk) from.copy(atk.pos);
+    if (data.weapon === 'grenade' && Number.isFinite(data.x)) {
+      from.set(data.x, 0, data.z);
+    } else {
+      const atk = remotes.get(data.attacker);
+      if (atk) from.copy(atk.pos);
+    }
     const prev = player.hp;
     player.hp = Math.max(0, Number(data.hp) || 0);
     if (player.hp < prev) {
@@ -209,9 +373,18 @@ const Online = (() => {
     player.hp = 100;
     player.alive = true;
     player.spawnProtT = 2;
+    player.grenades = 2;
+    player.medkits = 2;
+    player.armor = false;
+    player.dmgMul = 1;
     sendAcc = 0;
+    clearNetLoots();
     if (typeof updateHealthHUD === 'function') updateHealthHUD();
+    if (typeof updateGrenadeHUD === 'function') updateGrenadeHUD();
+    if (typeof updateMedkitHUD === 'function') updateMedkitHUD();
+    if (typeof updateArmorHUD === 'function') updateArmorHUD();
     rebuildOnlineHits();
+    showBanner('ONLINE TDM', `ROOM ${(Net.getState().room) || ''} ― LIVE`);
   }
 
   function update(dt) {
@@ -230,6 +403,7 @@ const Online = (() => {
           yaw: player.yaw,
           pitch: player.pitch,
           crouch: player.crouching,
+          weapon: typeof arsenal !== 'undefined' ? arsenal.activeId : 'assault',
         });
       }
     }
@@ -251,7 +425,9 @@ const Online = (() => {
 
   function reset() {
     clearRemotes();
+    clearNetLoots();
     sendAcc = 0;
+    localNadeFxSkip.clear();
   }
 
   function getRemotes() {
@@ -265,6 +441,7 @@ const Online = (() => {
   return {
     onMatchStart, update, reset, getRemotes, getMyTeam,
     ensureHook, claimHit, notifyRespawn, rebuildOnlineHits,
+    notifyNadeThrow, claimNadeBoom, claimHeal, claimLoot,
   };
 })();
 

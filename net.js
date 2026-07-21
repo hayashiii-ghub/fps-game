@@ -1,5 +1,5 @@
 /**
- * オンライン対戦ネット層（ルーム + pose + hit）
+ * オンライン対戦ネット層（ルーム + pose + hit + gear）
  */
 const Net = (() => {
   let ws = null;
@@ -8,6 +8,12 @@ const Net = (() => {
   let team = null;
   let inputSeq = 0;
   const listeners = new Set();
+
+  const DIRECT = new Set([
+    'welcome', 'pong', 'peer', 'snap', 'dmg', 'score', 'respawn',
+    'nade_throw', 'nade_boom', 'healed', 'inv',
+    'loot_spawn', 'loot_gone', 'loot_clear', 'loot_grant', 'loot_deny', 'supply',
+  ]);
 
   function emit(ev, data) {
     for (const fn of listeners) {
@@ -53,17 +59,12 @@ const Net = (() => {
     ws.addEventListener('message', (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (_) { return; }
+      if (!msg || typeof msg.t !== 'string') return;
       if (msg.t === 'welcome') {
         selfId = msg.you;
         team = msg.team || 'blue';
         emit('welcome', msg);
-      } else if (msg.t === 'pong') {
-        emit('pong', msg);
-      } else if (msg.t === 'peer') {
-        emit('peer', msg);
-      } else if (msg.t === 'snap') {
-        emit('snap', msg);
-      } else if (msg.t === 'dmg' || msg.t === 'score' || msg.t === 'respawn') {
+      } else if (DIRECT.has(msg.t)) {
         emit(msg.t, msg);
       } else {
         emit('message', msg);
@@ -94,11 +95,28 @@ const Net = (() => {
       yaw: pose.yaw,
       pitch: pose.pitch,
       crouch: !!pose.crouch,
+      weapon: pose.weapon || 'assault',
     });
   }
 
   function sendHit(targetId, part, weapon) {
     return send({ t: 'hit', targetId, part, weapon });
+  }
+
+  function sendNadeThrow(body) {
+    return send({ t: 'nade_throw', ...body });
+  }
+
+  function sendNadeBoom(pos) {
+    return send({ t: 'nade_boom', x: pos.x, y: pos.y, z: pos.z });
+  }
+
+  function sendHeal() {
+    return send({ t: 'heal' });
+  }
+
+  function sendLootPick(lootId) {
+    return send({ t: 'loot_pick', lootId });
   }
 
   function sendRespawn() {
@@ -129,7 +147,8 @@ const Net = (() => {
 
   return {
     createRoom, connect, disconnect, ping,
-    sendInput, sendHit, sendRespawn, sendMatchStart,
+    sendInput, sendHit, sendNadeThrow, sendNadeBoom, sendHeal, sendLootPick,
+    sendRespawn, sendMatchStart,
     on, getState,
   };
 })();

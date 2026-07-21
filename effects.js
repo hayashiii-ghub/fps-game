@@ -268,9 +268,10 @@ function throwGrenade() {
     cancelNadeAim();
     return;
   }
-  player.grenades--;
-  player.grenadeCd = 0.55;
+  // オンライン: 個数はサーバー inv が正。楽観的に減らし throw を送る
+  player.grenades = Math.max(0, player.grenades - 1);
   updateGrenadeHUD();
+  player.grenadeCd = 0.55;
   ensureNadeMats();
 
   const { from, vel } = getNadeLaunch();
@@ -278,16 +279,42 @@ function throwGrenade() {
   m.castShadow = true;
   m.position.copy(from);
   scene.add(m);
-  grenades.push({ m, vel: vel.clone(), fuse: 2.2, bounced: false });
+  grenades.push({ m, vel: vel.clone(), fuse: 2.2, bounced: false, local: true });
   AudioSys.nadeThrow();
   cancelNadeAim();
+  if (game.online && typeof Online !== 'undefined') {
+    Online.notifyNadeThrow(from, vel);
+  }
 }
 
-function explodeGrenade(pos) {
+function spawnRemoteGrenade(from, vel) {
+  ensureNadeMats();
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), nadeMat);
+  m.castShadow = true;
+  m.position.copy(from);
+  scene.add(m);
+  grenades.push({ m, vel: vel.clone(), fuse: 2.2, bounced: false, local: false });
+}
+
+function explodeGrenadeFX(pos) {
   spawnBurst(pos, { color: 0xffaa55, count: 22, speed: 4, spread: 3.5, up: 3.5, grav: 8, sizeMin: 0.04, sizeMax: 0.12, lifeMin: 0.25, lifeMax: 0.7 });
   spawnBurst(pos, { color: 0x555045, count: 14, speed: 2.2, spread: 2.8, up: 2.2, grav: 5, sizeMin: 0.06, sizeMax: 0.16, lifeMin: 0.4, lifeMax: 0.9 });
   spawnBurst(pos, { color: 0xffe0a0, count: 8, speed: 6, spread: 1.5, up: 4, grav: 12, sizeMin: 0.02, sizeMax: 0.05, lifeMin: 0.1, lifeMax: 0.25 });
   AudioSys.grenade();
+}
+
+function explodeGrenade(pos, opts) {
+  const remoteOnly = !!(opts && opts.remoteOnly);
+
+  if (game.online) {
+    // リモート視覚グレはサーバー nade_boom で FX。ローカル投げは即 FX＋ダメージ請求
+    if (remoteOnly) return;
+    explodeGrenadeFX(pos);
+    if (typeof Online !== 'undefined') Online.claimNadeBoom(pos);
+    return;
+  }
+
+  explodeGrenadeFX(pos);
 
   for (const e of enemies) {
     if (!e.alive) continue;
@@ -345,7 +372,8 @@ function updateGrenades(dt) {
       const p = g.m.position.clone();
       scene.remove(g.m);
       grenades.splice(i, 1);
-      explodeGrenade(p);
+      // リモート視覚グレは FX のみ（ダメージは throw 側サーバー権威）
+      explodeGrenade(p, { remoteOnly: g.local === false });
     }
   }
 }

@@ -349,15 +349,23 @@ function updateHeal(dt) {
   if (!player.healing) return;
   player.healT += dt;
   const u = clamp(player.healT / player.healDur, 0, 1);
-  player.hp = lerp(player.healFrom, player.healTo, u);
-  updateHealthHUD();
+  if (!game.online) {
+    player.hp = lerp(player.healFrom, player.healTo, u);
+    updateHealthHUD();
+  }
   const fill = document.getElementById('healfill');
   if (fill) fill.style.width = `${u * 100}%`;
   if (u >= 1) {
     player.healing = false;
+    hideHealBar();
+    if (game.online && typeof Online !== 'undefined') {
+      // HP/キットはサーバー healed / inv が正
+      Online.claimHeal();
+      spawnFloater('応急処置 完了', false);
+      return;
+    }
     player.medkits = Math.max(0, player.medkits - 1);
     updateMedkitHUD();
-    hideHealBar();
     spawnFloater('応急処置 完了', false);
   }
 }

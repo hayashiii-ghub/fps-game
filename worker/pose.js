@@ -1,8 +1,15 @@
 /**
  * オンライン用ポーズの検証・正規化
  */
+const WEAPONS = new Set(['assault', 'smg', 'shotgun', 'pistol', 'sniper']);
+
 export function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
+}
+
+export function sanitizeWeapon(id) {
+  const w = String(id || 'assault');
+  return WEAPONS.has(w) ? w : 'assault';
 }
 
 export function sanitizePose(raw) {
@@ -13,6 +20,7 @@ export function sanitizePose(raw) {
     yaw: Number(src.yaw) || 0,
     pitch: clamp(Number(src.pitch) || 0, -1.4, 1.4),
     crouch: !!src.crouch,
+    weapon: sanitizeWeapon(src.weapon),
     seq: (Number(src.seq) || 0) >>> 0,
   };
 }
