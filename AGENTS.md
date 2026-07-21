@@ -27,3 +27,14 @@
 - ロビーはシネマティック仕様（低空ドリーカメラ・レターボックス・コーナーブラケット・スキャンライン・出撃フェード `#deploy`）。フルスクリーンのグレイン/ノイズ画像オーバーレイはヘッドレスGPU環境でレンダラをクラッシュさせるため使わない（検証済み）
 - スナイパーは頭一撃・胴は非一撃（95）。ADS は 2D オーバーレイ（C+Shift でも可、そのとき Shift はスプリントにしない）。ボルト中は ADS 不可。SMG 弾倉 25。SMG／ハンドガン／ショットガンは `dmgFalloff`（距離減衰）。アサルトは弱め（28–50m→0.82）。スナイパーは減衰なし。ショットガンは集弾＋減衰の二重で遠距離を抑える。カメラは YXZ・前方はローカル -Z。WASD の yaw 変換は水平視線と一致させる必要がある
 - 移動コライダは全て Y 回転 OBB `{cx,cy,cz,hx,hy,hz,cos,sin}` に統一（弾判定は葉 Mesh 単位のまま別系統）。解決は最深1ヒットの押し出し＋速度の法線成分カット（壁スライド・跳ね返しなし）＋水平4サブステップ。フレーム末に中心が固体内なら直前の安全位置に戻す。登録は葉メッシュ自動が基本。家・コンテナ・土嚢は見た目一致の明示 OBB（yaw 0/90°、padding/buffer なし）。家は「入れない固体ブロック」で、窓・扉は壁面装飾メッシュ（`markDecor`、穴なし・移動判定なし）。ローカル静的確認は `http://127.0.0.1:8765/`、オンライン API／WS は wrangler `http://127.0.0.1:8787/` を使うことが多い
+
+## Cursor Cloud specific instructions
+
+- ビルド不要・`package.json` なし。Node と Python3 は VM に同梱済み。依存の実体は `npx wrangler@4`（初回のみ取得）だけ。
+- ユニットテスト: `for f in scripts/test-*.mjs; do node "$f"; done`（各ファイル単体でも可）。サーバ不要で Worker ロジックを検証。
+- フル E2E（Survival / TDM Local / ONLINE TDM の API・WS 込み）: `./scripts/dev.sh` → `http://127.0.0.1:8787/`。`dev.sh` が `prepare-cf-assets.sh` を先に実行する。
+- オフライン専用（Survival / TDM Local のみ）: `python3 -m http.server 8765` → `http://127.0.0.1:8765/`。ONLINE は `/api/*` が無く失敗する。
+- 落とし穴: wrangler dev はクライアント JS/HTML を `.cf-assets/` から配信する。クライアント側ファイルを編集したら `./scripts/prepare-cf-assets.sh` を再実行（または `dev.sh` を再起動）しないと反映されない。`worker/` 配下は `main` から直接バンドルされるため wrangler の再読込のみでよい。
+- ヘッドレスでの動作確認は debug URL フラグが有効: `?debug=1`（ポインタロック不要で即開始）、`&mode=tdm`、`&map=jungle|desert`、`&shoot=1`（自動照準・射撃ボット）、`&main=smg&sub=shotgun`（ロードアウト指定）。例: `http://127.0.0.1:8787/?debug=1&mode=tdm&shoot=1&map=desert`。
+- API 疎通確認: `GET /api/health` → `{"ok":true,"phase":"lobby"}`、`POST /api/room` → `{"code":"XXXXXX"}`。
+- `wrangler dev` はローカルモード（Durable Object もローカル）で動くため Cloudflare ログイン不要。デプロイ時のみ認証が要る。
