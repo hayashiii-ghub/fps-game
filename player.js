@@ -783,7 +783,9 @@ function tryFire(now) {
     if (hits.length) {
       const h = hits[0];
       end = h.point;
-      if (h.object.userData.enemy && h.object.userData.enemy.alive) {
+      if (h.object.userData.remoteId && game.online && typeof Online !== 'undefined') {
+        Online.claimHit(h.object.userData.remoteId, h.object.userData.part);
+      } else if (h.object.userData.enemy && h.object.userData.enemy.alive) {
         hitEnemy(h.object.userData.enemy, h.object.userData.part, h.point, pdir);
       } else {
         impactFX(h.point);

@@ -1,5 +1,5 @@
 /**
- * オンライン対戦ネット層（ルーム + pose 送信）
+ * オンライン対戦ネット層（ルーム + pose + hit）
  */
 const Net = (() => {
   let ws = null;
@@ -18,6 +18,12 @@ const Net = (() => {
   function on(fn) {
     listeners.add(fn);
     return () => listeners.delete(fn);
+  }
+
+  function send(obj) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify(obj));
+    return true;
   }
 
   function wsUrl(code) {
@@ -57,6 +63,8 @@ const Net = (() => {
         emit('peer', msg);
       } else if (msg.t === 'snap') {
         emit('snap', msg);
+      } else if (msg.t === 'dmg' || msg.t === 'score' || msg.t === 'respawn') {
+        emit(msg.t, msg);
       } else {
         emit('message', msg);
       }
@@ -73,15 +81,12 @@ const Net = (() => {
   }
 
   function ping(n = 0) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-    ws.send(JSON.stringify({ t: 'ping', n }));
-    return true;
+    return send({ t: 'ping', n });
   }
 
   function sendInput(pose) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
     inputSeq = (inputSeq + 1) >>> 0;
-    ws.send(JSON.stringify({
+    return send({
       t: 'input',
       seq: inputSeq,
       x: pose.x,
@@ -89,8 +94,19 @@ const Net = (() => {
       yaw: pose.yaw,
       pitch: pose.pitch,
       crouch: !!pose.crouch,
-    }));
-    return true;
+    });
+  }
+
+  function sendHit(targetId, part, weapon) {
+    return send({ t: 'hit', targetId, part, weapon });
+  }
+
+  function sendRespawn() {
+    return send({ t: 'respawn' });
+  }
+
+  function sendMatchStart() {
+    return send({ t: 'match_start' });
   }
 
   function disconnect() {
@@ -111,5 +127,9 @@ const Net = (() => {
     };
   }
 
-  return { createRoom, connect, disconnect, ping, sendInput, on, getState };
+  return {
+    createRoom, connect, disconnect, ping,
+    sendInput, sendHit, sendRespawn, sendMatchStart,
+    on, getState,
+  };
 })();

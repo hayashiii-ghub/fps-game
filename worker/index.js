@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from './room-code.js';
 import { sanitizePose } from './pose.js';
+import { validateHit, applyDamage } from './combat.js';
 
 const SNAP_MS = 50;
 
@@ -42,7 +43,7 @@ export default {
 };
 
 /**
- * 1 ルーム = 1 Durable Object（WebSocket Hibernation + pose snap）
+ * 1 ルーム = 1 Durable Object（pose snap + ヒット権威）
  */
 export class Room extends DurableObject {
   constructor(ctx, env) {
@@ -50,12 +51,17 @@ export class Room extends DurableObject {
     /** @type {Map<WebSocket, object>} */
     this.sessions = new Map();
     this.tick = 0;
+    this.score = { blue: 0, red: 0 };
     this.ctx.getWebSockets().forEach((ws) => {
       const attachment = ws.deserializeAttachment();
       if (attachment) {
         this.sessions.set(ws, {
           ...attachment,
-          pose: attachment.pose || null,
+          pose: null,
+          hp: 100,
+          alive: true,
+          spawnProtUntil: 0,
+          lastFireAt: 0,
         });
       }
     });
@@ -74,6 +80,13 @@ export class Room extends DurableObject {
     return this.countTeam('blue') <= this.countTeam('red') ? 'blue' : 'red';
   }
 
+  findById(id) {
+    for (const [ws, s] of this.sessions) {
+      if (s.id === id) return { ws, s };
+    }
+    return null;
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
     const code = normalizeRoomCode(url.searchParams.get('room'));
@@ -84,7 +97,10 @@ export class Room extends DurableObject {
 
     const id = crypto.randomUUID().slice(0, 8);
     const team = this.pickTeam();
-    const session = { id, room: code, team, joinedAt: Date.now(), pose: null };
+    const session = {
+      id, room: code, team, joinedAt: Date.now(),
+      pose: null, hp: 100, alive: true, spawnProtUntil: 0, lastFireAt: 0,
+    };
     server.serializeAttachment({ id, room: code, team, joinedAt: session.joinedAt });
     this.sessions.set(server, session);
 
@@ -94,6 +110,7 @@ export class Room extends DurableObject {
       room: code,
       team,
       peers: this.peerList(server),
+      score: this.score,
     }));
     this.broadcast(server, { t: 'peer', op: 'join', id, team });
     await this.ensureAlarm();
@@ -117,6 +134,13 @@ export class Room extends DurableObject {
     }
   }
 
+  broadcastAll(msg) {
+    const raw = JSON.stringify(msg);
+    for (const [ws] of this.sessions) {
+      try { ws.send(raw); } catch (_) { /* ignore */ }
+    }
+  }
+
   buildSnap() {
     const players = [];
     for (const s of this.sessions.values()) {
@@ -124,10 +148,12 @@ export class Room extends DurableObject {
       players.push({
         id: s.id,
         team: s.team,
+        alive: !!s.alive,
+        hp: s.hp,
         ...s.pose,
       });
     }
-    return { t: 'snap', tick: this.tick, players };
+    return { t: 'snap', tick: this.tick, players, score: this.score };
   }
 
   broadcastSnap() {
@@ -154,6 +180,63 @@ export class Room extends DurableObject {
     }
   }
 
+  resetMatch() {
+    this.score = { blue: 0, red: 0 };
+    const now = Date.now();
+    for (const s of this.sessions.values()) {
+      s.hp = 100;
+      s.alive = true;
+      s.spawnProtUntil = now + 2000;
+      s.lastFireAt = 0;
+    }
+    this.broadcastAll({ t: 'score', blue: 0, red: 0, match: true });
+  }
+
+  handleHit(attacker, msg) {
+    const found = this.findById(String(msg.targetId || ''));
+    if (!found) return;
+    const victim = found.s;
+    const now = Date.now();
+    const part = String(msg.part || 'torso');
+    const weapon = String(msg.weapon || 'assault');
+    const result = validateHit({
+      attacker, victim, part, weapon, now,
+    });
+    if (!result.ok) return;
+
+    attacker.lastFireAt = now;
+    const applied = applyDamage(victim, result.dmg);
+    victim.hp = applied.hp;
+    if (applied.kill) {
+      victim.alive = false;
+      if (victim.team === 'red') this.score.blue++;
+      else this.score.red++;
+    }
+
+    this.broadcastAll({
+      t: 'dmg',
+      attacker: attacker.id,
+      victim: victim.id,
+      part,
+      weapon,
+      dmg: result.dmg,
+      hp: victim.hp,
+      kill: applied.kill,
+      score: { ...this.score },
+    });
+  }
+
+  handleRespawn(session) {
+    session.hp = 100;
+    session.alive = true;
+    session.spawnProtUntil = Date.now() + 2000;
+    this.broadcastAll({
+      t: 'respawn',
+      id: session.id,
+      team: session.team,
+    });
+  }
+
   async webSocketMessage(ws, message) {
     const session = this.sessions.get(ws);
     if (!session) return;
@@ -172,6 +255,7 @@ export class Room extends DurableObject {
         room: session.room,
         team: session.team,
         peers: this.peerList(ws),
+        score: this.score,
       }));
       return;
     }
@@ -185,11 +269,26 @@ export class Room extends DurableObject {
       return;
     }
 
+    if (msg.t === 'match_start') {
+      this.resetMatch();
+      return;
+    }
+
     if (msg.t === 'input') {
       const pose = sanitizePose(msg);
       if (session.pose && pose.seq < session.pose.seq) return;
       session.pose = pose;
       await this.ensureAlarm();
+      return;
+    }
+
+    if (msg.t === 'hit') {
+      this.handleHit(session, msg);
+      return;
+    }
+
+    if (msg.t === 'respawn') {
+      this.handleRespawn(session);
     }
   }
 

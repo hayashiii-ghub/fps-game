@@ -302,9 +302,11 @@ function survivalVictory() {
 }
 
 function onPlayerKilled(fromPos) {
-  // TDM: 敵チームキル加算＋リスポーン待ち
-  game.tdm.redKills++;
-  updateTdmHUD();
+  // TDM: オフラインは赤キル加算。オンラインはサーバー score が正
+  if (!game.online) {
+    game.tdm.redKills++;
+    updateTdmHUD();
+  }
   addKillfeed('あなたが撃破された', false);
   game.tdm.waitingRespawn = true;
   game.tdm.respawnT = TDM_RESPAWN_SEC;
@@ -320,11 +322,14 @@ function onPlayerKilled(fromPos) {
     $('respawntext').textContent = 'RESPAWN';
   }
   // 死体付近にドロップ（プレイヤー所持の一部）
-  if (Math.random() < 0.7) tdmDrop(player.pos);
+  if (!game.online && Math.random() < 0.7) tdmDrop(player.pos);
 }
 
 function respawnPlayer() {
-  const sp = pickTdmSpawn('blue');
+  const team = game.online
+    ? ((typeof Net !== 'undefined' && Net.getState().team) || 'blue')
+    : 'blue';
+  const sp = pickTdmSpawn(team);
   player.pos.set(sp[0], 0, sp[1]);
   player.vel.set(0, 0, 0);
   // マップ中央方向を向く
@@ -348,6 +353,7 @@ function respawnPlayer() {
   updateAmmoHUD();
   player.spawnProtT = 2;
   spawnFloater('再出撃', false);
+  if (game.online && typeof Online !== 'undefined') Online.notifyRespawn();
 }
 
 function endTdmMatch() {

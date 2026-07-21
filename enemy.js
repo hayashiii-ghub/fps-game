@@ -12,6 +12,15 @@ function rebuildHitMeshes() {
     // プレイヤーは敵チームのみ撃てる（味方撃ちなし）
     if (e.alive && e.team !== 'blue') hitMeshes.push(...e.parts);
   }
+  if (game.online && typeof Online !== 'undefined') {
+    const myTeam = (typeof Net !== 'undefined' && Net.getState().team)
+      || Online.getMyTeam()
+      || 'blue';
+    for (const r of Online.getRemotes().values()) {
+      if (!r.alive || r.team === myTeam) continue;
+      hitMeshes.push(...r.parts);
+    }
+  }
 }
 
 /* ---------- 敵モデル ---------- */
