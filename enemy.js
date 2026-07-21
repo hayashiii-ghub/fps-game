@@ -168,6 +168,22 @@ class Enemy {
     this.respawnT = 0;
     this.pendingRespawn = false;
     this.spawnProtT = game.mode === 'tdm' ? 2 : 0;
+    this.stuckT = 0;
+  }
+
+  /** 壁に貼り付いたら横＋後ろへ目標を付け替え、戦闘中は短く flank */
+  onStuck(blockedX, blockedZ) {
+    this.stuckT = 0;
+    this.strafeDir *= -1;
+    this.strafeT = rand(0.6, 1.4);
+    const side = Math.random() < 0.5 ? 1 : -1;
+    const d = AiSteer.stuckRepathDelta(blockedX, blockedZ, side, rand(2, 5), rand(5, 12));
+    this.moveTarget.set(
+      clamp(this.pos.x + d.x, -54, 54), 0,
+      clamp(this.pos.z + d.z, -54, 54));
+    this.repathT = rand(2, 4);
+    if (this.state === 'combat') this.flankT = rand(0.9, 1.7);
+    if (this.retreatT > 0) this.retreatT = Math.max(this.retreatT, 0.9);
   }
 
   /** 脅威から見て遮蔽の裏側へ退避点を選ぶ */
@@ -501,9 +517,26 @@ class Enemy {
     } else {
       this.speed = lerp(this.speed, 0, 1 - Math.exp(-10 * dt));
     }
-    this.pos.x += moveX * this.speed * dt;
-    this.pos.z += moveZ * this.speed * dt;
-    resolveCollision(this.pos, 0.34, 1.7);
+    const beforeX = this.pos.x, beforeZ = this.pos.z;
+    const vel = { x: moveX * this.speed, z: moveZ * this.speed };
+    this.pos.x += vel.x * dt;
+    this.pos.z += vel.z * dt;
+    // プレイヤー同様、壁法線への食い込み速度を切ってスライドさせる
+    resolveCollision(this.pos, 0.34, 1.7, vel);
+    const dx = this.pos.x - beforeX;
+    const dz = this.pos.z - beforeZ;
+    const intendedDist = Math.hypot(moveX * this.speed * dt, moveZ * this.speed * dt);
+    const progressAlong = intendedDist > 1e-6
+      ? (dx * moveX + dz * moveZ) / intendedDist
+      : 1;
+    this.stuckT = AiSteer.updateStuckTimer(this.stuckT, dt, {
+      speed: this.speed,
+      intendedDist,
+      progressAlong,
+    });
+    if (AiSteer.shouldRepathFromStuck(this.stuckT) && ml > 0.01) {
+      this.onStuck(moveX, moveZ);
+    }
     this.g.position.copy(this.pos);
 
     if (this.speed > 0.3) {

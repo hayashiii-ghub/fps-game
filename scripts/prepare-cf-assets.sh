@@ -9,6 +9,7 @@ mkdir -p "$DEST"
 
 for f in \
   index.html \
+  ai-steer.js \
   audio.js \
   effects.js \
   enemy.js \
