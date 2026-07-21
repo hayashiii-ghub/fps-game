@@ -442,6 +442,34 @@ function attachMuzzleFlash(g, muzzleLocal) {
   return { muzzle, flash };
 }
 
+/* ホロサイトのレティクル(サークルドット)テクスチャ */
+let _holoTex = null;
+function getHoloReticleTexture() {
+  if (_holoTex) return _holoTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.strokeStyle = '#ff2d1e';
+  ctx.fillStyle = '#ff2d1e';
+  ctx.shadowColor = '#ff2d1e';
+  ctx.shadowBlur = 10;
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(128, 128, 92, 0, Math.PI * 2);
+  ctx.stroke();
+  for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+    ctx.beginPath();
+    ctx.moveTo(128 + dx * 92, 128 + dy * 92);
+    ctx.lineTo(128 + dx * 112, 128 + dy * 112);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.arc(128, 128, 8, 0, Math.PI * 2);
+  ctx.fill();
+  _holoTex = new THREE.CanvasTexture(c);
+  return _holoTex;
+}
+
 function buildAssaultModel() {
   const g = new THREE.Group();
   const gm = MAT.gunmetal, dm = MAT.darkMetal;
@@ -472,20 +500,29 @@ function buildAssaultModel() {
   const sightBase = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.09), dm);
   sightBase.position.set(0, 0.062, -0.05);
   g.add(sightBase);
-  const sightPost = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.024, 0.03), dm);
-  sightPost.position.set(0, 0.082, -0.05);
-  g.add(sightPost);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.019, 0.0032, 8, 20), dm);
-  ring.position.set(0, 0.098, -0.05);
-  g.add(ring);
-  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 6),
-    new THREE.MeshBasicMaterial({ color: 0xff2211, fog: false }));
-  dot.position.set(0, 0.098, -0.05);
-  g.add(dot);
-  // 先端がリアサイト(dot y=0.098)と同高になるよう中心を配置
-  const fs = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.05, 0.01), dm);
-  fs.position.set(0, 0.073, -0.44);
-  g.add(fs);
+  // ホロサイト: 窓枠ハウジング + 自発光レティクルガラス。中心 y=0.098 が ADS 光軸
+  const holo = new THREE.Group();
+  holo.position.set(0, 0.098, -0.05);
+  const wallGeo = new THREE.BoxGeometry(0.005, 0.054, 0.07);
+  const wallL = new THREE.Mesh(wallGeo, dm);
+  wallL.position.set(-0.0275, 0, 0);
+  holo.add(wallL);
+  const wallR = new THREE.Mesh(wallGeo, dm);
+  wallR.position.set(0.0275, 0, 0);
+  holo.add(wallR);
+  const plateB = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.005, 0.07), dm);
+  plateB.position.set(0, -0.025, 0);
+  holo.add(plateB);
+  const plateT = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.004, 0.07), dm);
+  plateT.position.set(0, 0.025, 0);
+  holo.add(plateT);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05),
+    new THREE.MeshBasicMaterial({
+      map: getHoloReticleTexture(), transparent: true, fog: false,
+      side: THREE.DoubleSide, depthWrite: false,
+    }));
+  holo.add(glass);
+  g.add(holo);
   const gloveM = new THREE.MeshLambertMaterial({ color: 0x3d3a30 });
   gloveM.color.convertSRGBToLinear();
   const handR = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.05, 0.09), gloveM);
