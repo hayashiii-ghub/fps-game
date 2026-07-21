@@ -146,10 +146,16 @@ URLにクエリを付けると検証用モードで起動する。
 5. Framework preset: **None** / Build command: **空** / Build output directory: **`/`** または **`.`**
 6. Save and Deploy → 成功後に https://kimi-grok-fps.pages.dev/ でロビーが表示されることを確認
 
-以降は `main` への push で自動デプロイ。CLI から出す場合:
+以降は `main` への push で自動デプロイ。CLI の場合（`CLOUDFLARE_API_TOKEN` が必要。未設定なら `wrangler login`）:
+
+```bash
+./scripts/finish-cloudflare-migration.sh
+```
+
+または:
 
 ```bash
 npx wrangler pages deploy . --project-name=kimi-grok-fps
 ```
 
-GitHub Pages 停止: リポジトリ **Settings → Pages → Source** を **None** にする。
+GitHub Pages 停止: 上記スクリプト内で `gh api -X DELETE .../pages` するか、リポジトリ **Settings → Pages → Source** を **None** にする。
