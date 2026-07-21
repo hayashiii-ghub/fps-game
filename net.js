@@ -1,11 +1,12 @@
 /**
- * オンライン対戦ネット層（ルーム作成・WebSocket）
- * 現状 Step1: 入退室・ping/pong まで
+ * オンライン対戦ネット層（ルーム + pose 送信）
  */
 const Net = (() => {
   let ws = null;
   let room = null;
   let selfId = null;
+  let team = null;
+  let inputSeq = 0;
   const listeners = new Set();
 
   function emit(ev, data) {
@@ -48,11 +49,14 @@ const Net = (() => {
       try { msg = JSON.parse(ev.data); } catch (_) { return; }
       if (msg.t === 'welcome') {
         selfId = msg.you;
+        team = msg.team || 'blue';
         emit('welcome', msg);
       } else if (msg.t === 'pong') {
         emit('pong', msg);
       } else if (msg.t === 'peer') {
         emit('peer', msg);
+      } else if (msg.t === 'snap') {
+        emit('snap', msg);
       } else {
         emit('message', msg);
       }
@@ -60,6 +64,8 @@ const Net = (() => {
     ws.addEventListener('close', () => {
       emit('status', { state: 'closed', room });
       ws = null;
+      selfId = null;
+      team = null;
     });
     ws.addEventListener('error', () => {
       emit('error', { message: 'websocket error' });
@@ -72,21 +78,38 @@ const Net = (() => {
     return true;
   }
 
+  function sendInput(pose) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    inputSeq = (inputSeq + 1) >>> 0;
+    ws.send(JSON.stringify({
+      t: 'input',
+      seq: inputSeq,
+      x: pose.x,
+      z: pose.z,
+      yaw: pose.yaw,
+      pitch: pose.pitch,
+      crouch: !!pose.crouch,
+    }));
+    return true;
+  }
+
   function disconnect() {
     if (ws) {
       try { ws.close(); } catch (_) { /* ignore */ }
       ws = null;
     }
     selfId = null;
+    team = null;
   }
 
   function getState() {
     return {
       room,
       selfId,
+      team,
       connected: !!(ws && ws.readyState === WebSocket.OPEN),
     };
   }
 
-  return { createRoom, connect, disconnect, ping, on, getState };
+  return { createRoom, connect, disconnect, ping, sendInput, on, getState };
 })();

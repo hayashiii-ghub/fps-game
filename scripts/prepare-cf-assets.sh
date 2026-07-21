@@ -15,6 +15,7 @@ for f in \
   enemy.js \
   main.js \
   net.js \
+  online.js \
   player.js \
   world.js \
   three.min.js \

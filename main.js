@@ -14,6 +14,7 @@ const TDM_RESPAWN_SEC = 4.5;
 const game = {
   state: 'menu',      // menu | playing | paused | dead | result
   mode: 'survival',   // survival | tdm
+  online: false,      // ルーム同期 TDM
   map: 'desert',      // desert | jungle
   loadoutMain: 'assault',  // assault | smg | shotgun | sniper
   loadoutSub: 'smg',       // 同上（メインと重複不可）
@@ -459,7 +460,9 @@ function uiBlip() {
 }
 
 /** 出撃フェードを挟んで開始（ポインタロックはジェスチャ内で即要求） */
-function deployAndStart(mode) {
+function deployAndStart(mode, opts) {
+  game.online = !!(opts && opts.online);
+  if (typeof Online !== 'undefined' && !game.online) Online.reset();
   startGame(mode, false);
   const d = $('deploy');
   if (!d) return;
@@ -480,12 +483,13 @@ function initOnlineLobby() {
       else if (data.state === 'open') setOnlineStatus(`接続中 ROOM ${data.room}`);
       else if (data.state === 'closed') setOnlineStatus('切断');
     } else if (ev === 'welcome') {
-      setOnlineStatus(`ROOM ${data.room}  YOU ${data.you}  PEERS ${data.peers.length}`);
+      const peerN = Array.isArray(data.peers) ? data.peers.length : 0;
+      setOnlineStatus(`ROOM ${data.room}  YOU ${data.you}  TEAM ${data.team || '?'}  PEERS ${peerN}`);
       const input = $('onlineCodeInput');
       if (input) input.value = data.room;
     } else if (ev === 'peer') {
       const st = Net.getState();
-      setOnlineStatus(`ROOM ${st.room}  YOU ${st.selfId}  (${data.op} ${data.id})`);
+      setOnlineStatus(`ROOM ${st.room}  YOU ${st.selfId}  TEAM ${st.team || '?'}  (${data.op} ${data.id})`);
     } else if (ev === 'pong') {
       setOnlineStatus(`PONG n=${data.n} peers=${data.peers}`);
     } else if (ev === 'error') {
@@ -495,6 +499,7 @@ function initOnlineLobby() {
   const createBtn = $('onlineCreateBtn');
   const joinBtn = $('onlineJoinBtn');
   const pingBtn = $('onlinePingBtn');
+  const startBtn = $('onlineStartBtn');
   const input = $('onlineCodeInput');
   if (createBtn) createBtn.addEventListener('click', async () => {
     uiBlip();
@@ -514,6 +519,14 @@ function initOnlineLobby() {
   if (pingBtn) pingBtn.addEventListener('click', () => {
     uiBlip();
     if (!Net.ping(Date.now() % 1000)) setOnlineStatus('未接続');
+  });
+  if (startBtn) startBtn.addEventListener('click', () => {
+    uiBlip();
+    if (!Net.getState().connected) {
+      setOnlineStatus('先にルームへ接続してください');
+      return;
+    }
+    deployAndStart('tdm', { online: true });
   });
 }
 
@@ -552,7 +565,9 @@ function initMenus() {
     game.deathUiGen++;
     game.state = 'menu';
     game.tdm.waitingRespawn = false;
+    game.online = false;
     if (typeof Net !== 'undefined') Net.disconnect();
+    if (typeof Online !== 'undefined') Online.reset();
     if (document.pointerLockElement) document.exitPointerLock();
     $('menu').style.display = 'flex';
   }
@@ -675,6 +690,7 @@ function tick(dt) {
       updateWeapon(dt);
     }
     updateEnemies(dt);
+    if (typeof Online !== 'undefined') Online.update(dt);
     if (game.mode === 'survival') updateWaves(dt);
     else updateTdm(dt);
     updateLoot(dt);

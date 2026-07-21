@@ -1169,6 +1169,14 @@ function checkWaveCleared() {
 
 /* ---------- TDM ---------- */
 function startTdmMatch() {
+  if (game.online) {
+    player.spawnProtT = 2;
+    const code = (typeof Net !== 'undefined' && Net.getState().room) || '';
+    showBanner('ONLINE TDM', `ROOM ${code} ― 位置同期`);
+    updateTdmHUD();
+    if (typeof Online !== 'undefined') Online.onMatchStart();
+    return;
+  }
   // 5v5: 青はプレイヤー＋味方AI4 / 赤は敵5（うち1は狙撃）
   const takeDistinct = (team, n) => {
     const pool = TDM_SPAWNS[team].slice();
