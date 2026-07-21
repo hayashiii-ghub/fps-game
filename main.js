@@ -455,6 +455,9 @@ function applyLoadoutSelection(slot, id) {
     if (game.loadoutMain === id) game.loadoutMain = LOADOUT_POOL.find(w => w !== id);
   }
   updateLoadoutUI();
+  if (typeof Online !== 'undefined' && typeof Online.syncLoadoutToServer === 'function') {
+    Online.syncLoadoutToServer();
+  }
 }
 
 function updateLoadoutUI() {
@@ -505,6 +508,9 @@ function initOnlineLobby() {
         setOnlineStatus(`再接続中… ROOM ${data.room} (#${data.attempt || '?'})`);
       } else if (data.state === 'open') setOnlineStatus(`接続中 ROOM ${data.room}`);
       else if (data.state === 'closed') setOnlineStatus('切断 ― 自動再接続します');
+      else if (data.state === 'failed') {
+        setOnlineStatus(data.message || `接続失敗 ROOM ${data.room}`);
+      }
     } else if (ev === 'welcome') {
       const peerN = Array.isArray(data.peers) ? data.peers.length : 0;
       const phase = data.phase || (data.match ? 'live' : 'lobby');
@@ -546,7 +552,12 @@ function initOnlineLobby() {
       if (input) input.value = code;
       Net.connect(code);
     } catch (e) {
-      setOnlineStatus(`作成失敗: ${e.message || e}`);
+      const msg = String(e && e.message ? e.message : e);
+      if (/Exceeded allowed volume|free tier/i.test(msg)) {
+        setOnlineStatus('サーバー上限（Durable Objects 無料枠）― 時間をおくか有料プランが必要');
+      } else {
+        setOnlineStatus(`作成失敗: ${msg}`);
+      }
     }
   });
   if (joinBtn) joinBtn.addEventListener('click', () => {
@@ -778,6 +789,14 @@ function tick(dt) {
 
   game.hurtFlash = Math.max(0, game.hurtFlash - dt * 1.4);
   $('vignette').style.opacity = clamp(game.hurtFlash * 0.95 + (player.hp < 40 && player.alive ? (40 - player.hp) / 100 : 0), 0, 1);
+  const protEl = $('spawnprot');
+  if (protEl) {
+    if (player.alive && player.spawnProtT > 0) {
+      protEl.style.opacity = String(0.22 + 0.2 * (0.5 + 0.5 * Math.sin(game.time * 9)));
+    } else {
+      protEl.style.opacity = '0';
+    }
+  }
 
   updateTracers(dt);
   updateParticles(dt);

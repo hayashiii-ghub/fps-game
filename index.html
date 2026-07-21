@@ -105,6 +105,13 @@
   #lowhp.on { animation: pulse 1.15s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: .12; } 50% { opacity: .55; } }
 
+  /* リスポーン無敵（自分視点） */
+  #spawnprot {
+    position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: 14;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(90, 180, 255, .28) 100%);
+    transition: opacity .15s linear;
+  }
+
   /* ミニマップ */
   #minimap {
     position: fixed; left: 20px; top: 18px; z-index: 15;
@@ -421,6 +428,7 @@
   </div>
   <div id="dmgdir"></div>
   <div id="vignette"></div>
+  <div id="spawnprot"></div>
   <div id="lowhp"></div>
 
   <canvas id="minimap" width="160" height="160" aria-label="minimap"></canvas>
@@ -570,14 +578,14 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./ai-steer.js?v=play31"></script>
-<script src="./audio.js?v=play31"></script>
-<script src="./world.js?v=play31"></script>
-<script src="./effects.js?v=play31"></script>
-<script src="./player.js?v=play31"></script>
-<script src="./enemy.js?v=play31"></script>
-<script src="./net.js?v=play31"></script>
-<script src="./online.js?v=play31"></script>
-<script src="./main.js?v=play31"></script>
+<script src="./ai-steer.js?v=play36"></script>
+<script src="./audio.js?v=play36"></script>
+<script src="./world.js?v=play36"></script>
+<script src="./effects.js?v=play36"></script>
+<script src="./player.js?v=play36"></script>
+<script src="./enemy.js?v=play36"></script>
+<script src="./net.js?v=play36"></script>
+<script src="./online.js?v=play36"></script>
+<script src="./main.js?v=play36"></script>
 </body>
 </html>

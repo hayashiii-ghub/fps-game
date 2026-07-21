@@ -23,6 +23,7 @@ export function sanitizePose(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   return {
     x: clamp(Number(src.x) || 0, -59, 59),
+    y: clamp(Number(src.y) || 0, 0, 6),
     z: clamp(Number(src.z) || 0, -59, 59),
     yaw: Number(src.yaw) || 0,
     pitch: clamp(Number(src.pitch) || 0, -1.4, 1.4),

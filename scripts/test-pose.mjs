@@ -4,9 +4,10 @@
 import assert from 'node:assert/strict';
 import { sanitizePose, sanitizeMap, lerpYaw } from '../worker/pose.js';
 
-const p = sanitizePose({ x: 999, z: -999, yaw: 1.2, pitch: 9, crouch: 1, seq: 3, weapon: 'smg' });
+const p = sanitizePose({ x: 999, z: -999, y: 99, yaw: 1.2, pitch: 9, crouch: 1, seq: 3, weapon: 'smg' });
 assert.equal(p.x, 59);
 assert.equal(p.z, -59);
+assert.equal(p.y, 6);
 assert.equal(p.pitch, 1.4);
 assert.equal(p.crouch, true);
 assert.equal(p.seq, 3);

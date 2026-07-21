@@ -2,6 +2,7 @@
  * オンライン戦闘の純ロジック（ダメージ・ヒット検証）
  */
 import { clamp } from './pose.js';
+import { ownsWeapon } from './gear.js';
 
 export const WEAPON_DMG = {
   assault: { head: 70, torso: 34, limb: 24 },
@@ -36,6 +37,11 @@ export const SHOTGUN_PELLET_WINDOW_MS = 120;
 const PARTS = new Set(['head', 'torso', 'limb']);
 const MAX_RANGE = 120;
 
+export function sanitizePart(part) {
+  const p = String(part || 'torso');
+  return PARTS.has(p) ? p : 'torso';
+}
+
 export function falloffMul(weapon, dist) {
   const f = WEAPON_FALLOFF[weapon];
   if (!f) return 1;
@@ -47,8 +53,9 @@ export function falloffMul(weapon, dist) {
 
 export function computeDamage(weapon, part, dist) {
   const table = WEAPON_DMG[weapon];
-  if (!table || !PARTS.has(part)) return 0;
-  const base = table[part] || 0;
+  const p = sanitizePart(part);
+  if (!table) return 0;
+  const base = table[p] || 0;
   return Math.max(1, Math.round(base * falloffMul(weapon, dist)));
 }
 
@@ -99,7 +106,7 @@ export function markFired(attacker, weapon, now, fireInfo) {
 }
 
 /**
- * @returns {{ ok:false, reason:string } | { ok:true, dmg:number, dist:number, newShot:boolean }}
+ * @returns {{ ok:false, reason:string } | { ok:true, dmg:number, dist:number, newShot:boolean, part:string }}
  */
 export function validateHit({
   attacker,
@@ -115,17 +122,18 @@ export function validateHit({
   if (victim.spawnProtUntil && now < victim.spawnProtUntil) {
     return { ok: false, reason: 'spawn_prot' };
   }
-  if (!PARTS.has(part)) return { ok: false, reason: 'part' };
   if (!WEAPON_DMG[weapon]) return { ok: false, reason: 'weapon' };
+  if (!ownsWeapon(attacker, weapon)) return { ok: false, reason: 'unowned' };
+  const hitPart = sanitizePart(part);
   const dist = poseDist(attacker.pose, victim.pose);
   if (!(dist <= MAX_RANGE)) return { ok: false, reason: 'range' };
 
   const fire = canFire(attacker, weapon, now);
   if (!fire.ok) return fire;
 
-  const dmg = computeDamage(weapon, part, dist);
+  const dmg = computeDamage(weapon, hitPart, dist);
   if (dmg <= 0) return { ok: false, reason: 'dmg' };
-  return { ok: true, dmg, dist, newShot: fire.newShot };
+  return { ok: true, dmg, dist, newShot: fire.newShot, part: hitPart };
 }
 
 export function scaleByArmor(dmg, victim) {

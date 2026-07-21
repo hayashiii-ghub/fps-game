@@ -34,6 +34,7 @@ const Online = (() => {
           for (const l of data.loots) spawnNetLoot(l);
         }
         rebuildOnlineHits();
+        syncLoadoutToServer();
         // 試合中に active で復帰したらローカル試合へ戻す（所持はサーバー inv を正）
         if (data.phase === 'live' && myRole === 'active' && game.state !== 'playing') {
           if (typeof deployAndStart === 'function') {
@@ -56,6 +57,8 @@ const Online = (() => {
         applyMatchClock(data);
       } else if (ev === 'dmg') {
         onDmg(data);
+      } else if (ev === 'fire') {
+        onRemoteFire(data);
       } else if (ev === 'score') {
         applyScore(data);
       } else if (ev === 'match_start') {
@@ -74,6 +77,8 @@ const Online = (() => {
         onNadeBoom(data);
       } else if (ev === 'healed') {
         onHealed(data);
+      } else if (ev === 'loadout_lock') {
+        applyLoadoutLock(data);
       } else if (ev === 'inv') {
         applyInv(data, data.id === Net.getState().selfId);
       } else if (ev === 'loot_spawn') {
@@ -159,12 +164,26 @@ const Online = (() => {
       weapon: weapon || 'assault',
       g: m.group,
       parts: m.parts,
+      torso: m.torso,
+      legL: m.legL,
+      legR: m.legR,
+      muzzle: m.muzzle,
+      flash: m.flash,
       pos: new THREE.Vector3(),
-      tx: 0, tz: 0, tyaw: 0,
+      tx: 0, ty: 0, tz: 0, tyaw: 0,
       yaw: 0,
       crouch: false,
       placed: false,
       alive: true,
+      dying: false,
+      dieT: 0,
+      fallDir: 1,
+      walkPhase: 0,
+      prot: false,
+      protT: 0,
+      protAura: null,
+      lastX: 0,
+      lastZ: 0,
     };
     remotes.set(id, r);
     return r;
@@ -195,15 +214,28 @@ const Online = (() => {
       const r = ensureRemote(p.id, p.team, p.weapon);
       if (!r) continue;
       r.tx = p.x;
+      r.ty = Number.isFinite(p.y) ? p.y : 0;
       r.tz = p.z;
       r.tyaw = p.yaw;
       r.crouch = !!p.crouch;
       r.weapon = p.weapon || r.weapon;
+      const wasAlive = r.alive;
       r.alive = p.alive !== false;
-      r.g.visible = r.alive;
+      r.prot = !!p.prot;
+      if (r.prot) r.protT = Math.max(r.protT, 0.25);
+      if (r.dying) {
+        r.g.visible = true;
+      } else if (!r.alive && wasAlive) {
+        startRemoteDie(r);
+      } else {
+        r.g.visible = r.alive;
+        if (r.alive) r.g.rotation.x = 0;
+      }
       if (!r.placed) {
-        r.pos.set(p.x, 0, p.z);
+        r.pos.set(p.x, r.ty, p.z);
         r.yaw = p.yaw;
+        r.lastX = p.x;
+        r.lastZ = p.z;
         r.placed = true;
       }
     }
@@ -258,6 +290,34 @@ const Online = (() => {
   function claimHeal() {
     if (!game.online || typeof Net === 'undefined') return;
     Net.sendHeal();
+  }
+
+  function notifyHealStart() {
+    if (!game.online || typeof Net === 'undefined') return;
+    Net.sendHealStart();
+  }
+
+  function notifyHealCancel() {
+    if (!game.online || typeof Net === 'undefined') return;
+    Net.sendHealCancel();
+  }
+
+  function syncLoadoutToServer() {
+    if (typeof Net === 'undefined' || !Net.getState().connected) return;
+    const main = (typeof game !== 'undefined' && game.loadoutMain) || 'assault';
+    const sub = (typeof game !== 'undefined' && game.loadoutSub) || 'smg';
+    Net.sendLoadout(main, sub);
+  }
+
+  function applyLoadoutLock(data) {
+    if (!data || !game.online) return;
+    if (data.main && typeof game !== 'undefined') game.loadoutMain = data.main;
+    if (data.sub && typeof game !== 'undefined') game.loadoutSub = data.sub;
+    if (typeof updateLoadoutUI === 'function') updateLoadoutUI();
+    // 試合開始ロック時はローカル所持もサーバーに合わせる
+    if (game.state === 'playing' && typeof resetArsenal === 'function') {
+      resetArsenal();
+    }
   }
 
   function onHealed(data) {
@@ -347,8 +407,20 @@ const Online = (() => {
 
     const r = remotes.get(data.victim);
     if (r) {
-      r.alive = !data.kill && data.hp > 0;
-      r.g.visible = r.alive;
+      // 被弾血しぶき
+      const chest = r.pos.clone();
+      chest.y += r.crouch ? 0.95 : 1.25;
+      let dir = new THREE.Vector3(0, 0.2, 0);
+      const atk = remotes.get(data.attacker);
+      if (atk) dir.subVectors(r.pos, atk.pos).setY(0.15).normalize();
+      else if (data.attacker === selfId) dir.subVectors(r.pos, player.pos).setY(0.15).normalize();
+      if (typeof bloodFX === 'function') bloodFX(chest, dir);
+
+      if (data.kill || !(data.hp > 0)) {
+        startRemoteDie(r);
+      } else {
+        r.alive = true;
+      }
     }
     rebuildOnlineHits();
   }
@@ -395,9 +467,126 @@ const Online = (() => {
   function onPeerRespawn(data) {
     const r = remotes.get(data.id);
     if (!r) return;
+    finishRemoteDie(r);
     r.alive = true;
+    r.dying = false;
+    r.dieT = 0;
+    r.g.rotation.x = 0;
     r.g.visible = true;
+    r.prot = true;
+    r.protT = 2;
+    ensureProtAura(r);
     rebuildOnlineHits();
+  }
+
+  function startRemoteDie(r) {
+    if (!r || r.dying) {
+      if (r) { r.alive = false; r.g.visible = true; }
+      return;
+    }
+    r.alive = false;
+    r.dying = true;
+    r.dieT = 0;
+    r.fallDir = Math.random() < 0.5 ? 1 : -1;
+    r.g.visible = true;
+    r.prot = false;
+    r.protT = 0;
+    setProtAuraVisible(r, false);
+    if (r.legL) r.legL.rotation.x = 0;
+    if (r.legR) r.legR.rotation.x = 0;
+  }
+
+  function finishRemoteDie(r) {
+    if (!r) return;
+    r.dying = false;
+    r.dieT = 0;
+    r.g.rotation.x = 0;
+  }
+
+  function ensureProtAura(r) {
+    if (!r || r.protAura) return;
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x8ad4ff,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.2, 18, 12), mat);
+    mesh.position.y = 1.05;
+    mesh.renderOrder = 6;
+    mesh.visible = false;
+    r.g.add(mesh);
+    r.protAura = mesh;
+  }
+
+  function setProtAuraVisible(r, on) {
+    if (!r) return;
+    if (on) ensureProtAura(r);
+    if (r.protAura) r.protAura.visible = !!on;
+  }
+
+  function notifyFire(weapon) {
+    if (!game.online || typeof Net === 'undefined') return;
+    Net.sendFire(weapon || 'assault');
+  }
+
+  function onRemoteFire(data) {
+    if (!game.online || !data) return;
+    const selfId = Net.getState().selfId;
+    if (data.id === selfId) return;
+    const r = remotes.get(data.id);
+    if (!r || !r.alive || r.dying) return;
+    playRemoteFire(r, data.weapon || r.weapon);
+  }
+
+  function playRemoteFire(r, weapon) {
+    if (r.flash) {
+      const scale = weapon === 'shotgun' ? 0.52
+        : weapon === 'sniper' ? 0.44
+        : weapon === 'pistol' ? 0.26
+        : 0.36;
+      r.flash.material.opacity = 0.95;
+      r.flash.material.rotation = Math.random() * 6.28;
+      r.flash.scale.setScalar(scale * (0.9 + Math.random() * 0.25));
+    }
+
+    const mw = r.muzzle
+      ? r.muzzle.getWorldPosition(new THREE.Vector3())
+      : new THREE.Vector3(r.pos.x, r.pos.y + 1.35, r.pos.z);
+    const dir = new THREE.Vector3(-Math.sin(r.yaw), 0.02, -Math.cos(r.yaw)).normalize();
+    const end = mw.clone().addScaledVector(dir, weapon === 'shotgun' ? 28 : 70);
+    if (typeof spawnTracer === 'function') {
+      const col = weapon === 'sniper' ? 0xff8866 : 0xffc07a;
+      spawnTracer(mw, end, col);
+      if (weapon === 'shotgun') {
+        for (let i = 0; i < 3; i++) {
+          const spread = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.12,
+            (Math.random() - 0.5) * 0.08,
+            (Math.random() - 0.5) * 0.12,
+          );
+          spawnTracer(mw, end.clone().add(spread.multiplyScalar(28)), col);
+        }
+      }
+    }
+
+    if (typeof AudioSys !== 'undefined' && player.alive) {
+      const d = r.pos.distanceTo(player.pos);
+      if (d < 72) {
+        const rel = new THREE.Vector3().subVectors(r.pos, player.pos);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const pan = Math.max(-1, Math.min(1, rel.normalize().dot(right))) * 0.85;
+        AudioSys.enemyShot(d, pan);
+      }
+    }
+  }
+
+  function remoteAudioPan(r) {
+    const rel = new THREE.Vector3().subVectors(r.pos, player.pos);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    return Math.max(-1, Math.min(1, rel.normalize().dot(right))) * 0.85;
   }
 
   /** サーバーが確定した試合開始（マップ含む）。全員がこれを見て出撃する */
@@ -498,6 +687,7 @@ const Online = (() => {
         sendAcc = 0;
         Net.sendInput({
           x: player.pos.x,
+          y: player.pos.y,
           z: player.pos.z,
           yaw: player.yaw,
           pitch: player.pitch,
@@ -509,13 +699,74 @@ const Online = (() => {
 
     const alpha = 1 - Math.exp(-14 * dt);
     for (const r of remotes.values()) {
+      // 死亡倒れアニメ（位置は最後の補間を維持）
+      if (r.dying) {
+        r.dieT += dt;
+        const k = Math.min(r.dieT / 0.45, 1);
+        const s = k * k * (3 - 2 * k);
+        r.g.rotation.x = r.fallDir * (Math.PI / 2) * s;
+        r.g.position.set(r.pos.x, r.pos.y, r.pos.z);
+        if (r.flash) r.flash.material.opacity *= Math.exp(-25 * dt);
+        if (r.dieT > 2.4) {
+          finishRemoteDie(r);
+          r.g.visible = false;
+        }
+        continue;
+      }
+
       if (!r.alive) continue;
+
+      const prevX = r.pos.x;
+      const prevZ = r.pos.z;
       r.pos.x += (r.tx - r.pos.x) * alpha;
+      r.pos.y += ((r.ty || 0) - r.pos.y) * alpha;
       r.pos.z += (r.tz - r.pos.z) * alpha;
       r.yaw = lerpYaw(r.yaw, r.tyaw, alpha);
-      r.g.position.set(r.pos.x, 0, r.pos.z);
+      r.g.position.set(r.pos.x, r.pos.y, r.pos.z);
       // 敵モデル正面は +Z、プレイヤー yaw=0 はカメラ -Z → 表示は +π
       r.g.rotation.y = r.yaw + Math.PI;
+      r.g.rotation.x = 0;
+
+      // AI と同じしゃがみ：胴を下げる（部位メッシュ＝ヒットボックスも追従）
+      if (r.torso) {
+        const targetTorsoY = r.crouch ? 0.63 : 0.95;
+        r.torso.position.y += (targetTorsoY - r.torso.position.y) * (1 - Math.exp(-8 * dt));
+      }
+
+      // 足音＋脚振り（水平移動・接地付近）
+      const dx = r.pos.x - prevX;
+      const dz = r.pos.z - prevZ;
+      const speed = Math.hypot(dx, dz) / Math.max(dt, 1e-4);
+      const grounded = (r.pos.y || 0) < 0.55;
+      if (grounded && speed > 1.2 && r.legL && r.legR) {
+        const prev = Math.sin(r.walkPhase);
+        r.walkPhase += speed * dt * 2.35;
+        const cur = Math.sin(r.walkPhase);
+        const sw = cur * 0.55 * Math.min(speed / 4.5, 1);
+        r.legL.rotation.x = sw;
+        r.legR.rotation.x = -sw;
+        if (prev >= 0 && cur < 0 && player.alive && typeof AudioSys !== 'undefined') {
+          const d = r.pos.distanceTo(player.pos);
+          if (d < 42) AudioSys.enemyStep(d, remoteAudioPan(r), speed > 4.5);
+        }
+      } else if (r.legL && r.legR) {
+        const ease = 1 - Math.exp(-10 * dt);
+        r.legL.rotation.x += (0 - r.legL.rotation.x) * ease;
+        r.legR.rotation.x += (0 - r.legR.rotation.x) * ease;
+      }
+
+      if (r.flash) r.flash.material.opacity *= Math.exp(-25 * dt);
+
+      // 無敵オーラ（snap.prot または リスポーン直後）
+      if (r.protT > 0) r.protT = Math.max(0, r.protT - dt);
+      const showProt = r.prot || r.protT > 0;
+      setProtAuraVisible(r, showProt);
+      if (showProt && r.protAura) {
+        const pulse = 0.14 + 0.12 * (0.5 + 0.5 * Math.sin(game.time * 9));
+        r.protAura.material.opacity = pulse;
+        const s = 1 + 0.04 * Math.sin(game.time * 7);
+        r.protAura.scale.set(s, 1.05 + 0.03 * Math.sin(game.time * 5), s);
+      }
     }
   }
 
@@ -540,8 +791,9 @@ const Online = (() => {
 
   return {
     onMatchStart, requestMatchStart, update, reset, getRemotes, getMyTeam,
-    ensureHook, claimHit, notifyRespawn, rebuildOnlineHits,
-    notifyNadeThrow, claimNadeBoom, claimHeal, claimLoot,
+    ensureHook, claimHit, notifyRespawn, rebuildOnlineHits, notifyFire,
+    notifyNadeThrow, claimNadeBoom, claimHeal, notifyHealStart, notifyHealCancel,
+    claimLoot, syncLoadoutToServer,
     isWaiting, applyMatchClock,
   };
 })();

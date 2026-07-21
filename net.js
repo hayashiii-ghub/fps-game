@@ -19,12 +19,13 @@ const Net = (() => {
   const HEARTBEAT_MS = 12000;
   const RECONNECT_BASE_MS = 700;
   const RECONNECT_MAX_MS = 8000;
+  const RECONNECT_MAX_ATTEMPTS = 8;
   const TOKEN_KEY = 'kgfps_net_token';
 
   const DIRECT = new Set([
     'welcome', 'pong', 'peer', 'snap', 'dmg', 'score', 'respawn',
     'match_start', 'match_end', 'match_deny',
-    'nade_throw', 'nade_boom', 'healed', 'inv',
+    'nade_throw', 'nade_boom', 'healed', 'inv', 'loadout_lock', 'fire',
     'loot_spawn', 'loot_gone', 'loot_clear', 'loot_grant', 'loot_deny', 'supply',
   ]);
 
@@ -104,6 +105,15 @@ const Net = (() => {
 
   function scheduleReconnect(code) {
     clearReconnect();
+    if (reconnectAttempt >= RECONNECT_MAX_ATTEMPTS) {
+      emit('status', {
+        state: 'failed',
+        room: code,
+        attempt: reconnectAttempt,
+        message: '接続できません（サーバーまたはネットワークを確認）',
+      });
+      return;
+    }
     const delay = Math.min(
       RECONNECT_MAX_MS,
       RECONNECT_BASE_MS * (2 ** Math.min(reconnectAttempt, 4)),
@@ -117,6 +127,16 @@ const Net = (() => {
   }
 
   async function createRoom() {
+    // DO 無料枠超過だと WS だけ死ぬので先に検知する
+    const health = await fetch('/api/health').catch(() => null);
+    if (health && !health.ok) {
+      let detail = `health ${health.status}`;
+      try {
+        const body = await health.json();
+        if (body && body.error) detail = body.error;
+      } catch (_) { /* ignore */ }
+      throw new Error(detail);
+    }
     const res = await fetch('/api/room', { method: 'POST' });
     if (!res.ok) throw new Error(`create room failed: ${res.status}`);
     const data = await res.json();
@@ -200,6 +220,7 @@ const Net = (() => {
       t: 'input',
       seq: inputSeq,
       x: pose.x,
+      y: pose.y || 0,
       z: pose.z,
       yaw: pose.yaw,
       pitch: pose.pitch,
@@ -212,6 +233,10 @@ const Net = (() => {
     return send({ t: 'hit', targetId, part, weapon });
   }
 
+  function sendFire(weapon) {
+    return send({ t: 'fire', weapon: weapon || 'assault' });
+  }
+
   function sendNadeThrow(body) {
     return send({ t: 'nade_throw', ...body });
   }
@@ -222,6 +247,18 @@ const Net = (() => {
 
   function sendHeal() {
     return send({ t: 'heal' });
+  }
+
+  function sendHealStart() {
+    return send({ t: 'heal_start' });
+  }
+
+  function sendHealCancel() {
+    return send({ t: 'heal_cancel' });
+  }
+
+  function sendLoadout(main, sub) {
+    return send({ t: 'loadout', main: main || 'assault', sub: sub || 'smg' });
   }
 
   function sendLootPick(lootId) {
@@ -277,7 +314,8 @@ const Net = (() => {
 
   return {
     createRoom, connect, disconnect, forgetIdentity, ping,
-    sendInput, sendHit, sendNadeThrow, sendNadeBoom, sendHeal, sendLootPick,
+    sendInput, sendHit, sendFire, sendNadeThrow, sendNadeBoom, sendHeal, sendHealStart, sendHealCancel,
+    sendLoadout, sendLootPick,
     sendRespawn, sendMatchStart,
     on, getState,
   };

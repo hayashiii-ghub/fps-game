@@ -10,10 +10,14 @@ import {
   grenadeDmgAt,
   grenadePeerDmgAt,
   dist3,
+  beginHeal,
   applyHeal,
+  cancelHealChannel,
   pickDeathDrop,
   pickSupplyBundle,
   tryGrantLoot,
+  sanitizeLoadout,
+  ownsWeapon,
 } from './gear.js';
 import {
   createMatchState,
@@ -29,6 +33,7 @@ import {
   sanitizeToken,
   MATCH_SEC,
 } from './match.js';
+import { checkMsgRate } from './rate.js';
 
 const SNAP_MS = 50;
 const SUPPLY_FIRST_MS = 3000;
@@ -51,6 +56,23 @@ export default {
       return Response.json({ code });
     }
 
+    // DO 疎通確認（無料枠超過などをロビーに返す）
+    if (url.pathname === '/api/health') {
+      try {
+        const id = env.ROOM.idFromName('__health__');
+        const stub = env.ROOM.get(id);
+        const res = await stub.fetch(new Request('https://room.internal/health'));
+        const body = await res.text();
+        return new Response(body || JSON.stringify({ ok: res.ok }), {
+          status: res.status,
+          headers: { 'content-type': 'application/json' },
+        });
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        return Response.json({ ok: false, error: msg }, { status: 503 });
+      }
+    }
+
     if (url.pathname === '/api/ws') {
       const upgrade = request.headers.get('Upgrade');
       if (!upgrade || upgrade.toLowerCase() !== 'websocket') {
@@ -63,8 +85,14 @@ export default {
       if (!isValidRoomCode(code)) {
         return new Response('Invalid room code', { status: 400 });
       }
-      const stub = env.ROOM.getByName(code);
-      return stub.fetch(request);
+      try {
+        const id = env.ROOM.idFromName(code);
+        const stub = env.ROOM.get(id);
+        return await stub.fetch(request);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        return new Response(`Room connect failed: ${msg}`, { status: 502 });
+      }
     }
 
     if (url.pathname.startsWith('/api/')) {
@@ -229,11 +257,16 @@ export class Room extends DurableObject {
   async fetch(request) {
     await this.hydrate();
     const url = new URL(request.url);
+    if (url.pathname === '/health' || url.pathname.endsWith('/health')) {
+      return Response.json({ ok: true, phase: this.match.phase });
+    }
     const code = normalizeRoomCode(url.searchParams.get('room'));
     const tokenIn = sanitizeToken(url.searchParams.get('token'));
 
     const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
+    const client = pair[0];
+    const server = pair[1];
+    // hibernation API（無料枠でも接続維持コストを抑えやすい）
     this.ctx.acceptWebSocket(server);
 
     const now = Date.now();
@@ -302,14 +335,23 @@ export class Room extends DurableObject {
     });
     this.sessions.set(server, session);
 
-    server.send(JSON.stringify(this.welcomePayload(session, server)));
-    if (session.role !== 'waiting') {
-      this.broadcast(server, { t: 'peer', op: 'join', id: session.id, team: session.team });
-    }
-    await this.ensureAlarm();
-    await this.persist(true);
+    // welcome は握手完了後に送る
+    this.ctx.waitUntil(this.afterAccept(server, session));
 
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async afterAccept(server, session) {
+    try {
+      server.send(JSON.stringify(this.welcomePayload(session, server)));
+      if (session.role !== 'waiting') {
+        this.broadcast(server, { t: 'peer', op: 'join', id: session.id, team: session.team });
+      }
+      await this.ensureAlarm();
+      await this.persist(true);
+    } catch (err) {
+      console.error('afterAccept', err && err.message ? err.message : err);
+    }
   }
 
   peerList(except) {
@@ -338,6 +380,7 @@ export class Room extends DurableObject {
   }
 
   buildSnap(now) {
+    const t = now || Date.now();
     const players = [];
     for (const s of this.sessions.values()) {
       if (!s.pose || s.role === 'waiting') continue;
@@ -347,10 +390,11 @@ export class Room extends DurableObject {
         alive: !!s.alive,
         hp: s.hp,
         weapon: s.weapon || (s.pose && s.pose.weapon) || 'assault',
+        prot: !!(s.spawnProtUntil && t < s.spawnProtUntil),
         ...s.pose,
       });
     }
-    const pub = matchPublic(this.match, now || Date.now());
+    const pub = matchPublic(this.match, t);
     return {
       t: 'snap',
       tick: this.tick,
@@ -454,20 +498,38 @@ export class Room extends DurableObject {
 
     startMatch(this.match, mapId, now);
     this.clearLoots();
-    const load = defaultLoadout();
     for (const s of this.sessions.values()) {
-      Object.assign(s, load);
+      const lo = sanitizeLoadout(s.main, s.sub);
+      s.main = lo.main;
+      s.sub = lo.sub;
+      s.owned = lo.owned;
+      s.weapon = lo.weapon;
+      s.grenades = 2;
+      s.medkits = 2;
+      s.grenadeMax = 5;
+      s.medkitMax = 3;
+      s.armor = false;
+      s.pendingNade = false;
+      s.lastNadeAt = 0;
+      s.healStartedAt = 0;
       s.role = 'active';
       s.hp = 100;
       s.alive = true;
       s.spawnProtUntil = now + 2000;
       s.lastFireAt = 0;
-      s.pendingNade = false;
+      s.shotgunPellets = 0;
     }
-    // 切断中の予約も次試合用にリセット（チームは維持）
     for (const r of Object.values(this.reservations)) {
       if (!r) continue;
-      Object.assign(r, load);
+      const lo = sanitizeLoadout(r.main, r.sub);
+      r.main = lo.main;
+      r.sub = lo.sub;
+      r.owned = lo.owned;
+      r.weapon = lo.weapon;
+      r.grenades = 2;
+      r.medkits = 2;
+      r.armor = false;
+      r.healStartedAt = 0;
       r.hp = 100;
       r.alive = true;
       r.role = 'active';
@@ -489,6 +551,12 @@ export class Room extends DurableObject {
     for (const [ws, s] of this.sessions) {
       try {
         ws.send(JSON.stringify({ t: 'inv', id: s.id, ...this.invPayload(s) }));
+        ws.send(JSON.stringify({
+          t: 'loadout_lock',
+          main: s.main,
+          sub: s.sub,
+          owned: s.owned,
+        }));
       } catch (_) { /* ignore */ }
     }
     await this.persist(true);
@@ -511,6 +579,7 @@ export class Room extends DurableObject {
   }
 
   applyHitResult(attacker, victim, part, weapon, rawDmg, extra) {
+    cancelHealChannel(victim);
     const applied = applyDamage(victim, rawDmg);
     victim.hp = applied.hp;
     if (applied.kill) {
@@ -524,20 +593,20 @@ export class Room extends DurableObject {
 
   handleHit(attacker, msg) {
     if (!this.isCombatant(attacker)) return;
+    if (!checkMsgRate(attacker, Date.now(), 'hit', 16).ok) return;
     const found = this.findById(String(msg.targetId || ''));
     if (!found) return;
     const victim = found.s;
     if (victim.role === 'waiting') return;
     const now = Date.now();
-    const part = String(msg.part || 'torso');
     const weapon = String(msg.weapon || 'assault');
     const result = validateHit({
-      attacker, victim, part, weapon, now,
+      attacker, victim, part: msg.part, weapon, now,
     });
     if (!result.ok) return;
 
     markFired(attacker, weapon, now, result);
-    this.applyHitResult(attacker, victim, part, weapon, result.dmg);
+    this.applyHitResult(attacker, victim, result.part, weapon, result.dmg);
   }
 
   handleNadeThrow(session, msg, exceptWs) {
@@ -578,7 +647,8 @@ export class Room extends DurableObject {
       if (victim.role === 'waiting') continue;
       if (!victim.alive || victim.hp <= 0) continue;
       if (victim.spawnProtUntil && now < victim.spawnProtUntil) continue;
-      const eyeY = victim.crouch ? 1.0 : 1.4;
+      const eyeY = (victim.pose && Number.isFinite(victim.pose.y) ? victim.pose.y : 0)
+        + (victim.crouch ? 1.0 : 1.4);
       const vx = victim.pose ? victim.pose.x : 0;
       const vz = victim.pose ? victim.pose.z : 0;
       const d = dist3(pos.x, pos.y, pos.z, vx, eyeY, vz);
@@ -592,9 +662,26 @@ export class Room extends DurableObject {
     }
   }
 
+  handleHealStart(session, ws) {
+    if (!this.isCombatant(session) && !(session && session.role === 'active' && this.match.phase === 'live')) {
+      return;
+    }
+    const now = Date.now();
+    if (!checkMsgRate(session, now, 'heal', 200).ok) return;
+    const result = beginHeal(session, now);
+    if (!result.ok) return;
+    session.healStartedAt = result.healStartedAt;
+  }
+
+  handleHealCancel(session) {
+    cancelHealChannel(session);
+  }
+
   handleHeal(session, ws) {
     if (!this.isCombatant(session) && !(session && session.role === 'active' && this.match.phase === 'live')) return;
-    const result = applyHeal(session);
+    const now = Date.now();
+    if (!checkMsgRate(session, now, 'heal_done', 200).ok) return;
+    const result = applyHeal(session, now);
     if (!result.ok) return;
     session.hp = result.hp;
     session.medkits = result.medkits;
@@ -607,6 +694,24 @@ export class Room extends DurableObject {
     this.broadcastAll(payload);
     try {
       ws.send(JSON.stringify({ t: 'inv', id: session.id, ...this.invPayload(session) }));
+    } catch (_) { /* ignore */ }
+  }
+
+  handleLoadout(session, msg, ws) {
+    if (this.match.phase === 'live') return; // 試合中は固定
+    if (!checkMsgRate(session, Date.now(), 'loadout', 100).ok) return;
+    const lo = sanitizeLoadout(msg.main, msg.sub);
+    session.main = lo.main;
+    session.sub = lo.sub;
+    session.owned = lo.owned;
+    session.weapon = lo.weapon;
+    try {
+      ws.send(JSON.stringify({
+        t: 'loadout_lock',
+        main: lo.main,
+        sub: lo.sub,
+        owned: lo.owned,
+      }));
     } catch (_) { /* ignore */ }
   }
 
@@ -643,6 +748,7 @@ export class Room extends DurableObject {
     session.alive = true;
     session.spawnProtUntil = Date.now() + 2000;
     session.pendingNade = false;
+    cancelHealChannel(session);
     this.broadcastAll({
       t: 'respawn',
       id: session.id,
@@ -663,6 +769,9 @@ export class Room extends DurableObject {
       medkits: session.medkits,
       armor: !!session.armor,
       weapon: session.weapon || 'assault',
+      main: session.main || 'assault',
+      sub: session.sub || 'smg',
+      owned: session.owned || sanitizeLoadout(session.main, session.sub).owned,
       joinedAt: session.joinedAt,
       spawnProtUntil: session.spawnProtUntil || 0,
       reservedAt: Date.now(),
@@ -671,6 +780,11 @@ export class Room extends DurableObject {
 
   async webSocketMessage(ws, message) {
     await this.hydrate();
+    // 非 hibernation では AutoResponse が効かないため生 ping を返す
+    if (message === 'ping') {
+      try { ws.send('pong'); } catch (_) { /* ignore */ }
+      return;
+    }
     const session = this.sessions.get(ws);
     if (!session) return;
     let msg;
@@ -715,10 +829,13 @@ export class Room extends DurableObject {
     if (msg.t === 'input') {
       if (session.role === 'waiting') return;
       if (this.match.phase === 'ended') return;
+      if (!checkMsgRate(session, Date.now(), 'input', 30).ok) return;
       const pose = sanitizePose(msg);
       if (session.pose && pose.seq < session.pose.seq) return;
       session.pose = pose;
-      session.weapon = pose.weapon;
+      session.weapon = ownsWeapon(session, pose.weapon)
+        ? pose.weapon
+        : (session.main || 'assault');
       session.crouch = pose.crouch;
       await this.ensureAlarm();
       return;
@@ -726,6 +843,19 @@ export class Room extends DurableObject {
 
     if (msg.t === 'hit') {
       this.handleHit(session, msg);
+      return;
+    }
+
+    if (msg.t === 'fire') {
+      if (!this.isCombatant(session)) return;
+      if (!checkMsgRate(session, Date.now(), 'fire', 45).ok) return;
+      const weapon = String(msg.weapon || session.weapon || 'assault');
+      if (!ownsWeapon(session, weapon)) return;
+      this.broadcast(ws, {
+        t: 'fire',
+        id: session.id,
+        weapon,
+      });
       return;
     }
 
@@ -739,12 +869,28 @@ export class Room extends DurableObject {
       return;
     }
 
+    if (msg.t === 'heal_start') {
+      this.handleHealStart(session, ws);
+      return;
+    }
+
+    if (msg.t === 'heal_cancel') {
+      this.handleHealCancel(session);
+      return;
+    }
+
     if (msg.t === 'heal') {
       this.handleHeal(session, ws);
       return;
     }
 
+    if (msg.t === 'loadout') {
+      this.handleLoadout(session, msg, ws);
+      return;
+    }
+
     if (msg.t === 'loot_pick') {
+      if (!checkMsgRate(session, Date.now(), 'loot', 80).ok) return;
       this.handleLootPick(session, msg, ws);
       return;
     }

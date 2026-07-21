@@ -141,6 +141,15 @@ class Enemy {
     this.torso = m.torso; this.muzzle = m.muzzle; this.flash = m.flash;
     for (const p of this.parts) p.userData.enemy = this;
 
+    const protMat = new THREE.MeshBasicMaterial({
+      color: 0x8ad4ff, transparent: true, opacity: 0.2,
+      depthWrite: false, side: THREE.DoubleSide, fog: false,
+    });
+    this.protAura = new THREE.Mesh(new THREE.SphereGeometry(1.2, 18, 12), protMat);
+    this.protAura.position.y = 1.05;
+    this.protAura.visible = false;
+    this.g.add(this.protAura);
+
     this.pos = new THREE.Vector3(x, 0, z);
     this.g.position.copy(this.pos);
     if (kind === 'elite') this.g.scale.setScalar(1.12);
@@ -389,6 +398,15 @@ class Enemy {
     if (this.flankT > 0) this.flankT -= dt;
     if (this.reloadCueT > 0) this.reloadCueT -= dt;
     if (this.spawnProtT > 0) this.spawnProtT = Math.max(0, this.spawnProtT - dt);
+    if (this.protAura) {
+      const on = this.alive && this.spawnProtT > 0;
+      this.protAura.visible = on;
+      if (on) {
+        this.protAura.material.opacity = 0.14 + 0.12 * (0.5 + 0.5 * Math.sin(game.time * 9));
+        const s = 1 + 0.04 * Math.sin(game.time * 7);
+        this.protAura.scale.set(s, 1.05 + 0.03 * Math.sin(game.time * 5), s);
+      }
+    }
     this.fleeGrenades();
 
     const tgt = this.pickTarget();

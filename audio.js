@@ -135,15 +135,15 @@ const AudioSys = {
   enemyShot(dist, pan) {
     if (!this.ok) return;
     const d = Number.isFinite(dist) ? dist : 40;
-    const g = Math.min(0.5, 13 / Math.max(d, 4));
-    const f = this._noise(0.22, 'lowpass', 950, g, 0.7 + Math.random() * 0.2, pan);
-    if (f) f.frequency.exponentialRampToValueAtTime(160, this.t + 0.2);
+    const g = Math.min(0.68, 18 / Math.max(d, 3.5));
+    const f = this._noise(0.26, 'lowpass', 1050, g, 0.75 + Math.random() * 0.2, pan);
+    if (f) f.frequency.exponentialRampToValueAtTime(160, this.t + 0.22);
     // 至近距離は銃口のクラックが乗る
-    if (d < 26) this._noise(0.03, 'highpass', 2400, g * 0.5, 1.5, pan);
+    if (d < 32) this._noise(0.035, 'highpass', 2600, g * 0.55, 1.55, pan);
     // 遅れて届く環境エコー（距離が遠いほど遅れ大・尾長め）
-    const echoDelay = 0.1 + Math.min(0.3, d / 340);
-    this._noiseAt(echoDelay, 0.38, 'lowpass', 430, g * 0.38, 0.5, pan);
-    this._noiseAt(echoDelay + 0.12, 0.5, 'lowpass', 260, g * 0.22, 0.4, pan);
+    const echoDelay = 0.08 + Math.min(0.32, d / 320);
+    this._noiseAt(echoDelay, 0.42, 'lowpass', 460, g * 0.42, 0.5, pan);
+    this._noiseAt(echoDelay + 0.12, 0.55, 'lowpass', 260, g * 0.26, 0.4, pan);
   },
 
   /* 弾が頭の近くを通過する音 */
@@ -161,9 +161,9 @@ const AudioSys = {
   enemyStep(dist, pan, run) {
     if (!this.ok) return;
     const d = Number.isFinite(dist) ? dist : 30;
-    const g = Math.min(run ? 0.13 : 0.09, 5.2 / Math.max(d, 2.5));
-    if (g < 0.012) return;
-    this._noise(0.05, 'lowpass', run ? 620 : 430, g, 0.55 + Math.random() * 0.3, pan);
+    const g = Math.min(run ? 0.18 : 0.12, 7.2 / Math.max(d, 2.2));
+    if (g < 0.01) return;
+    this._noise(0.055, 'lowpass', run ? 680 : 460, g, 0.55 + Math.random() * 0.3, pan);
   },
 
   /* 敵のリロード：短い金属音を距離減衰 */

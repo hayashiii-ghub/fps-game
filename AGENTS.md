@@ -4,7 +4,7 @@
 - 武器切替は役割固定キーより、Q/E で所持武器を循環（向きだけ逆）する仕様を好む
 - グレネードは G 即投げではなく、G で構え・軌道を見てクリック投擲する操作を好む。所有上限はグレ5・回復キット3
 - 移動速度は武器ごとに差を付ける（ハンドガン速／アサルト基準／グレ構えはアサルト同等／スナイパー遅）
-- ハンドガンの右クリックはスコープ覗きではなく、腰撃ち固定のまま減速しレティクルを小さくする仕様を好む
+- ハンドガン／ショットガンの右クリックはスコープ覗きではなく、腰撃ち固定のまま減速しレティクルを小さくする仕様を好む
 - スナイパーは射撃後のボルト（コッキング）中、スコープを覗けない仕様を好む
 - 回復キットは拾い即回復ではなく、所持して任意タイミングで使用（約2秒）する仕様を好む
 - ポーズは「ロビーに戻る」導線を好み、ロビーのモード選択はカードクリックのみで足り重複ボタンは不要とする
@@ -15,7 +15,7 @@
 
 ## Learned Workspace Facts
 
-- 継続開発の本体はローカル `/Users/hayashi/work/projects/karakin`。Git 正本 remote は `origin` → `hayashiii-ghub/fps-game`。公開は Cloudflare Workers Static Assets（プロジェクト名 `kimi-grok-fps`、URL は `https://kimi-grok-fps.hayashigoto.workers.dev`。Pages ではなく公式推奨の Workers 側）。GitHub Pages は停止済み。オンライン TDM は Room DO で位置同期＋ヒット/キル/スコア＋グレ/回復/ルート/補給に加え、試合フェーズ（lobby/live/ended）・タイマー権威・`playerToken` 再接続 identity・DO 永続・途中参加は waiting（ラグ補償・チート耐性の本格化は未）。旧 `hayashiii-ghub/karakin` は Archive 済み、`karakin-demo` も凍結。push は `origin`（fps-game）一本でよい
+- 継続開発の本体はローカル `/Users/hayashi/work/projects/karakin`。Git 正本 remote は `origin` → `hayashiii-ghub/fps-game`。公開は Cloudflare Workers Static Assets（プロジェクト名 `kimi-grok-fps`、URL は `https://kimi-grok-fps.hayashigoto.workers.dev`。Pages ではなく公式推奨の Workers 側）。GitHub Pages は停止済み。オンライン TDM は Room DO で位置同期＋ヒット/キル/スコア＋グレ/回復/ルート/補給に加え、試合フェーズ（lobby/live/ended）・タイマー権威・`playerToken` 再接続 identity・DO 永続・途中参加は waiting。リモート気配として射撃 FX 配信・足音・死亡倒れ・スポーン無敵の見た目あり。Phase B として回復2秒チャネル検証・所持武器照合・メッセージレート制限・試合開始時ロードアウト固定あり（ラグ補償・チート耐性の本格化は未）。Durable Objects 無料枠枯渇時は `/api/room` が通っても本番 WS 再接続が詰まることがある（health で枠状況を出す）。旧 `hayashiii-ghub/karakin` は Archive 済み、`karakin-demo` も凍結。push は `origin`（fps-game）一本でよい
 - ゲームは three.js 製ブラウザ FPS「KIMI GROK FPS」（ビルド不要・ローカル同梱 three.js）。マップは DESERT / JUNGLE（追加予定あり）。ロビーの MAP カードで選択（背景も即切替）。モードは Survival（5ステージ・テーマ付き）と TDM（5v5・5分・キル数勝負）。TDM はロビーで LOCAL（AI）と ONLINE（ルームコード）に分岐（旧「接続試験」パネルは統合済み）
 - マップ切替は `world.js` の `MAP_DEFS` + `buildMap(id)`。マップ固有物は `mapGroup` 配下、切替時に `colliders`/`worldMeshes` をクリアして再構築。スポーン点・中央補給位置・マップサイズは両マップ共通
 - JUNGLE は PUBG Sanhok 参考: 中央遺跡(CQC) / 東リゾート(狙撃) / 南港 / 西採石場 / 北西訓練場 / 北東岩窟 + 密林。茂み(thicket)は見た目のみ（弾・視線・移動すべて素通し）。木は幹のみ移動 OBB（葉は collider なし・弾は当たる）。草・海は見た目のみ。密林感は拠点外・レーン間の植生と緑寄りフォグで稼ぎ、東リゾート／南港は射線用に薄い森
@@ -26,4 +26,4 @@
 - アサルトの照準はホロサイト式（`buildAssaultModel` 内の窓枠ハウジング＋ `getHoloReticleTexture()` のサークルドット自発光ガラス）。レティクル中心 y=0.098 が ADS 光軸で `WEAPON_DEFS.assault.ads.y` と連動。SMG は従来のリング照準のまま
 - ロビーはシネマティック仕様（低空ドリーカメラ・レターボックス・コーナーブラケット・スキャンライン・出撃フェード `#deploy`）。フルスクリーンのグレイン/ノイズ画像オーバーレイはヘッドレスGPU環境でレンダラをクラッシュさせるため使わない（検証済み）
 - スナイパーは頭一撃・胴は非一撃（95）。ADS は 2D オーバーレイ（C+Shift でも可、そのとき Shift はスプリントにしない）。ボルト中は ADS 不可。SMG 弾倉 25。SMG／ハンドガン／ショットガンは `dmgFalloff`（距離減衰）。アサルトは弱め（28–50m→0.82）。スナイパーは減衰なし。ショットガンは集弾＋減衰の二重で遠距離を抑える。カメラは YXZ・前方はローカル -Z。WASD の yaw 変換は水平視線と一致させる必要がある
-- 移動コライダは全て Y 回転 OBB `{cx,cy,cz,hx,hy,hz,cos,sin}` に統一（弾判定は葉 Mesh 単位のまま別系統）。解決は最深1ヒットの押し出し＋速度の法線成分カット（壁スライド・跳ね返しなし）＋水平4サブステップ。フレーム末に中心が固体内なら直前の安全位置に戻す。登録は葉メッシュ自動が基本。家・コンテナ・土嚢は見た目一致の明示 OBB（yaw 0/90°、padding/buffer なし）。家は「入れない固体ブロック」で、窓・扉は壁面装飾メッシュ（`markDecor`、穴なし・移動判定なし）。ローカル動作確認は `http://127.0.0.1:8765/` を使うことが多い
+- 移動コライダは全て Y 回転 OBB `{cx,cy,cz,hx,hy,hz,cos,sin}` に統一（弾判定は葉 Mesh 単位のまま別系統）。解決は最深1ヒットの押し出し＋速度の法線成分カット（壁スライド・跳ね返しなし）＋水平4サブステップ。フレーム末に中心が固体内なら直前の安全位置に戻す。登録は葉メッシュ自動が基本。家・コンテナ・土嚢は見た目一致の明示 OBB（yaw 0/90°、padding/buffer なし）。家は「入れない固体ブロック」で、窓・扉は壁面装飾メッシュ（`markDecor`、穴なし・移動判定なし）。ローカル静的確認は `http://127.0.0.1:8765/`、オンライン API／WS は wrangler `http://127.0.0.1:8787/` を使うことが多い

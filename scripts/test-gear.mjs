@@ -34,12 +34,15 @@ assert.equal(boom.ok, true);
 const deadThrow = validateNadeThrow({ ...thrower, grenades: 0, pendingNade: false }, now + 3000);
 assert.equal(deadThrow.ok, false);
 
-const healed = applyHeal({ alive: true, hp: 40, medkits: 2 });
+const healed = applyHeal({ alive: true, hp: 40, medkits: 2, healStartedAt: now }, now + 2000);
 assert.equal(healed.ok, true);
 assert.equal(healed.hp, 90);
 assert.equal(healed.medkits, 1);
 
-const full = applyHeal({ alive: true, hp: 100, medkits: 1 });
+const instant = applyHeal({ alive: true, hp: 40, medkits: 2, healStartedAt: 0 }, now);
+assert.equal(instant.ok, false);
+
+const full = applyHeal({ alive: true, hp: 100, medkits: 1, healStartedAt: now }, now + 2000);
 assert.equal(full.ok, false);
 
 assert.ok(['ammo', 'med', 'nade'].includes(pickDeathDrop(() => 0.1)));

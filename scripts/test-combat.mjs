@@ -18,6 +18,7 @@ assert.equal(SHOTGUN_PELLETS, 8);
 const atk = {
   alive: true, hp: 100, team: 'blue',
   pose: { x: 0, z: 0 }, lastFireAt: 0, shotgunPellets: 0,
+  owned: { assault: false, smg: false, shotgun: true, sniper: false, pistol: true },
 };
 const vic = {
   alive: true, hp: 100, team: 'red',

@@ -335,6 +335,7 @@ function startHeal() {
   weapon.ads = false;
   showHealBar();
   AudioSys.pickup();
+  if (game.online && typeof Online !== 'undefined') Online.notifyHealStart();
 }
 
 function cancelHeal() {
@@ -343,6 +344,7 @@ function cancelHeal() {
   player.hp = player.healFrom;
   updateHealthHUD();
   hideHealBar();
+  if (game.online && typeof Online !== 'undefined') Online.notifyHealCancel();
 }
 
 function updateHeal(dt) {
@@ -831,6 +833,7 @@ function tryFire(now) {
 
   AudioSys.shot(arsenal.activeId);
   updateAmmoHUD();
+  if (game.online && typeof Online !== 'undefined') Online.notifyFire(arsenal.activeId);
 }
 
 function startReload() {
