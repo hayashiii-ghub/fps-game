@@ -1,7 +1,12 @@
-# Cloudflare Pages — static site (no build)
-# Project name: kimi-grok-fps → https://kimi-grok-fps.pages.dev
-# (fps-game.pages.dev is already occupied by unrelated content)
+# Cloudflare Workers Static Assets（公式推奨・ビルドなし）
+# https://developers.cloudflare.com/workers/static-assets/
+# Deploy: ./scripts/finish-cloudflare-migration.sh  または  npm 相当で prepare → wrangler deploy
+# URL: https://kimi-grok-fps.<account-subdomain>.workers.dev
 
 name = "kimi-grok-fps"
 compatibility_date = "2026-07-21"
-pages_build_output_dir = "."
+workers_dev = true
+
+# リポジトリ直下ごと上げると .git 等も拾うため、準備スクリプトが作る配信専用ディレクトリを使う
+[assets]
+directory = "./.cf-assets"
