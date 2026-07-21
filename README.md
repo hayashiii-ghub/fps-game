@@ -3,13 +3,13 @@
 ブラウザで遊べる FPS。three.js 製・ビルド不要・オフライン動作。
 マップは砂漠（DESERT）と密林（JUNGLE）の2つ（今後も追加予定）。
 
-**▶ プレイ: https://hayashiii-ghub.github.io/fps-game/**
+**▶ プレイ: https://kimi-grok-fps.pages.dev/**
 
 ## 遊び方
 
 ### 起動
 
-- 上記 GitHub Pages の URL、または
+- 上記 Cloudflare Pages の URL、または
 - ローカルでは `index.html` を開く（three.js は同梱済み・オフライン可）
 - うまく動かない場合はプロジェクト直下で `python3 -m http.server 8765` を起動し、`http://127.0.0.1:8765/` にアクセス
 
@@ -130,3 +130,32 @@ URLにクエリを付けると検証用モードで起動する。
 | `main.js` | ゲーム状態・メインループ・HUD・ミニマップ |
 | `three.min.js` | three.js r128 |
 | `og.png` | SNS 共有用 OGP 画像 |
+| `_headers` | Cloudflare Pages 用キャッシュ／セキュリティヘッダ |
+| `wrangler.toml` | Cloudflare Pages プロジェクト設定（ビルドなし） |
+
+## デプロイ（Cloudflare Pages）
+
+公開先は **https://kimi-grok-fps.pages.dev/**（GitHub Pages は使わない）。
+
+初回セットアップ（ダッシュボード）:
+
+1. [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+2. リポジトリ `hayashiii-ghub/fps-game` を選択
+3. プロジェクト名: **`kimi-grok-fps`**（`fps-game` は別コンテンツで使用済みのため使わない）
+4. Production branch: **`main`**
+5. Framework preset: **None** / Build command: **空** / Build output directory: **`/`** または **`.`**
+6. Save and Deploy → 成功後に https://kimi-grok-fps.pages.dev/ でロビーが表示されることを確認
+
+以降は `main` への push で自動デプロイ。CLI の場合（`CLOUDFLARE_API_TOKEN` が必要。未設定なら `wrangler login`）:
+
+```bash
+./scripts/finish-cloudflare-migration.sh
+```
+
+または:
+
+```bash
+npx wrangler pages deploy . --project-name=kimi-grok-fps
+```
+
+GitHub Pages 停止: 上記スクリプト内で `gh api -X DELETE .../pages` するか、リポジトリ **Settings → Pages → Source** を **None** にする。

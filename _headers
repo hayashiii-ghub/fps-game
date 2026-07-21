@@ -1,0 +1,21 @@
+# Cloudflare Pages headers
+# https://developers.cloudflare.com/pages/configuration/headers/
+
+/
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/index.html
+  Cache-Control: public, max-age=60, must-revalidate
+
+/*.js
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/three.min.js
+  Cache-Control: public, max-age=604800, immutable
+
+/og.png
+  Cache-Control: public, max-age=604800
+
+/_headers
+  Cache-Control: no-store
