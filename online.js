@@ -17,7 +17,9 @@ const Online = (() => {
     unsub = Net.on((ev, data) => {
       if (ev === 'welcome') {
         myTeam = data.team || 'blue';
-        if (data.map && typeof applyMapSelection === 'function') {
+        // 試合中の再接続だけマップをサーバーに合わせる。
+        // lobby 接続時は DO 既定 desert でローカル選択を潰さない。
+        if (data.match && data.map && typeof applyMapSelection === 'function') {
           applyMapSelection(data.map);
         }
         if (data.score) applyScore(data.score);
