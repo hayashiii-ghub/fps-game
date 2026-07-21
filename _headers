@@ -1,5 +1,5 @@
-# Cloudflare Pages headers
-# https://developers.cloudflare.com/pages/configuration/headers/
+# Cloudflare Workers Static Assets 用ヘッダ
+# https://developers.cloudflare.com/workers/static-assets/headers/
 
 /
   X-Content-Type-Options: nosniff
@@ -16,6 +16,3 @@
 
 /og.png
   Cache-Control: public, max-age=604800
-
-/_headers
-  Cache-Control: no-store
