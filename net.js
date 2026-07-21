@@ -1,12 +1,14 @@
 /**
- * オンライン対戦ネット層（ルーム + pose + hit + gear）
- * heartbeat + 切断時の同ルーム自動再接続あり
+ * オンライン対戦ネット層（ルーム + pose + hit + gear + match）
+ * heartbeat + 切断時の同ルーム自動再接続 + playerToken
  */
 const Net = (() => {
   let ws = null;
   let room = null;
   let selfId = null;
   let team = null;
+  let role = 'active';
+  let playerToken = null;
   let inputSeq = 0;
   let intentionalClose = false;
   let reconnectTimer = null;
@@ -17,9 +19,11 @@ const Net = (() => {
   const HEARTBEAT_MS = 12000;
   const RECONNECT_BASE_MS = 700;
   const RECONNECT_MAX_MS = 8000;
+  const TOKEN_KEY = 'kgfps_net_token';
 
   const DIRECT = new Set([
-    'welcome', 'pong', 'peer', 'snap', 'dmg', 'score', 'respawn', 'match_start',
+    'welcome', 'pong', 'peer', 'snap', 'dmg', 'score', 'respawn',
+    'match_start', 'match_end', 'match_deny',
     'nade_throw', 'nade_boom', 'healed', 'inv',
     'loot_spawn', 'loot_gone', 'loot_clear', 'loot_grant', 'loot_deny', 'supply',
   ]);
@@ -41,9 +45,37 @@ const Net = (() => {
     return true;
   }
 
-  function wsUrl(code) {
+  function tokenStorageKey(code) {
+    return `${TOKEN_KEY}:${String(code || '').toUpperCase()}`;
+  }
+
+  function loadToken(code) {
+    try {
+      return sessionStorage.getItem(tokenStorageKey(code)) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function saveToken(code, token) {
+    if (!code || !token) return;
+    try {
+      sessionStorage.setItem(tokenStorageKey(code), token);
+    } catch (_) { /* ignore */ }
+  }
+
+  function clearToken(code) {
+    if (!code) return;
+    try {
+      sessionStorage.removeItem(tokenStorageKey(code));
+    } catch (_) { /* ignore */ }
+  }
+
+  function wsUrl(code, token) {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${location.host}/api/ws?room=${encodeURIComponent(code)}`;
+    let u = `${proto}//${location.host}/api/ws?room=${encodeURIComponent(code)}`;
+    if (token) u += `&token=${encodeURIComponent(token)}`;
+    return u;
   }
 
   function stopHeartbeat() {
@@ -104,12 +136,13 @@ const Net = (() => {
       emit('error', { message: 'invalid room code' });
       return;
     }
+    playerToken = loadToken(room) || null;
     emit('status', {
       state: fromReconnect ? 'reconnecting' : 'connecting',
       room,
       attempt: reconnectAttempt,
     });
-    const sock = new WebSocket(wsUrl(room));
+    const sock = new WebSocket(wsUrl(room, playerToken));
     ws = sock;
     sock.addEventListener('open', () => {
       if (ws !== sock) return;
@@ -126,6 +159,11 @@ const Net = (() => {
       if (msg.t === 'welcome') {
         selfId = msg.you;
         team = msg.team || 'blue';
+        role = msg.role || 'active';
+        if (msg.token) {
+          playerToken = msg.token;
+          saveToken(room, playerToken);
+        }
         emit('welcome', msg);
       } else if (DIRECT.has(msg.t)) {
         emit(msg.t, msg);
@@ -140,6 +178,7 @@ const Net = (() => {
       const wasRoom = room;
       selfId = null;
       team = null;
+      role = 'active';
       emit('status', { state: 'closed', room: wasRoom });
       if (!intentionalClose && wasRoom && wasRoom.length >= 4) {
         scheduleReconnect(wasRoom);
@@ -197,7 +236,7 @@ const Net = (() => {
     return send({ t: 'match_start', map: map || 'desert' });
   }
 
-  /** ソケットだけ閉じる（再接続用・room は残す） */
+  /** ソケットだけ閉じる（再接続用・room / token は残す） */
   function disconnectSocketOnly() {
     stopHeartbeat();
     if (ws) {
@@ -207,13 +246,22 @@ const Net = (() => {
     }
     selfId = null;
     team = null;
+    role = 'active';
   }
 
   function disconnect() {
     intentionalClose = true;
     clearReconnect();
+    const wasRoom = room;
     disconnectSocketOnly();
+    // 明示切断でも token は残す（同タブで再参加しやすく）。ルームだけクリア
     room = null;
+    playerToken = wasRoom ? loadToken(wasRoom) : null;
+  }
+
+  function forgetIdentity() {
+    if (room) clearToken(room);
+    playerToken = null;
   }
 
   function getState() {
@@ -221,12 +269,14 @@ const Net = (() => {
       room,
       selfId,
       team,
+      role,
+      token: playerToken,
       connected: !!(ws && ws.readyState === WebSocket.OPEN),
     };
   }
 
   return {
-    createRoom, connect, disconnect, ping,
+    createRoom, connect, disconnect, forgetIdentity, ping,
     sendInput, sendHit, sendNadeThrow, sendNadeBoom, sendHeal, sendLootPick,
     sendRespawn, sendMatchStart,
     on, getState,

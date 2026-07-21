@@ -15,8 +15,8 @@
 
 ## Learned Workspace Facts
 
-- 継続開発の本体はローカル `/Users/hayashi/work/projects/karakin`。Git 正本 remote は `origin` → `hayashiii-ghub/fps-game`。公開は Cloudflare Workers Static Assets（プロジェクト名 `kimi-grok-fps`、URL は `https://kimi-grok-fps.hayashigoto.workers.dev`。Pages ではなく公式推奨の Workers 側）。GitHub Pages は停止済み。オンライン対戦は Room DO で位置同期＋ヒット/キル/スコア＋グレ/回復/ルート/補給権威まで（ラグ補償・チート耐性の本格化は未）。旧 `hayashiii-ghub/karakin` は Archive 済み、`karakin-demo` も凍結。push は `origin`（fps-game）一本でよい
-- ゲームは three.js 製ブラウザ FPS「KIMI GROK FPS」（ビルド不要・ローカル同梱 three.js）。マップは DESERT / JUNGLE（追加予定あり）。ロビーの MAP カードで選択（背景も即切替）。モードは Survival（5ステージ・テーマ付き）と TDM（5v5・5分・キル数勝負）
+- 継続開発の本体はローカル `/Users/hayashi/work/projects/karakin`。Git 正本 remote は `origin` → `hayashiii-ghub/fps-game`。公開は Cloudflare Workers Static Assets（プロジェクト名 `kimi-grok-fps`、URL は `https://kimi-grok-fps.hayashigoto.workers.dev`。Pages ではなく公式推奨の Workers 側）。GitHub Pages は停止済み。オンライン TDM は Room DO で位置同期＋ヒット/キル/スコア＋グレ/回復/ルート/補給に加え、試合フェーズ（lobby/live/ended）・タイマー権威・`playerToken` 再接続 identity・DO 永続・途中参加は waiting（ラグ補償・チート耐性の本格化は未）。旧 `hayashiii-ghub/karakin` は Archive 済み、`karakin-demo` も凍結。push は `origin`（fps-game）一本でよい
+- ゲームは three.js 製ブラウザ FPS「KIMI GROK FPS」（ビルド不要・ローカル同梱 three.js）。マップは DESERT / JUNGLE（追加予定あり）。ロビーの MAP カードで選択（背景も即切替）。モードは Survival（5ステージ・テーマ付き）と TDM（5v5・5分・キル数勝負）。TDM はロビーで LOCAL（AI）と ONLINE（ルームコード）に分岐（旧「接続試験」パネルは統合済み）
 - マップ切替は `world.js` の `MAP_DEFS` + `buildMap(id)`。マップ固有物は `mapGroup` 配下、切替時に `colliders`/`worldMeshes` をクリアして再構築。スポーン点・中央補給位置・マップサイズは両マップ共通
 - JUNGLE は PUBG Sanhok 参考: 中央遺跡(CQC) / 東リゾート(狙撃) / 南港 / 西採石場 / 北西訓練場 / 北東岩窟 + 密林。茂み(thicket)は見た目のみ（弾・視線・移動すべて素通し）。木は幹のみ移動 OBB（葉は collider なし・弾は当たる）。草・海は見た目のみ。密林感は拠点外・レーン間の植生と緑寄りフォグで稼ぎ、東リゾート／南港は射線用に薄い森
 - Survival の開始ロードアウトはロビー選択のメイン＋サブ＋ハンドガン。スナイパーはロードアウトで選ぶか、ウェーブ2以降の敵スナイパー撃破ドロップでも解放（所持済みなら狙撃弾に変換）。stage3 で強い防具。中央補給なし

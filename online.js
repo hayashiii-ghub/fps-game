@@ -8,6 +8,7 @@ const Online = (() => {
   const netLoots = new Map();
   let sendAcc = 0;
   let myTeam = 'blue';
+  let myRole = 'active'; // active | waiting
   let unsub = null;
   /** 自分が投げたグレの boom FX を二重にしない */
   const localNadeFxSkip = new Set();
@@ -17,12 +18,14 @@ const Online = (() => {
     unsub = Net.on((ev, data) => {
       if (ev === 'welcome') {
         myTeam = data.team || 'blue';
+        myRole = data.role || 'active';
         // 試合中の再接続だけマップをサーバーに合わせる。
         // lobby 接続時は DO 既定 desert でローカル選択を潰さない。
         if (data.match && data.map && typeof applyMapSelection === 'function') {
           applyMapSelection(data.map);
         }
         if (data.score) applyScore(data.score);
+        applyMatchClock(data);
         if (data.inv) applyInv(data.inv, true);
         if (Array.isArray(data.peers)) {
           for (const p of data.peers) ensureRemote(p.id, p.team || 'red');
@@ -31,6 +34,18 @@ const Online = (() => {
           for (const l of data.loots) spawnNetLoot(l);
         }
         rebuildOnlineHits();
+        // 試合中に active で復帰したらローカル試合へ戻す（所持はサーバー inv を正）
+        if (data.phase === 'live' && myRole === 'active' && game.state !== 'playing') {
+          if (typeof deployAndStart === 'function') {
+            deployAndStart('tdm', { online: true, resume: true });
+            if (data.inv) applyInv(data.inv, true);
+            applyMatchClock(data);
+            if (Array.isArray(data.loots)) {
+              clearNetLoots();
+              for (const l of data.loots) spawnNetLoot(l);
+            }
+          }
+        }
       } else if (ev === 'peer') {
         if (data.op === 'join') ensureRemote(data.id, data.team || 'red');
         else if (data.op === 'leave') removeRemote(data.id);
@@ -38,12 +53,19 @@ const Online = (() => {
       } else if (ev === 'snap') {
         applySnap(data);
         if (data.score) applyScore(data.score);
+        applyMatchClock(data);
       } else if (ev === 'dmg') {
         onDmg(data);
       } else if (ev === 'score') {
         applyScore(data);
       } else if (ev === 'match_start') {
         onServerMatchStart(data);
+      } else if (ev === 'match_end') {
+        onServerMatchEnd(data);
+      } else if (ev === 'match_deny') {
+        if (typeof setOnlineStatus === 'function') {
+          setOnlineStatus(`試合開始不可 (${data.reason || data.phase || 'denied'})`);
+        }
       } else if (ev === 'respawn') {
         onPeerRespawn(data);
       } else if (ev === 'nade_throw') {
@@ -69,6 +91,17 @@ const Online = (() => {
         clearNetLoots();
       }
     });
+  }
+
+  function applyMatchClock(data) {
+    if (!data || !game.online) return;
+    if (Number.isFinite(data.timeLeft)) {
+      game.tdm.timeLeft = Math.max(0, data.timeLeft);
+      if (typeof updateTdmHUD === 'function') updateTdmHUD();
+    }
+    if (Number.isFinite(data.blue) || Number.isFinite(data.red)) {
+      applyScore({ blue: data.blue, red: data.red, ...data.score });
+    }
   }
 
   function applyScore(score) {
@@ -370,38 +403,60 @@ const Online = (() => {
   /** サーバーが確定した試合開始（マップ含む）。全員がこれを見て出撃する */
   function onServerMatchStart(data) {
     ensureHook();
+    myRole = 'active';
     if (data && data.map && typeof applyMapSelection === 'function') {
       applyMapSelection(data.map);
     }
+    applyMatchClock(data);
     if (game.state === 'playing' && game.online) {
       applyScore(data);
-      beginLocalMatch();
+      beginLocalMatch(data);
       return;
     }
     if (typeof deployAndStart === 'function') {
       deployAndStart('tdm', { online: true });
       applyScore(data);
+      applyMatchClock(data);
+    }
+  }
+
+  function onServerMatchEnd(data) {
+    ensureHook();
+    applyScore(data && data.score ? data.score : data);
+    applyMatchClock({ timeLeft: 0, ...(data || {}) });
+    if (game.online && game.state === 'playing' && typeof endTdmMatch === 'function') {
+      endTdmMatch();
     }
   }
 
   /** ローカル側の試合リセット（match_start 送信はしない） */
-  function beginLocalMatch() {
+  function beginLocalMatch(clock, opts) {
+    const resume = !!(opts && opts.resume);
     myTeam = (typeof Net !== 'undefined' && Net.getState().team) || myTeam || 'blue';
-    const sp = typeof pickTdmSpawn === 'function'
-      ? pickTdmSpawn(myTeam)
-      : (myTeam === 'blue' ? [0, 52] : [0, -52]);
-    player.pos.set(sp[0], 0, sp[1]);
-    player.yaw = Math.atan2(-sp[0], -sp[1]);
-    player.pitch = 0;
-    player.hp = 100;
-    player.alive = true;
-    player.spawnProtT = 2;
-    player.grenades = 2;
-    player.medkits = 2;
-    player.armor = false;
-    player.dmgMul = 1;
+    myRole = (typeof Net !== 'undefined' && Net.getState().role) || myRole || 'active';
+    if (!resume) {
+      const sp = typeof pickTdmSpawn === 'function'
+        ? pickTdmSpawn(myTeam)
+        : (myTeam === 'blue' ? [0, 52] : [0, -52]);
+      player.pos.set(sp[0], 0, sp[1]);
+      player.yaw = Math.atan2(-sp[0], -sp[1]);
+      player.pitch = 0;
+      player.hp = 100;
+      player.alive = true;
+      player.spawnProtT = 2;
+      player.grenades = 2;
+      player.medkits = 2;
+      player.armor = false;
+      player.dmgMul = 1;
+      clearNetLoots();
+    } else {
+      player.spawnProtT = Math.max(player.spawnProtT || 0, 1.5);
+    }
     sendAcc = 0;
-    clearNetLoots();
+    if (clock) applyMatchClock(clock);
+    else if (!resume && (!Number.isFinite(game.tdm.timeLeft) || game.tdm.timeLeft <= 0)) {
+      game.tdm.timeLeft = 300;
+    }
     if (typeof updateHealthHUD === 'function') updateHealthHUD();
     if (typeof updateGrenadeHUD === 'function') updateGrenadeHUD();
     if (typeof updateMedkitHUD === 'function') updateMedkitHUD();
@@ -409,13 +464,13 @@ const Online = (() => {
     rebuildOnlineHits();
     const code = (typeof Net !== 'undefined' && Net.getState().room) || '';
     if (typeof showBanner === 'function') {
-      showBanner('ONLINE TDM', `ROOM ${code} ― LIVE`);
+      showBanner('ONLINE TDM', `ROOM ${code} ― ${resume ? 'RESUME' : 'LIVE'}`);
     }
   }
 
-  function onMatchStart() {
+  function onMatchStart(opts) {
     ensureHook();
-    beginLocalMatch();
+    beginLocalMatch(null, opts);
   }
 
   /** ロビーから試合開始を要求（マップは開始者の選択が正） */
@@ -426,11 +481,16 @@ const Online = (() => {
     return Net.sendMatchStart(map);
   }
 
+  function isWaiting() {
+    return myRole === 'waiting';
+  }
+
   function update(dt) {
     if (!game.online) return;
     ensureHook();
     if (typeof Net === 'undefined' || !Net.getState().connected) return;
     if (game.state !== 'playing') return;
+    if (myRole === 'waiting') return;
 
     if (player.alive) {
       sendAcc += dt;
@@ -482,6 +542,7 @@ const Online = (() => {
     onMatchStart, requestMatchStart, update, reset, getRemotes, getMyTeam,
     ensureHook, claimHit, notifyRespawn, rebuildOnlineHits,
     notifyNadeThrow, claimNadeBoom, claimHeal, claimLoot,
+    isWaiting, applyMatchClock,
   };
 })();
 

@@ -195,6 +195,9 @@
     display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
     width: 100%; text-align: left;
   }
+  .mode-card.mode-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
   .mode-card .mc {
     display: block; width: 100%; box-sizing: border-box;
     padding: 13px 18px; border: 1px solid rgba(216,192,138,.24);
@@ -218,6 +221,7 @@
     padding: 12px 14px; border: 1px solid rgba(216,192,138,.24);
     background: rgba(14,15,11,.74);
   }
+  .online-panel[hidden] { display: none !important; }
   .online-panel input {
     width: 7.5em; padding: 8px 10px; letter-spacing: .2em; text-transform: uppercase;
     border: 1px solid rgba(216,192,138,.35); background: rgba(0,0,0,.35);
@@ -497,26 +501,29 @@
       </button>
     </div>
     <div class="sect-label mono">MODE</div>
-    <div class="mode-card">
+    <div class="mode-card mode-3">
       <button type="button" class="mc" id="startSurvivalBtn">
         <h3>SURVIVAL</h3>
         5ステージ防衛。各ステージにテーマあり。<br>
         狙撃銃は敵狙撃兵撃破でも入手。自動回復あり。
       </button>
       <button type="button" class="mc" id="startTdmBtn">
-        <h3>TEAM DEATHMATCH</h3>
-        5v5・5分・キル数勝負。装備固定。<br>
-        グレ2・キット2。撃破ドロップあり。自動回復なし。
+        <h3>TDM ― LOCAL</h3>
+        5v5・5分・キル数勝負（AI）。装備固定。<br>
+        グレ2・キット2。撃破ドロップあり。
+      </button>
+      <button type="button" class="mc" id="startOnlineTdmBtn">
+        <h3>TDM ― ONLINE</h3>
+        ルームコードで友達と対戦。<br>
+        サーバー権威の5分タイマー。
       </button>
     </div>
-    <div class="sect-label mono">ONLINE TDM ― ルーム（接続試験）</div>
-    <div class="online-panel">
+    <div class="online-panel" id="onlinePanel" hidden>
       <button type="button" class="obtn" id="onlineCreateBtn">ルーム作成</button>
       <input id="onlineCodeInput" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
       <button type="button" class="obtn" id="onlineJoinBtn">参加</button>
-      <button type="button" class="obtn" id="onlinePingBtn">PING</button>
       <button type="button" class="obtn" id="onlineStartBtn">試合開始</button>
-      <div id="onlineStatus" class="mono">未接続 ― ローカルは wrangler dev が必要</div>
+      <div id="onlineStatus" class="mono">ルーム未接続</div>
     </div>
     <div class="menu-foot mono">
       WASD 移動　SHIFT ダッシュ　C しゃがみ　SPACE ジャンプ　左 射撃　右 照準<br>
@@ -564,14 +571,14 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./ai-steer.js?v=play26"></script>
-<script src="./audio.js?v=play26"></script>
-<script src="./world.js?v=play26"></script>
-<script src="./effects.js?v=play26"></script>
-<script src="./player.js?v=play26"></script>
-<script src="./enemy.js?v=play26"></script>
-<script src="./net.js?v=play26"></script>
-<script src="./online.js?v=play26"></script>
-<script src="./main.js?v=play26"></script>
+<script src="./ai-steer.js?v=play27"></script>
+<script src="./audio.js?v=play27"></script>
+<script src="./world.js?v=play27"></script>
+<script src="./effects.js?v=play27"></script>
+<script src="./player.js?v=play27"></script>
+<script src="./enemy.js?v=play27"></script>
+<script src="./net.js?v=play27"></script>
+<script src="./online.js?v=play27"></script>
+<script src="./main.js?v=play27"></script>
 </body>
 </html>

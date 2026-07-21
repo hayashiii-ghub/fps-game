@@ -2,7 +2,7 @@
   "version": 1,
   "transcripts": {
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55.jsonl": {
-      "mtimeMs": 1784592591660
+      "mtimeMs": 1784592739199
     },
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55/subagents/03f0a87e-7ae0-4220-b660-4ef025ff3108.jsonl": {
       "mtimeMs": 1784388206364
@@ -17,7 +17,7 @@
       "mtimeMs": 1784388994181
     },
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55/subagents/31a8ac26-5c26-41ef-8b99-03ffa1a45403.jsonl": {
-      "mtimeMs": 1784592607798
+      "mtimeMs": 1784592735659
     },
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55/subagents/3551f046-22e5-499c-ae24-3d4610377f6a.jsonl": {
       "mtimeMs": 1784564480883
@@ -63,6 +63,27 @@
     },
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55/subagents/f5152e76-1f0c-4a0e-b0a1-17530d57c56c.jsonl": {
       "mtimeMs": 1784465571417
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/cc5f46dc-f5cd-4302-a310-c6e486985116/cc5f46dc-f5cd-4302-a310-c6e486985116.jsonl": {
+      "mtimeMs": 1784618339985
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/cc5f46dc-f5cd-4302-a310-c6e486985116/subagents/2c72ed01-d7ae-410d-9b5b-e7dcc154d754.jsonl": {
+      "mtimeMs": 1784611028477
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/cc5f46dc-f5cd-4302-a310-c6e486985116/subagents/490a5c4a-e625-4c17-9bec-a68253864eff.jsonl": {
+      "mtimeMs": 1784618345785
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/cc5f46dc-f5cd-4302-a310-c6e486985116/subagents/9e4f442b-8936-413b-b645-2ded34ca463c.jsonl": {
+      "mtimeMs": 1784610847992
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/cc5f46dc-f5cd-4302-a310-c6e486985116/subagents/a5483990-63a8-4df7-83c2-23a4793813e5.jsonl": {
+      "mtimeMs": 1784616666997
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/cc5f46dc-f5cd-4302-a310-c6e486985116/subagents/a858883b-4dd1-4ef9-8fc9-9ee83bba58c7.jsonl": {
+      "mtimeMs": 1784611212831
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/d7bf29bf-a215-4884-b54d-91c3aa37d4bb/d7bf29bf-a215-4884-b54d-91c3aa37d4bb.jsonl": {
+      "mtimeMs": 1784601500867
     }
   }
 }

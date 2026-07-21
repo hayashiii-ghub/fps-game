@@ -1207,7 +1207,9 @@ function startTdmMatch() {
     showBanner('ONLINE TDM', `ROOM ${code} ― LIVE`);
     updateTdmHUD();
     if (typeof ensureSupplyCrate === 'function') ensureSupplyCrate();
-    if (typeof Online !== 'undefined') Online.onMatchStart();
+    if (typeof Online !== 'undefined') {
+      Online.onMatchStart({ resume: !!game._onlineResume });
+    }
     return;
   }
   // 5v5: 青はプレイヤー＋味方AI4 / 赤は敵5（うち1は狙撃）
