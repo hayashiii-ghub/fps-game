@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from './room-code.js';
 import { sanitizePose } from './pose.js';
-import { validateHit, applyDamage } from './combat.js';
+import { validateHit, applyDamage, markFired } from './combat.js';
 import {
   defaultLoadout,
   validateNadeThrow,
@@ -536,7 +536,7 @@ export class Room extends DurableObject {
     });
     if (!result.ok) return;
 
-    attacker.lastFireAt = now;
+    markFired(attacker, weapon, now, result);
     this.applyHitResult(attacker, victim, part, weapon, result.dmg);
   }
 

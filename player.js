@@ -52,7 +52,7 @@ const WEAPON_DEFS = {
     adsFov: 46, adsSens: 0.62, scale: 0.92,
     hip: { x: 0.21, y: -0.19, z: -0.4, rx: 0, ry: 0.08 },
     ads: { x: 0, y: -0.09, z: -0.47, rx: 0, ry: 0 },
-    dmg: { head: 110, torso: 34, limb: 24 },
+    dmg: { head: 70, torso: 34, limb: 24 },
     // 弱めの減衰：中距離まではフル、遠距離だけ少し落とす（近接武器より緩い）
     dmgFalloff: { start: 28, end: 50, min: 0.82 },
   },
@@ -70,7 +70,7 @@ const WEAPON_DEFS = {
     hip: { x: 0.2, y: -0.18, z: -0.38, rx: 0, ry: 0.07 },
     // サイト(dot y=0.078)×scale がカメラ光軸に来るよう ads.y を合わせる
     ads: { x: 0, y: -0.066, z: -0.44, rx: 0, ry: 0 },
-    dmg: { head: 78, torso: 26, limb: 18 },
+    dmg: { head: 50, torso: 26, limb: 18 },
     // start までフル、end で min、以降は min 維持
     dmgFalloff: { start: 18, end: 35, min: 0.65 },
   },
@@ -90,8 +90,8 @@ const WEAPON_DEFS = {
     // ビーズ(y=0.045)×scale がカメラ光軸に来るよう ads.y を合わせる
     ads: { x: 0, y: -0.044, z: -0.46, rx: 0, ry: 0 },
     pellets: 8,
-    // 1ペレットあたり（近距離全弾命中で head112 / torso80）
-    dmg: { head: 14, torso: 10, limb: 7 },
+    // 1ペレットあたり（近距離全弾命中で torso 104 / head 144）
+    dmg: { head: 18, torso: 13, limb: 9 },
     dmgFalloff: { start: 12, end: 25, min: 0.5 },
     pump: true,
   },
@@ -109,7 +109,7 @@ const WEAPON_DEFS = {
     adsFov: 75, adsSens: 0.88, scale: 0.88,
     hip: { x: 0.2, y: -0.22, z: -0.36, rx: 0, ry: 0.06 },
     ads: { x: 0.18, y: -0.2, z: -0.37, rx: 0.02, ry: 0.05 },
-    dmg: { head: 90, torso: 28, limb: 18 },
+    dmg: { head: 55, torso: 28, limb: 18 },
     dmgFalloff: { start: 15, end: 30, min: 0.7 },
   },
   sniper: {

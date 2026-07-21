@@ -1,43 +1,51 @@
 /**
- * slice: computeDamage は部位と減衰を反映し、validateHit は味方・射程外を拒否する
+ * slice: ショットガンは同一射撃で最大8ペレット通り、近距離胴全弾でキルになる
  */
 import assert from 'node:assert/strict';
-import { computeDamage, validateHit, applyDamage } from '../worker/combat.js';
+import {
+  computeDamage,
+  validateHit,
+  applyDamage,
+  markFired,
+  SHOTGUN_PELLETS,
+} from '../worker/combat.js';
 
-assert.equal(computeDamage('assault', 'torso', 5), 34);
-assert.ok(computeDamage('smg', 'torso', 40) < 26);
+assert.equal(computeDamage('shotgun', 'torso', 5), 13);
+assert.equal(SHOTGUN_PELLETS, 8);
 
 const atk = {
   alive: true, hp: 100, team: 'blue',
-  pose: { x: 0, z: 0 }, lastFireAt: 0,
+  pose: { x: 0, z: 0 }, lastFireAt: 0, shotgunPellets: 0,
 };
 const vic = {
   alive: true, hp: 100, team: 'red',
-  pose: { x: 10, z: 0 }, spawnProtUntil: 0,
+  pose: { x: 4, z: 0 }, spawnProtUntil: 0,
 };
 
-const ok = validateHit({
-  attacker: atk, victim: vic, part: 'torso', weapon: 'assault', now: 1000,
-});
-assert.equal(ok.ok, true);
-assert.equal(ok.dmg, 34);
+let hp = 100;
+const now = 5000;
+for (let i = 0; i < 8; i++) {
+  const hit = validateHit({
+    attacker: atk, victim: { ...vic, hp }, part: 'torso', weapon: 'shotgun', now: now + i,
+  });
+  assert.equal(hit.ok, true, `pellet ${i + 1} should land`);
+  markFired(atk, 'shotgun', now + i, hit);
+  const applied = applyDamage({ hp }, hit.dmg);
+  hp = applied.hp;
+}
+assert.equal(hp, 0);
+assert.ok(atk.shotgunPellets <= 8);
 
-const ff = validateHit({
-  attacker: atk,
-  victim: { ...vic, team: 'blue' },
-  part: 'torso', weapon: 'assault', now: 1000,
+// 9発目は同一ポンプ内なら拒否
+const ninth = validateHit({
+  attacker: atk, victim: { ...vic, hp: 100 }, part: 'torso', weapon: 'shotgun', now: now + 20,
 });
-assert.equal(ff.ok, false);
+assert.equal(ninth.ok, false);
 
-const far = validateHit({
-  attacker: atk,
-  victim: { ...vic, pose: { x: 200, z: 0 } },
-  part: 'torso', weapon: 'assault', now: 1000,
+// ポンプ間隔後はまた撃てる
+const next = validateHit({
+  attacker: atk, victim: { ...vic, hp: 100 }, part: 'torso', weapon: 'shotgun', now: now + 900,
 });
-assert.equal(far.ok, false);
-
-const applied = applyDamage({ hp: 34 }, 34);
-assert.equal(applied.hp, 0);
-assert.equal(applied.kill, true);
+assert.equal(next.ok, true);
 
 console.log('ok combat');

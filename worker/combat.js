@@ -4,10 +4,11 @@
 import { clamp } from './pose.js';
 
 export const WEAPON_DMG = {
-  assault: { head: 110, torso: 34, limb: 24 },
-  smg: { head: 78, torso: 26, limb: 18 },
-  shotgun: { head: 14, torso: 10, limb: 7 },
-  pistol: { head: 90, torso: 28, limb: 18 },
+  assault: { head: 70, torso: 34, limb: 24 },
+  smg: { head: 50, torso: 26, limb: 18 },
+  // 近距離胴全弾 (13×8=104) で一撃。頭 18×8 / 肢 9×8
+  shotgun: { head: 18, torso: 13, limb: 9 },
+  pistol: { head: 55, torso: 28, limb: 18 },
   sniper: { head: 200, torso: 95, limb: 55 },
 };
 
@@ -26,6 +27,11 @@ export const WEAPON_FIRE_MS = {
   pistol: 180,
   sniper: 1400,
 };
+
+/** ショットガン1発あたりのペレット数（クライアント def.pellets と揃える） */
+export const SHOTGUN_PELLETS = 8;
+/** 同一ポンプ内のペレット到達猶予 */
+export const SHOTGUN_PELLET_WINDOW_MS = 120;
 
 const PARTS = new Set(['head', 'torso', 'limb']);
 const MAX_RANGE = 120;
@@ -52,7 +58,48 @@ export function poseDist(a, b) {
 }
 
 /**
- * @returns {{ ok:false, reason:string } | { ok:true, dmg:number, dist:number }}
+ * 連射／ショットガンペレット窓の可否（副作用なし）
+ * @returns {{ ok:false, reason:string } | { ok:true, newShot:boolean }}
+ */
+export function canFire(attacker, weapon, now) {
+  const minMs = WEAPON_FIRE_MS[weapon] || 100;
+  const last = attacker.lastFireAt || 0;
+  const elapsed = last ? now - last : Infinity;
+
+  if (weapon === 'shotgun') {
+    if (!last || elapsed >= minMs * 0.75) {
+      return { ok: true, newShot: true };
+    }
+    if (elapsed <= SHOTGUN_PELLET_WINDOW_MS
+      && (attacker.shotgunPellets || 0) < SHOTGUN_PELLETS) {
+      return { ok: true, newShot: false };
+    }
+    return { ok: false, reason: 'rate' };
+  }
+
+  if (last && elapsed < minMs * 0.75) {
+    return { ok: false, reason: 'rate' };
+  }
+  return { ok: true, newShot: true };
+}
+
+/** validateHit 成功後に呼ぶ。lastFireAt / ペレット数を更新 */
+export function markFired(attacker, weapon, now, fireInfo) {
+  if (!attacker) return;
+  if (weapon === 'shotgun') {
+    if (fireInfo && fireInfo.newShot) {
+      attacker.lastFireAt = now;
+      attacker.shotgunPellets = 1;
+    } else {
+      attacker.shotgunPellets = (attacker.shotgunPellets || 0) + 1;
+    }
+    return;
+  }
+  attacker.lastFireAt = now;
+}
+
+/**
+ * @returns {{ ok:false, reason:string } | { ok:true, dmg:number, dist:number, newShot:boolean }}
  */
 export function validateHit({
   attacker,
@@ -72,13 +119,13 @@ export function validateHit({
   if (!WEAPON_DMG[weapon]) return { ok: false, reason: 'weapon' };
   const dist = poseDist(attacker.pose, victim.pose);
   if (!(dist <= MAX_RANGE)) return { ok: false, reason: 'range' };
-  const minMs = WEAPON_FIRE_MS[weapon] || 100;
-  if (attacker.lastFireAt && now - attacker.lastFireAt < minMs * 0.75) {
-    return { ok: false, reason: 'rate' };
-  }
+
+  const fire = canFire(attacker, weapon, now);
+  if (!fire.ok) return fire;
+
   const dmg = computeDamage(weapon, part, dist);
   if (dmg <= 0) return { ok: false, reason: 'dmg' };
-  return { ok: true, dmg, dist };
+  return { ok: true, dmg, dist, newShot: fire.newShot };
 }
 
 export function scaleByArmor(dmg, victim) {
