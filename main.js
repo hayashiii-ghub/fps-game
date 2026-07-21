@@ -483,10 +483,13 @@ function setOnlineStatus(text) {
 
 function initOnlineLobby() {
   if (typeof Net === 'undefined') return;
+  if (typeof Online !== 'undefined') Online.ensureHook();
   Net.on((ev, data) => {
     if (ev === 'status') {
       if (data.state === 'connecting') setOnlineStatus(`接続中… ROOM ${data.room}`);
-      else if (data.state === 'open') setOnlineStatus(`接続中 ROOM ${data.room}`);
+      else if (data.state === 'reconnecting') {
+        setOnlineStatus(`再接続中… ROOM ${data.room} (#${data.attempt || '?'})`);
+      } else if (data.state === 'open') setOnlineStatus(`接続中 ROOM ${data.room}`);
       else if (data.state === 'closed') setOnlineStatus('切断');
     } else if (ev === 'welcome') {
       const peerN = Array.isArray(data.peers) ? data.peers.length : 0;
@@ -532,7 +535,13 @@ function initOnlineLobby() {
       setOnlineStatus('先にルームへ接続してください');
       return;
     }
-    deployAndStart('tdm', { online: true });
+    // マップは開始者の選択。サーバーが match_start を全員に配り、各自が出撃する
+    if (typeof Online !== 'undefined') Online.ensureHook();
+    if (!Net.sendMatchStart(game.map || 'desert')) {
+      setOnlineStatus('送信失敗');
+    } else {
+      setOnlineStatus(`試合開始要求… MAP ${(game.map || 'desert').toUpperCase()}`);
+    }
   });
 }
 

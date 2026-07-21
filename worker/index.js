@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from './room-code.js';
-import { sanitizePose } from './pose.js';
+import { sanitizePose, sanitizeMap } from './pose.js';
 import { validateHit, applyDamage } from './combat.js';
 import {
   defaultLoadout,
@@ -70,6 +70,7 @@ export class Room extends DurableObject {
     this.loots = new Map();
     this.tick = 0;
     this.score = { blue: 0, red: 0 };
+    this.map = 'desert';
     this.matchActive = false;
     this.supplyAcc = 0;
     this.supplyArmed = false;
@@ -144,6 +145,8 @@ export class Room extends DurableObject {
       team,
       peers: this.peerList(server),
       score: this.score,
+      map: this.map || 'desert',
+      match: !!this.matchActive,
       inv: this.invPayload(session),
       loots: [...this.loots.values()],
     }));
@@ -257,7 +260,8 @@ export class Room extends DurableObject {
     this.spawnLootAt(victim.pose.x, victim.pose.z, pickDeathDrop());
   }
 
-  resetMatch() {
+  resetMatch(mapId) {
+    this.map = sanitizeMap(mapId);
     this.score = { blue: 0, red: 0 };
     this.matchActive = true;
     this.supplyAcc = 0;
@@ -272,7 +276,13 @@ export class Room extends DurableObject {
       s.spawnProtUntil = now + 2000;
       s.lastFireAt = 0;
     }
-    this.broadcastAll({ t: 'score', blue: 0, red: 0, match: true });
+    this.broadcastAll({
+      t: 'match_start',
+      map: this.map,
+      blue: 0,
+      red: 0,
+      match: true,
+    });
     for (const [ws, s] of this.sessions) {
       try {
         ws.send(JSON.stringify({ t: 'inv', id: s.id, ...this.invPayload(s) }));
@@ -446,6 +456,8 @@ export class Room extends DurableObject {
         team: session.team,
         peers: this.peerList(ws),
         score: this.score,
+        map: this.map || 'desert',
+        match: !!this.matchActive,
         inv: this.invPayload(session),
         loots: [...this.loots.values()],
       }));
@@ -462,7 +474,7 @@ export class Room extends DurableObject {
     }
 
     if (msg.t === 'match_start') {
-      this.resetMatch();
+      this.resetMatch(msg.map);
       return;
     }
 

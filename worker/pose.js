@@ -12,6 +12,13 @@ export function sanitizeWeapon(id) {
   return WEAPONS.has(w) ? w : 'assault';
 }
 
+const MAPS = new Set(['desert', 'jungle']);
+
+export function sanitizeMap(id) {
+  const m = String(id || 'desert').toLowerCase();
+  return MAPS.has(m) ? m : 'desert';
+}
+
 export function sanitizePose(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   return {
