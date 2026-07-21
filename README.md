@@ -3,13 +3,13 @@
 ブラウザで遊べる FPS。three.js 製・ビルド不要・オフライン動作。
 マップは砂漠（DESERT）と密林（JUNGLE）の2つ（今後も追加予定）。
 
-**▶ プレイ:** Cloudflare Workers（`npx wrangler deploy` 後の `*.workers.dev` URL）
+**▶ プレイ: https://kimi-grok-fps.hayashigoto.workers.dev/**
 
 ## 遊び方
 
 ### 起動
 
-- 上記 Workers の URL（初回デプロイ後に確定）、または
+- 上記 Cloudflare Workers の URL、または
 - ローカルでは `index.html` を開く（three.js は同梱済み・オフライン可）
 - うまく動かない場合はプロジェクト直下で `python3 -m http.server 8765` を起動し、`http://127.0.0.1:8765/` にアクセス
 
@@ -141,7 +141,7 @@ URLにクエリを付けると検証用モードで起動する。
 
 公開 URL は初回デプロイ後に決まる形です:
 
-`https://kimi-grok-fps.<account-subdomain>.workers.dev`
+`https://kimi-grok-fps.hayashigoto.workers.dev`
 
 ### CLI（推奨）
 
