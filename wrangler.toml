@@ -1,0 +1,7 @@
+# Cloudflare Pages — static site (no build)
+# Project name: kimi-grok-fps → https://kimi-grok-fps.pages.dev
+# (fps-game.pages.dev is already occupied by unrelated content)
+
+name = "kimi-grok-fps"
+compatibility_date = "2026-07-21"
+pages_build_output_dir = "."
