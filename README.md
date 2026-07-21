@@ -12,6 +12,9 @@
 - 上記 Cloudflare Workers の URL、または
 - ローカルでは `index.html` を開く（three.js は同梱済み・オフライン可）
 - うまく動かない場合はプロジェクト直下で `python3 -m http.server 8765` を起動し、`http://127.0.0.1:8765/` にアクセス
+- **ONLINE TDM（接続試験）** は API/WebSocket が要るため:
+  `./scripts/prepare-cf-assets.sh && npx wrangler@4 dev --ip 127.0.0.1 --port 8787`
+  → `http://127.0.0.1:8787/` のロビー「ルーム作成 / 参加 / PING」
 
 ### 目的 / モード
 
@@ -131,7 +134,7 @@ URLにクエリを付けると検証用モードで起動する。
 | `three.min.js` | three.js r128 |
 | `og.png` | SNS 共有用 OGP 画像 |
 | `_headers` | Workers Static Assets 用キャッシュ／セキュリティヘッダ |
-| `wrangler.toml` | Workers Static Assets 設定（ビルドなし・assets-only） |
+| `wrangler.toml` | Workers Static Assets + Room Durable Object（`/api/*`） |
 | `scripts/prepare-cf-assets.sh` | 配信用 `.cf-assets/` を作成 |
 | `scripts/finish-cloudflare-migration.sh` | 準備→`wrangler deploy`→GitHub Pages 停止 |
 

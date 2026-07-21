@@ -213,6 +213,24 @@
   .mode-card .mc h3 {
     font-size: 13px; letter-spacing: .25em; color: #efe6c4; margin-bottom: 6px; font-weight: 700;
   }
+  .online-panel {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    padding: 12px 14px; border: 1px solid rgba(216,192,138,.24);
+    background: rgba(14,15,11,.74);
+  }
+  .online-panel input {
+    width: 7.5em; padding: 8px 10px; letter-spacing: .2em; text-transform: uppercase;
+    border: 1px solid rgba(216,192,138,.35); background: rgba(0,0,0,.35);
+    color: #efe6c4; font-family: inherit; font-size: 12px;
+  }
+  .online-panel .obtn {
+    padding: 8px 14px; border: 1px solid rgba(216,192,138,.42);
+    background: rgba(216,192,138,.1); color: #efe6c4; cursor: pointer;
+    font-family: inherit; font-size: 11px; letter-spacing: .12em;
+  }
+  .online-panel .obtn:hover { border-color: #d8c08a; background: rgba(216,192,138,.18); }
+  #onlineStatus { flex: 1 1 100%; font-size: 11px; color: #a8a08a; letter-spacing: .08em; }
+
   .mode-card .mc.sel {
     border-color: #d8c08a; border-left-color: #d9a94f;
     background: rgba(216,192,138,.15);
@@ -491,6 +509,14 @@
         グレ2・キット2。撃破ドロップあり。自動回復なし。
       </button>
     </div>
+    <div class="sect-label mono">ONLINE TDM ― ルーム（接続試験）</div>
+    <div class="online-panel">
+      <button type="button" class="obtn" id="onlineCreateBtn">ルーム作成</button>
+      <input id="onlineCodeInput" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
+      <button type="button" class="obtn" id="onlineJoinBtn">参加</button>
+      <button type="button" class="obtn" id="onlinePingBtn">PING</button>
+      <div id="onlineStatus" class="mono">未接続 ― ローカルは wrangler dev が必要</div>
+    </div>
     <div class="menu-foot mono">
       WASD 移動　SHIFT ダッシュ　C しゃがみ　SPACE ジャンプ　左 射撃　右 照準<br>
       R リロード　G グレネード　F キット　Q/E 武器切替　ESC ポーズ
@@ -537,12 +563,13 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./ai-steer.js?v=play20"></script>
-<script src="./audio.js?v=play20"></script>
-<script src="./world.js?v=play20"></script>
-<script src="./effects.js?v=play20"></script>
-<script src="./player.js?v=play20"></script>
-<script src="./enemy.js?v=play20"></script>
-<script src="./main.js?v=play20"></script>
+<script src="./ai-steer.js?v=play21"></script>
+<script src="./audio.js?v=play21"></script>
+<script src="./world.js?v=play21"></script>
+<script src="./effects.js?v=play21"></script>
+<script src="./player.js?v=play21"></script>
+<script src="./enemy.js?v=play21"></script>
+<script src="./net.js?v=play21"></script>
+<script src="./main.js?v=play21"></script>
 </body>
 </html>

@@ -14,6 +14,7 @@ for f in \
   effects.js \
   enemy.js \
   main.js \
+  net.js \
   player.js \
   world.js \
   three.min.js \

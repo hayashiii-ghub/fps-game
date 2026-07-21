@@ -467,9 +467,60 @@ function deployAndStart(mode) {
   setTimeout(() => d.classList.remove('on'), 650);
 }
 
+function setOnlineStatus(text) {
+  const el = $('onlineStatus');
+  if (el) el.textContent = text;
+}
+
+function initOnlineLobby() {
+  if (typeof Net === 'undefined') return;
+  Net.on((ev, data) => {
+    if (ev === 'status') {
+      if (data.state === 'connecting') setOnlineStatus(`接続中… ROOM ${data.room}`);
+      else if (data.state === 'open') setOnlineStatus(`接続中 ROOM ${data.room}`);
+      else if (data.state === 'closed') setOnlineStatus('切断');
+    } else if (ev === 'welcome') {
+      setOnlineStatus(`ROOM ${data.room}  YOU ${data.you}  PEERS ${data.peers.length}`);
+      const input = $('onlineCodeInput');
+      if (input) input.value = data.room;
+    } else if (ev === 'peer') {
+      const st = Net.getState();
+      setOnlineStatus(`ROOM ${st.room}  YOU ${st.selfId}  (${data.op} ${data.id})`);
+    } else if (ev === 'pong') {
+      setOnlineStatus(`PONG n=${data.n} peers=${data.peers}`);
+    } else if (ev === 'error') {
+      setOnlineStatus(`エラー: ${data.message || 'unknown'}`);
+    }
+  });
+  const createBtn = $('onlineCreateBtn');
+  const joinBtn = $('onlineJoinBtn');
+  const pingBtn = $('onlinePingBtn');
+  const input = $('onlineCodeInput');
+  if (createBtn) createBtn.addEventListener('click', async () => {
+    uiBlip();
+    try {
+      setOnlineStatus('ルーム作成中…');
+      const code = await Net.createRoom();
+      if (input) input.value = code;
+      Net.connect(code);
+    } catch (e) {
+      setOnlineStatus(`作成失敗: ${e.message || e}`);
+    }
+  });
+  if (joinBtn) joinBtn.addEventListener('click', () => {
+    uiBlip();
+    Net.connect(input ? input.value : '');
+  });
+  if (pingBtn) pingBtn.addEventListener('click', () => {
+    uiBlip();
+    if (!Net.ping(Date.now() % 1000)) setOnlineStatus('未接続');
+  });
+}
+
 function initMenus() {
   $('startSurvivalBtn').addEventListener('click', () => deployAndStart('survival'));
   $('startTdmBtn').addEventListener('click', () => deployAndStart('tdm'));
+  initOnlineLobby();
   const mapD = $('mapDesertBtn'), mapJ = $('mapJungleBtn');
   if (mapD) mapD.addEventListener('click', () => { applyMapSelection('desert'); uiBlip(); });
   if (mapJ) mapJ.addEventListener('click', () => { applyMapSelection('jungle'); uiBlip(); });
@@ -501,6 +552,7 @@ function initMenus() {
     game.deathUiGen++;
     game.state = 'menu';
     game.tdm.waitingRespawn = false;
+    if (typeof Net !== 'undefined') Net.disconnect();
     if (document.pointerLockElement) document.exitPointerLock();
     $('menu').style.display = 'flex';
   }

@@ -1,12 +1,23 @@
-# Cloudflare Workers Static Assets（公式推奨・ビルドなし）
-# https://developers.cloudflare.com/workers/static-assets/
-# Deploy: ./scripts/finish-cloudflare-migration.sh  または  npm 相当で prepare → wrangler deploy
+# Cloudflare Workers Static Assets + Durable Object (Room)
+# Deploy: ./scripts/prepare-cf-assets.sh && npx wrangler deploy
 # URL: https://kimi-grok-fps.<account-subdomain>.workers.dev
+# Local: ./scripts/prepare-cf-assets.sh && npx wrangler dev
 
 name = "kimi-grok-fps"
+main = "./worker/index.js"
 compatibility_date = "2026-07-21"
 workers_dev = true
 
-# リポジトリ直下ごと上げると .git 等も拾うため、準備スクリプトが作る配信専用ディレクトリを使う
 [assets]
 directory = "./.cf-assets"
+binding = "ASSETS"
+# /api/* だけ Worker 先回り（静的配信はそのままエッジ）
+run_worker_first = ["/api/*"]
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
