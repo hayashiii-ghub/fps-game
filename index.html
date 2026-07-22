@@ -194,12 +194,17 @@
 
   .menu-stack {
     width: min(720px, calc(100vw - 48px));
-    margin-top: 22px;
-    display: flex; flex-direction: column; gap: 10px;
+    margin-top: clamp(8px, 1.8vh, 22px);
+    display: flex; flex-direction: column; gap: clamp(5px, 1vh, 10px);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(216,192,138,.35) transparent;
   }
   .menu-stack .panel { margin-top: 0; width: 100%; box-sizing: border-box; }
   .mode-card {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: clamp(8px, 1.2vh, 14px);
     width: 100%; text-align: left;
   }
   .mode-card.mode-3 {
@@ -207,9 +212,9 @@
   }
   .mode-card .mc {
     display: block; width: 100%; box-sizing: border-box;
-    padding: 13px 18px; border: 1px solid rgba(216,192,138,.24);
+    padding: clamp(8px, 1.2vh, 13px) 18px; border: 1px solid rgba(216,192,138,.24);
     border-left: 3px solid rgba(216,192,138,.42);
-    background: rgba(14,15,11,.74); font-size: 11.5px; line-height: 1.7; color: #cfc7ad;
+    background: rgba(14,15,11,.74); font-size: clamp(10px, 1.15vh, 11.5px); line-height: 1.55; color: #cfc7ad;
     font-family: inherit; text-align: left; cursor: pointer;
     transition: background .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
   }
@@ -221,11 +226,12 @@
   }
   .mode-card .mc:focus { outline: none; border-color: #d8c08a; }
   .mode-card .mc h3 {
-    font-size: 13px; letter-spacing: .25em; color: #efe6c4; margin-bottom: 6px; font-weight: 700;
+    font-size: clamp(11px, 1.3vh, 13px); letter-spacing: .25em; color: #efe6c4;
+    margin-bottom: clamp(3px, 0.5vh, 6px); font-weight: 700;
   }
   .online-panel {
-    display: flex; flex-direction: column; gap: 10px;
-    padding: 12px 14px; border: 1px solid rgba(216,192,138,.24);
+    display: flex; flex-direction: column; gap: clamp(6px, 1vh, 10px);
+    padding: clamp(8px, 1.1vh, 12px) 14px; border: 1px solid rgba(216,192,138,.24);
     background: rgba(14,15,11,.74); text-align: left;
   }
   .online-panel[hidden] { display: none !important; }
@@ -259,8 +265,9 @@
   }
   .mode-card .mc.sel h3 { color: #d9a94f; }
   .sect-label {
-    font-size: 10px; letter-spacing: .34em; color: #a39a7e; text-align: left;
-    margin-bottom: -4px; padding-left: 2px;
+    font-size: clamp(9px, 1vh, 10px); letter-spacing: .34em; color: #d2c9ad; text-align: left;
+    margin-bottom: calc(-1 * clamp(2px, 0.4vh, 4px)); padding-left: 2px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 10px rgba(0,0,0,.45);
   }
 
   /* キルフィード */
@@ -327,18 +334,31 @@
   .overlay .tagline { margin-top: 8px; font-size: 13px; letter-spacing: .5em; color: #a39a7e; }
 
   /* ============ ロビー演出 ============ */
+  /* タイトル〜操作説明までを画面高の約75%に収める（レターボックス外） */
   .menu-overlay {
+    --lobby-h: 75vh;
     background: linear-gradient(180deg,
       rgba(8,9,7,.76) 0%, rgba(8,9,7,.3) 30%, rgba(8,9,7,.18) 52%, rgba(8,9,7,.72) 100%);
-    justify-content: flex-start; padding-top: 8.5vh; overflow: hidden;
+    justify-content: center;
+    padding: calc((100vh - var(--lobby-h)) / 2) 0;
+    overflow: hidden;
+    box-sizing: border-box;
   }
-  .menu-overlay h1 { font-size: 56px; }
-  .menu-overlay h1::after {
-    content: ''; display: block; width: 132px; height: 3px; margin: 16px auto 0;
-    background: #d9a94f; box-shadow: 0 0 14px rgba(217,169,79,.65);
+  .menu-overlay > h1,
+  .menu-overlay > .menu-status,
+  .menu-overlay > .menu-stack,
+  .menu-overlay > .note {
+    flex-shrink: 0;
   }
+  .menu-overlay > .menu-stack { flex-shrink: 1; }
+  .menu-overlay h1 { font-size: clamp(28px, 5.2vh, 56px); line-height: 1.05; }
+  .menu-overlay h1::after { content: none; }
   .menu-eyebrow { font-size: 10px; letter-spacing: .62em; color: #a39a7e; margin-bottom: 12px; }
-  .menu-status { margin-top: 14px; font-size: 11px; letter-spacing: .32em; color: #cfc7ad; font-family: "Menlo", monospace; }
+  .menu-status {
+    margin-top: clamp(6px, 1.2vh, 14px);
+    font-size: clamp(9px, 1.1vh, 11px); letter-spacing: .32em; color: #cfc7ad;
+    font-family: "Menlo", monospace;
+  }
   .blink { animation: blink 1.1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .letterbox { position: fixed; left: 0; right: 0; height: 5vh; background: #050604; z-index: 60; }
@@ -361,15 +381,15 @@
   .deploy-text { font-family: "Menlo", monospace; letter-spacing: .5em; color: #d9a94f; font-size: 15px; }
 
   /* 武器選択チップ */
-  .chip-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; }
+  .chip-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(6px, 1vh, 10px); width: 100%; }
   .wchip {
-    padding: 9px 12px; background: rgba(14,15,11,.74);
+    padding: clamp(6px, 0.9vh, 9px) 12px; background: rgba(14,15,11,.74);
     border: 1px solid rgba(216,192,138,.22); border-left: 3px solid rgba(216,192,138,.38);
     color: #cfc7ad; text-align: left; cursor: pointer; font-family: inherit;
-    font-size: 10.5px; line-height: 1.55; letter-spacing: .04em;
+    font-size: clamp(9px, 1.05vh, 10.5px); line-height: 1.45; letter-spacing: .04em;
     transition: background .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
   }
-  .wchip h4 { font-size: 12px; letter-spacing: .2em; color: #efe6c4; margin-bottom: 2px; font-weight: 700; }
+  .wchip h4 { font-size: clamp(10px, 1.2vh, 12px); letter-spacing: .2em; color: #efe6c4; margin-bottom: 2px; font-weight: 700; }
   .wchip:hover { background: rgba(216,192,138,.12); color: #efe6c4; transform: translateY(-2px); }
   .wchip:focus { outline: none; border-color: #d8c08a; }
   .wchip.sel {
@@ -379,7 +399,9 @@
   }
   .wchip.sel h4 { color: #d9a94f; }
   .menu-foot {
-    font-size: 10.5px; letter-spacing: .12em; color: #8b846d; line-height: 1.9;
+    font-size: clamp(9px, 1.05vh, 10.5px); letter-spacing: .12em;
+    color: #d8d0b4; line-height: 1.7;
+    text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 10px rgba(0,0,0,.45);
   }
   .panel {
     margin-top: 30px; padding: 20px 30px; border: 1px solid rgba(216,192,138,.28);
@@ -392,6 +414,11 @@
     font-family: inherit; transition: background .15s, color .15s;
   }
   .btn:hover { background: #d8c08a; color: #14150f; }
+  .menu-overlay > .note {
+    margin-top: clamp(8px, 1.4vh, 20px);
+    font-size: clamp(9px, 1.05vh, 11px); color: #b8b09a; letter-spacing: .15em;
+    text-shadow: 0 1px 2px rgba(0,0,0,.8);
+  }
   .note { margin-top: 20px; font-size: 11px; color: #8b846d; letter-spacing: .15em; }
 
   #pause, #death, #result { display: none; }
