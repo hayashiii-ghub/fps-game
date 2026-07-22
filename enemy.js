@@ -304,7 +304,10 @@ class Enemy {
   }
 
   canSeePlayer() {
-    if (!player.alive || this.team === 'blue') return false;
+    if (!player.alive) return false;
+    const myTeam = (game.online && typeof Online !== 'undefined' && Online.getMyTeam)
+      ? Online.getMyTeam() : 'blue';
+    if (this.team === myTeam) return false;
     return this.canSeePoint(player.pos, player.eyeH * 0.85);
   }
 
@@ -312,8 +315,10 @@ class Enemy {
     let best = null;
     let bestD = 1e9;
     const foe = this.foeTeam();
+    const myTeam = (game.online && typeof Online !== 'undefined' && Online.getMyTeam)
+      ? Online.getMyTeam() : 'blue';
 
-    if (foe === 'blue' && player.alive) {
+    if (foe === myTeam && player.alive) {
       const d = this.pos.distanceTo(player.pos);
       if (d < bestD && (this.canSeePlayer() || d < 18)) {
         best = { type: 'player', pos: player.pos, d };
@@ -328,6 +333,19 @@ class Enemy {
       if (this.canSeePoint(e.pos) || d < 18) {
         best = { type: 'ai', unit: e, pos: e.pos, d };
         bestD = d;
+      }
+    }
+
+    // オンライン: 敵チームの人間（リモート）も狙う
+    if (game.online && typeof Online !== 'undefined' && Online.getRemotes) {
+      for (const [id, r] of Online.getRemotes()) {
+        if (!r.alive || r.team !== foe) continue;
+        const d = this.pos.distanceTo(r.pos);
+        if (d >= bestD) continue;
+        if (this.canSeePoint(r.pos) || d < 18) {
+          best = { type: 'remote', id, pos: r.pos, d };
+          bestD = d;
+        }
       }
     }
     return best;
@@ -647,6 +665,11 @@ class Enemy {
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
     const pan = clamp(rel.normalize().dot(right), -1, 1) * 0.8;
     AudioSys.enemyShot(dist, pan);
+    // オンライン bot: 他クライアントへ射撃 FX を配信（自分はローカルで出す）
+    const onlineBot = !!(game.online && this.netId && typeof Online !== 'undefined');
+    if (onlineBot) {
+      Online.notifyBotFire(this.netId, this.kind === 'sniper' ? 'sniper' : 'assault');
+    }
 
     const tdm = game.mode === 'tdm';
     let p;
@@ -670,27 +693,41 @@ class Enemy {
     const stillSees = tgt && (tgt.type === 'player' ? this.canSeePlayer() : this.canSeePoint(tgt.pos));
     if (!stillSees) p = 0;
 
-    const chestY = tgt && tgt.type === 'ai' ? 1.35 : (player.eyeH * 0.8);
+    const chestY = tgt && tgt.type !== 'player' ? 1.35 : (player.eyeH * 0.8);
     const chest = new THREE.Vector3(aimPos.x, aimPos.y + chestY, aimPos.z);
     let aim;
     if (Math.random() < p) {
       aim = chest.clone().add(new THREE.Vector3(rand(-0.08, 0.08), rand(-0.08, 0.08), rand(-0.08, 0.08)));
-      let dmg;
-      if (tdm) {
-        // プレイヤーと同装備ダメージ（アサルト胴 / 砂胴95）
-        dmg = this.kind === 'sniper' ? WEAPON_DEFS.sniper.dmg.torso : WEAPON_DEFS.assault.dmg.torso;
-      } else if (this.kind === 'elite') {
-        dmg = rand(14, 20) * (dist > 40 ? 0.8 : 1);
-      } else if (this.kind === 'sniper') {
-        dmg = rand(24, 34);
+      if (onlineBot) {
+        // オンライン bot: ダメージはサーバー権威。命中した事実だけ送る
+        const w = this.kind === 'sniper' ? 'sniper' : 'assault';
+        let targetId = null;
+        if (tgt && tgt.type === 'player') {
+          targetId = (typeof Net !== 'undefined' && Net.getState().selfId) || null;
+        } else if (tgt && tgt.type === 'remote') {
+          targetId = tgt.id;
+        } else if (tgt && tgt.type === 'ai' && tgt.unit && tgt.unit.netId) {
+          targetId = tgt.unit.netId;
+        }
+        if (targetId) Online.claimBotHit(this.netId, targetId, 'torso', w);
       } else {
-        dmg = rand(9, 14) * (dist > 40 ? 0.75 : 1);
-      }
-      if (tgt && tgt.type === 'player') {
-        damagePlayer(dmg, this.pos);
-      } else if (tgt && tgt.type === 'ai' && tgt.unit.alive) {
-        const dir = aim.clone().sub(mw).normalize();
-        tgt.unit.hit(dmg, 'torso', aim, dir, this);
+        let dmg;
+        if (tdm) {
+          // プレイヤーと同装備ダメージ（アサルト胴 / 砂胴95）
+          dmg = this.kind === 'sniper' ? WEAPON_DEFS.sniper.dmg.torso : WEAPON_DEFS.assault.dmg.torso;
+        } else if (this.kind === 'elite') {
+          dmg = rand(14, 20) * (dist > 40 ? 0.8 : 1);
+        } else if (this.kind === 'sniper') {
+          dmg = rand(24, 34);
+        } else {
+          dmg = rand(9, 14) * (dist > 40 ? 0.75 : 1);
+        }
+        if (tgt && tgt.type === 'player') {
+          damagePlayer(dmg, this.pos);
+        } else if (tgt && tgt.type === 'ai' && tgt.unit.alive) {
+          const dir = aim.clone().sub(mw).normalize();
+          tgt.unit.hit(dmg, 'torso', aim, dir, this);
+        }
       }
       spawnTracer(mw, aim, this.kind === 'sniper' ? 0xff8866 : 0xffc07a);
     } else {
@@ -813,6 +850,10 @@ class Enemy {
     this.moveTarget.copy(this.pos);
     this.spawnProtT = 2;
     rebuildHitMeshes();
+    // オンライン bot はサーバーへ復活を通知（サーバーが alive を戻す）
+    if (game.online && this.netId && typeof Online !== 'undefined') {
+      Online.notifyBotRespawn(this.netId);
+    }
   }
 
   destroy() {
@@ -829,6 +870,13 @@ function distToSegment(p, a, b) {
 }
 
 function hitEnemy(enemy, part, point, dir) {
+  // オンラインの bot（netId 持ち）はサーバー権威で判定する
+  if (game.online && enemy.netId && typeof Online !== 'undefined') {
+    if (enemy.team === Online.getMyTeam()) return; // 味方撃ち無効
+    if (enemy.spawnProtT > 0) return;
+    Online.claimHit(enemy.netId, part);
+    return;
+  }
   if (enemy.team === 'blue') return; // 味方撃ち無効
   if (enemy.spawnProtT > 0) return;
   game.hits++;

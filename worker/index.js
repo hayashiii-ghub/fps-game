@@ -120,6 +120,10 @@ export class Room extends DurableObject {
     this.match = createMatchState();
     this.persistAcc = 0;
     this._hydrated = false;
+    /** ホスト（試合開始の権限を持つ最古参アクティブ）のセッション id */
+    this.hostId = null;
+    /** @type {Map<string, object>} ホストがシミュレートする bot（位置はホスト権威、HP/生死はサーバー権威） */
+    this.bots = new Map();
 
     this.ctx.getWebSockets().forEach((ws) => {
       const attachment = ws.deserializeAttachment();
@@ -212,6 +216,92 @@ export class Room extends DurableObject {
     return null;
   }
 
+  /** ホストがいなければ最古参アクティブを立てる（waiting はホストにしない） */
+  ensureHost() {
+    if (this.hostId) {
+      for (const s of this.sessions.values()) {
+        if (s.id === this.hostId && s.role !== 'waiting') return;
+      }
+    }
+    let best = null;
+    for (const s of this.sessions.values()) {
+      if (s.role === 'waiting') continue;
+      if (!best || (s.joinedAt || 0) < (best.joinedAt || 0)) best = s;
+    }
+    this.hostId = best ? best.id : null;
+  }
+
+  rosterPayload() {
+    this.ensureHost();
+    const players = [];
+    for (const s of this.sessions.values()) {
+      players.push({
+        id: s.id,
+        name: s.name || s.id,
+        team: s.team,
+        role: s.role || 'active',
+      });
+    }
+    // ホストを先頭に
+    players.sort((a, b) =>
+      ((b.id === this.hostId) ? 1 : 0) - ((a.id === this.hostId) ? 1 : 0));
+    return { t: 'roster', host: this.hostId, players };
+  }
+
+  broadcastRoster() {
+    this.broadcastAll(this.rosterPayload());
+  }
+
+  /** ホスト宣言の bot セットを正として同期（増減に対応） */
+  syncBots(list) {
+    const arr = Array.isArray(list) ? list.slice(0, 10) : [];
+    const keep = new Set();
+    const now = Date.now();
+    for (const src of arr) {
+      const id = String(src && src.id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
+      if (!id) continue;
+      keep.add(id);
+      let b = this.bots.get(id);
+      if (!b) {
+        b = {
+          id,
+          bot: true,
+          name: String(src.name || 'BOT').replace(/[<>&"']/g, '').slice(0, 12) || 'BOT',
+          team: src.team === 'blue' ? 'blue' : 'red',
+          pose: null,
+          hp: 100,
+          alive: true,
+          weapon: 'assault',
+          owned: { assault: true, smg: false, shotgun: false, sniper: true, pistol: true },
+          crouch: false,
+          spawnProtUntil: now + 2000,
+          lastFireAt: 0,
+          shotgunPellets: 0,
+          role: 'active',
+          grenades: 0,
+          medkits: 0,
+          armor: false,
+        };
+        this.bots.set(id, b);
+      } else {
+        b.team = src.team === 'blue' ? 'blue' : 'red';
+        if (src.name) b.name = String(src.name).replace(/[<>&"']/g, '').slice(0, 12) || b.name;
+      }
+    }
+    for (const id of [...this.bots.keys()]) {
+      if (!keep.has(id)) this.bots.delete(id);
+    }
+  }
+
+  countActiveHumans(team) {
+    let n = 0;
+    for (const s of this.sessions.values()) {
+      if (s.role === 'waiting') continue;
+      if (!team || s.team === team) n++;
+    }
+    return n;
+  }
+
   newToken() {
     return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   }
@@ -228,6 +318,7 @@ export class Room extends DurableObject {
   welcomePayload(session, exceptWs) {
     const now = Date.now();
     const pub = matchPublic(this.match, now);
+    const roster = this.rosterPayload();
     return {
       t: 'welcome',
       you: session.id,
@@ -244,6 +335,8 @@ export class Room extends DurableObject {
       endsAt: pub.endsAt,
       inv: this.invPayload(session),
       loots: [...this.loots.values()],
+      host: roster.host,
+      roster: roster.players,
     };
   }
 
@@ -285,6 +378,7 @@ export class Room extends DurableObject {
         team: prev.team || this.pickTeam(),
         token: tokenIn,
         role: 'active',
+        name: prev.name || `P-${String(prev.id).slice(0, 4).toUpperCase()}`,
         joinedAt: prev.joinedAt || now,
         pose: null,
         lastFireAt: 0,
@@ -309,6 +403,7 @@ export class Room extends DurableObject {
         team,
         token,
         role: join.role,
+        name: `P-${id.slice(0, 4).toUpperCase()}`,
         joinedAt: now,
         pose: null,
         hp: 100,
@@ -325,6 +420,7 @@ export class Room extends DurableObject {
       team: session.team,
       token: session.token,
       role: session.role,
+      name: session.name,
       joinedAt: session.joinedAt,
       hp: session.hp,
       alive: session.alive,
@@ -347,6 +443,7 @@ export class Room extends DurableObject {
       if (session.role !== 'waiting') {
         this.broadcast(server, { t: 'peer', op: 'join', id: session.id, team: session.team });
       }
+      this.broadcastRoster();
       await this.ensureAlarm();
       await this.persist(true);
     } catch (err) {
@@ -392,6 +489,19 @@ export class Room extends DurableObject {
         weapon: s.weapon || (s.pose && s.pose.weapon) || 'assault',
         prot: !!(s.spawnProtUntil && t < s.spawnProtUntil),
         ...s.pose,
+      });
+    }
+    for (const b of this.bots.values()) {
+      if (!b.pose) continue;
+      players.push({
+        id: b.id,
+        bot: true,
+        team: b.team,
+        alive: !!b.alive,
+        hp: b.hp,
+        weapon: b.weapon || 'assault',
+        prot: !!(b.spawnProtUntil && t < b.spawnProtUntil),
+        ...b.pose,
       });
     }
     const pub = matchPublic(this.match, t);
@@ -498,6 +608,7 @@ export class Room extends DurableObject {
 
     startMatch(this.match, mapId, now);
     this.clearLoots();
+    this.bots.clear(); // bot はホストが match_start 後に再宣言する
     for (const s of this.sessions.values()) {
       const lo = sanitizeLoadout(s.main, s.sub);
       s.main = lo.main;
@@ -594,9 +705,10 @@ export class Room extends DurableObject {
   handleHit(attacker, msg) {
     if (!this.isCombatant(attacker)) return;
     if (!checkMsgRate(attacker, Date.now(), 'hit', 16).ok) return;
-    const found = this.findById(String(msg.targetId || ''));
-    if (!found) return;
-    const victim = found.s;
+    const targetId = String(msg.targetId || '');
+    const found = this.findById(targetId);
+    const victim = found ? found.s : this.bots.get(targetId);
+    if (!victim) return;
     if (victim.role === 'waiting') return;
     const now = Date.now();
     const weapon = String(msg.weapon || 'assault');
@@ -763,6 +875,7 @@ export class Room extends DurableObject {
       team: session.team,
       token: session.token,
       role: session.role || 'active',
+      name: session.name,
       hp: session.hp,
       alive: session.alive,
       grenades: session.grenades,
@@ -813,6 +926,18 @@ export class Room extends DurableObject {
     }
 
     if (msg.t === 'match_start') {
+      // 開始権はホストのみ（いなければ最古参を立ててから判定）
+      this.ensureHost();
+      if (session.id !== this.hostId) {
+        try {
+          ws.send(JSON.stringify({
+            t: 'match_deny',
+            reason: 'not_host',
+            phase: this.match.phase,
+          }));
+        } catch (_) { /* ignore */ }
+        return;
+      }
       const result = await this.resetMatch(msg.map);
       if (!result.ok) {
         try {
@@ -823,6 +948,82 @@ export class Room extends DurableObject {
           }));
         } catch (_) { /* ignore */ }
       }
+      return;
+    }
+
+    if (msg.t === 'name') {
+      const n = String(msg.name || '').replace(/[<>&"']/g, '').trim().slice(0, 12);
+      if (n && n !== session.name) {
+        session.name = n;
+        this.broadcastRoster();
+      }
+      return;
+    }
+
+    /* ---- ホスト管理 bot（位置はホスト権威、HP/生死はサーバー権威） ---- */
+    if (msg.t === 'bots') {
+      this.ensureHost();
+      if (session.id !== this.hostId) return;
+      this.syncBots(msg.list);
+      return;
+    }
+
+    if (msg.t === 'bot_poses') {
+      this.ensureHost();
+      if (session.id !== this.hostId) return;
+      if (this.match.phase === 'ended') return;
+      const list = Array.isArray(msg.list) ? msg.list.slice(0, 10) : [];
+      for (const src of list) {
+        const b = this.bots.get(String(src && src.id || ''));
+        if (!b) continue;
+        const pose = sanitizePose(src);
+        b.pose = pose;
+        b.weapon = ownsWeapon(b, pose.weapon) ? pose.weapon : 'assault';
+        b.crouch = pose.crouch;
+      }
+      await this.ensureAlarm();
+      return;
+    }
+
+    if (msg.t === 'bot_fire') {
+      this.ensureHost();
+      if (session.id !== this.hostId) return;
+      const b = this.bots.get(String(msg.id || ''));
+      if (!b || !b.alive || this.match.phase !== 'live') return;
+      const weapon = String(msg.weapon || b.weapon || 'assault');
+      if (!ownsWeapon(b, weapon)) return;
+      // ホスト以外に FX 配信（ホストはローカルの fireOne で音・閃光を出す）
+      this.broadcast(ws, { t: 'fire', id: b.id, weapon });
+      return;
+    }
+
+    if (msg.t === 'bot_hit') {
+      this.ensureHost();
+      if (session.id !== this.hostId) return;
+      const attacker = this.bots.get(String(msg.botId || ''));
+      if (!attacker || this.match.phase !== 'live' || !attacker.alive) return;
+      const targetId = String(msg.targetId || '');
+      const found = this.findById(targetId);
+      const victim = found ? found.s : this.bots.get(targetId);
+      if (!victim || victim.role === 'waiting') return;
+      const now = Date.now();
+      const weapon = String(msg.weapon || 'assault');
+      const result = validateHit({ attacker, victim, part: msg.part, weapon, now });
+      if (!result.ok) return;
+      markFired(attacker, weapon, now, result);
+      this.applyHitResult(attacker, victim, result.part, weapon, result.dmg);
+      return;
+    }
+
+    if (msg.t === 'bot_respawn') {
+      this.ensureHost();
+      if (session.id !== this.hostId) return;
+      const b = this.bots.get(String(msg.id || ''));
+      if (!b || this.match.phase !== 'live') return;
+      b.hp = 100;
+      b.alive = true;
+      b.spawnProtUntil = Date.now() + 2000;
+      this.broadcastAll({ t: 'respawn', id: b.id, team: b.team });
       return;
     }
 
@@ -909,6 +1110,7 @@ export class Room extends DurableObject {
       if (session.role !== 'waiting') {
         this.broadcast(null, { t: 'peer', op: 'leave', id: session.id });
       }
+      this.broadcastRoster();
       await this.persist(true);
     }
     try { ws.close(code, reason); } catch (_) { /* ignore */ }
@@ -923,6 +1125,7 @@ export class Room extends DurableObject {
       if (session.role !== 'waiting') {
         this.broadcast(null, { t: 'peer', op: 'leave', id: session.id });
       }
+      this.broadcastRoster();
       await this.persist(true);
     }
   }

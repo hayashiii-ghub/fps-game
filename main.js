@@ -435,6 +435,14 @@ function updateTdm(dt) {
 }
 
 /* ---------- ポインタロック / メニュー配線 ---------- */
+const PLAYER_NAME_KEY = 'kgfps_player_name';
+function loadPlayerName() {
+  try { return localStorage.getItem(PLAYER_NAME_KEY) || ''; } catch (_) { return ''; }
+}
+function savePlayerName(n) {
+  try { localStorage.setItem(PLAYER_NAME_KEY, n); } catch (_) { /* ignore */ }
+}
+
 /** ロビーのマップ選択。選ぶと背景のマップも即切り替わる */
 function applyMapSelection(id) {
   game.map = (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[id]) ? id : 'desert';
@@ -496,6 +504,51 @@ function showOnlinePanel(show) {
   if (panel) panel.hidden = !show;
   const btn = $('startOnlineTdmBtn');
   if (btn) btn.classList.toggle('sel', !!show);
+  if (!show) setOnlinePanelJoined(false);
+}
+
+/** 接続前（部屋を建てる/コードで入る）と接続後（名簿・開始）の表示切替 */
+function setOnlinePanelJoined(joined) {
+  const entry = $('onlineEntryRow');
+  const room = $('onlineRoomRow');
+  const roster = $('rosterList');
+  if (entry) entry.hidden = !!joined;
+  if (room) room.hidden = !joined;
+  if (roster) roster.hidden = !joined;
+}
+
+/** オンライン名簿の描画（ホスト★・チーム色・自分マーカー）と開始ボタンの制御 */
+function renderRoster(host, players) {
+  const el = $('rosterList');
+  if (!el) return;
+  el.innerHTML = '';
+  const selfId = typeof Net !== 'undefined' ? Net.getState().selfId : null;
+  for (const p of (players || [])) {
+    const row = document.createElement('div');
+    if (p.id === host) {
+      const star = document.createElement('span');
+      star.className = 'rhost';
+      star.textContent = '★HOST ';
+      row.appendChild(star);
+    }
+    const name = document.createElement('span');
+    name.className = 'rname';
+    name.textContent = p.name || p.id;
+    row.appendChild(name);
+    if (p.id === selfId) row.appendChild(document.createTextNode('（あなた）'));
+    if (p.role === 'waiting') row.appendChild(document.createTextNode(' ― 次試合待ち'));
+    const team = document.createElement('span');
+    team.className = p.team === 'blue' ? 'rteam-b' : 'rteam-r';
+    team.textContent = ` ${(p.team || '?').toUpperCase()}`;
+    row.appendChild(team);
+    el.appendChild(row);
+  }
+  const startBtn = $('onlineStartBtn');
+  if (startBtn) {
+    const amHost = !!selfId && selfId === host;
+    startBtn.disabled = !amHost;
+    startBtn.textContent = amHost ? '試合開始' : 'HOST が開始します';
+  }
 }
 
 function initOnlineLobby() {
@@ -507,9 +560,12 @@ function initOnlineLobby() {
       else if (data.state === 'reconnecting') {
         setOnlineStatus(`再接続中… ROOM ${data.room} (#${data.attempt || '?'})`);
       } else if (data.state === 'open') setOnlineStatus(`接続中 ROOM ${data.room}`);
-      else if (data.state === 'closed') setOnlineStatus('切断 ― 自動再接続します');
-      else if (data.state === 'failed') {
+      else if (data.state === 'closed') {
+        setOnlineStatus('切断 ― 自動再接続します');
+        setOnlinePanelJoined(false);
+      } else if (data.state === 'failed') {
         setOnlineStatus(data.message || `接続失敗 ROOM ${data.room}`);
+        setOnlinePanelJoined(false);
       }
     } else if (ev === 'welcome') {
       const peerN = Array.isArray(data.peers) ? data.peers.length : 0;
@@ -524,6 +580,13 @@ function initOnlineLobby() {
       const input = $('onlineCodeInput');
       if (input) input.value = data.room;
       showOnlinePanel(true);
+      setOnlinePanelJoined(true);
+      renderRoster(data.host, data.roster);
+      // 保存名があればサーバーへ同期
+      const saved = loadPlayerName();
+      if (saved) Net.sendName(saved);
+    } else if (ev === 'roster') {
+      renderRoster(data.host, data.players);
     } else if (ev === 'peer') {
       const st = Net.getState();
       setOnlineStatus(`ROOM ${st.room}  YOU ${st.selfId}  TEAM ${st.team || '?'}  (${data.op} ${data.id})`);
@@ -532,7 +595,9 @@ function initOnlineLobby() {
     } else if (ev === 'match_end') {
       setOnlineStatus(`試合終了 ${data.blue || 0}–${data.red || 0} ― 再戦可`);
     } else if (ev === 'match_deny') {
-      setOnlineStatus(`開始不可: ${data.reason || data.phase || 'denied'}`);
+      setOnlineStatus(data.reason === 'not_host'
+        ? '開始権は HOST にあります'
+        : `開始不可: ${data.reason || data.phase || 'denied'}`);
     } else if (ev === 'pong') {
       const tl = Number.isFinite(data.timeLeft) ? ` time=${data.timeLeft}` : '';
       setOnlineStatus(`PONG peers=${data.peers} phase=${data.phase || '?'}${tl}`);
@@ -543,11 +608,25 @@ function initOnlineLobby() {
   const createBtn = $('onlineCreateBtn');
   const joinBtn = $('onlineJoinBtn');
   const startBtn = $('onlineStartBtn');
+  const leaveBtn = $('onlineLeaveBtn');
+  const nameInput = $('onlineNameInput');
   const input = $('onlineCodeInput');
+  if (nameInput) {
+    nameInput.value = loadPlayerName();
+    let nameTimer = null;
+    nameInput.addEventListener('input', () => {
+      const n = nameInput.value.trim();
+      savePlayerName(n);
+      clearTimeout(nameTimer);
+      nameTimer = setTimeout(() => {
+        if (n && Net.getState().connected) Net.sendName(n);
+      }, 350);
+    });
+  }
   if (createBtn) createBtn.addEventListener('click', async () => {
     uiBlip();
     try {
-      setOnlineStatus('ルーム作成中…');
+      setOnlineStatus('部屋を作成中…');
       const code = await Net.createRoom();
       if (input) input.value = code;
       Net.connect(code);
@@ -563,6 +642,13 @@ function initOnlineLobby() {
   if (joinBtn) joinBtn.addEventListener('click', () => {
     uiBlip();
     Net.connect(input ? input.value : '');
+  });
+  if (leaveBtn) leaveBtn.addEventListener('click', () => {
+    uiBlip();
+    if (typeof Net !== 'undefined') Net.disconnect();
+    if (typeof Online !== 'undefined') Online.reset();
+    setOnlinePanelJoined(false);
+    setOnlineStatus('ルーム未接続');
   });
   if (startBtn) startBtn.addEventListener('click', () => {
     uiBlip();
@@ -594,8 +680,8 @@ function initMenus() {
     uiBlip();
     showOnlinePanel(true);
     setOnlineStatus(Net.getState().connected
-      ? `接続中 ROOM ${Net.getState().room} ― 試合開始を押す`
-      : 'ルームを作成するか CODE で参加');
+      ? `接続中 ROOM ${Net.getState().room}`
+      : '部屋を建てるか、CODE で参加');
   });
   initOnlineLobby();
   const mapD = $('mapDesertBtn'), mapJ = $('mapJungleBtn');
@@ -605,6 +691,7 @@ function initMenus() {
     b.addEventListener('click', () => { applyLoadoutSelection('main', b.dataset.w); uiBlip(); }));
   document.querySelectorAll('#subWeaponRow .wchip').forEach(b =>
     b.addEventListener('click', () => { applyLoadoutSelection('sub', b.dataset.w); uiBlip(); }));
+  applyMapSelection(game.map);
   updateLoadoutUI();
   $('retryBtn').addEventListener('click', () => {
     $('death').style.display = 'none';

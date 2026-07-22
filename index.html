@@ -224,13 +224,15 @@
     font-size: 13px; letter-spacing: .25em; color: #efe6c4; margin-bottom: 6px; font-weight: 700;
   }
   .online-panel {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    display: flex; flex-direction: column; gap: 10px;
     padding: 12px 14px; border: 1px solid rgba(216,192,138,.24);
-    background: rgba(14,15,11,.74);
+    background: rgba(14,15,11,.74); text-align: left;
   }
   .online-panel[hidden] { display: none !important; }
+  .online-panel .orow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .online-panel .orow[hidden] { display: none; }
   .online-panel input {
-    width: 7.5em; padding: 8px 10px; letter-spacing: .2em; text-transform: uppercase;
+    width: 8.5em; padding: 8px 10px; letter-spacing: .14em;
     border: 1px solid rgba(216,192,138,.35); background: rgba(0,0,0,.35);
     color: #efe6c4; font-family: inherit; font-size: 12px;
   }
@@ -239,8 +241,15 @@
     background: rgba(216,192,138,.1); color: #efe6c4; cursor: pointer;
     font-family: inherit; font-size: 11px; letter-spacing: .12em;
   }
-  .online-panel .obtn:hover { border-color: #d8c08a; background: rgba(216,192,138,.18); }
-  #onlineStatus { flex: 1 1 100%; font-size: 11px; color: #a8a08a; letter-spacing: .08em; }
+  .online-panel .obtn:hover:not(:disabled) { border-color: #d8c08a; background: rgba(216,192,138,.18); }
+  .online-panel .obtn:disabled { opacity: .45; cursor: default; }
+  .online-panel .obtn.primary { border-color: #d9a94f; background: rgba(217,169,79,.2); }
+  #onlineStatus { font-size: 11px; color: #a8a08a; letter-spacing: .08em; }
+  #rosterList { font-size: 11.5px; line-height: 1.75; color: #cfc7ad; }
+  #rosterList .rname { color: #efe6c4; }
+  #rosterList .rhost { color: #d9a94f; }
+  #rosterList .rteam-b { color: #6eb0e0; font-size: 10px; letter-spacing: .1em; }
+  #rosterList .rteam-r { color: #e07060; font-size: 10px; letter-spacing: .1em; }
 
   .mode-card .mc.sel {
     border-color: #d8c08a; border-left-color: #d9a94f;
@@ -521,15 +530,22 @@
       </button>
       <button type="button" class="mc" id="startOnlineTdmBtn">
         <h3>TDM ― ONLINE</h3>
-        ルームコードで友達と対戦。<br>
+        ルームを建てて友達と対戦。足りない枠は AI が補充。<br>
         サーバー権威の5分タイマー。
       </button>
     </div>
     <div class="online-panel" id="onlinePanel" hidden>
-      <button type="button" class="obtn" id="onlineCreateBtn">ルーム作成</button>
-      <input id="onlineCodeInput" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
-      <button type="button" class="obtn" id="onlineJoinBtn">参加</button>
-      <button type="button" class="obtn" id="onlineStartBtn">試合開始</button>
+      <div class="orow" id="onlineEntryRow">
+        <button type="button" class="obtn primary" id="onlineCreateBtn">部屋を建てる</button>
+        <input id="onlineCodeInput" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
+        <button type="button" class="obtn" id="onlineJoinBtn">コードで入る</button>
+      </div>
+      <div class="orow" id="onlineRoomRow" hidden>
+        <input id="onlineNameInput" maxlength="12" placeholder="名前" autocomplete="off" spellcheck="false">
+        <button type="button" class="obtn primary" id="onlineStartBtn">試合開始</button>
+        <button type="button" class="obtn" id="onlineLeaveBtn">退出</button>
+      </div>
+      <div id="rosterList" class="mono" hidden></div>
       <div id="onlineStatus" class="mono">ルーム未接続</div>
     </div>
     <div class="menu-foot mono">
@@ -578,14 +594,14 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./ai-steer.js?v=play36"></script>
-<script src="./audio.js?v=play36"></script>
-<script src="./world.js?v=play36"></script>
-<script src="./effects.js?v=play36"></script>
-<script src="./player.js?v=play36"></script>
-<script src="./enemy.js?v=play36"></script>
-<script src="./net.js?v=play36"></script>
-<script src="./online.js?v=play36"></script>
-<script src="./main.js?v=play36"></script>
+<script src="./ai-steer.js?v=play38"></script>
+<script src="./audio.js?v=play38"></script>
+<script src="./world.js?v=play38"></script>
+<script src="./effects.js?v=play38"></script>
+<script src="./player.js?v=play38"></script>
+<script src="./enemy.js?v=play38"></script>
+<script src="./net.js?v=play38"></script>
+<script src="./online.js?v=play38"></script>
+<script src="./main.js?v=play38"></script>
 </body>
 </html>

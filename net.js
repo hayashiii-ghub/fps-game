@@ -24,7 +24,7 @@ const Net = (() => {
 
   const DIRECT = new Set([
     'welcome', 'pong', 'peer', 'snap', 'dmg', 'score', 'respawn',
-    'match_start', 'match_end', 'match_deny',
+    'match_start', 'match_end', 'match_deny', 'roster',
     'nade_throw', 'nade_boom', 'healed', 'inv', 'loadout_lock', 'fire',
     'loot_spawn', 'loot_gone', 'loot_clear', 'loot_grant', 'loot_deny', 'supply',
   ]);
@@ -273,6 +273,31 @@ const Net = (() => {
     return send({ t: 'match_start', map: map || 'desert' });
   }
 
+  function sendName(name) {
+    return send({ t: 'name', name: String(name || '').slice(0, 12) });
+  }
+
+  /* ---- ホスト管理 bot（位置はホスト権威、HP/生死はサーバー権威） ---- */
+  function sendBots(list) {
+    return send({ t: 'bots', list: Array.isArray(list) ? list : [] });
+  }
+
+  function sendBotPoses(list) {
+    return send({ t: 'bot_poses', list: Array.isArray(list) ? list : [] });
+  }
+
+  function sendBotFire(id, weapon) {
+    return send({ t: 'bot_fire', id, weapon: weapon || 'assault' });
+  }
+
+  function sendBotHit(botId, targetId, part, weapon) {
+    return send({ t: 'bot_hit', botId, targetId, part, weapon });
+  }
+
+  function sendBotRespawn(id) {
+    return send({ t: 'bot_respawn', id });
+  }
+
   /** ソケットだけ閉じる（再接続用・room / token は残す） */
   function disconnectSocketOnly() {
     stopHeartbeat();
@@ -316,7 +341,8 @@ const Net = (() => {
     createRoom, connect, disconnect, forgetIdentity, ping,
     sendInput, sendHit, sendFire, sendNadeThrow, sendNadeBoom, sendHeal, sendHealStart, sendHealCancel,
     sendLoadout, sendLootPick,
-    sendRespawn, sendMatchStart,
+    sendRespawn, sendMatchStart, sendName,
+    sendBots, sendBotPoses, sendBotFire, sendBotHit, sendBotRespawn,
     on, getState,
   };
 })();

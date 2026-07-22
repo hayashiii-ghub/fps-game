@@ -12,6 +12,11 @@ const Online = (() => {
   let unsub = null;
   /** 自分が投げたグレの boom FX を二重にしない */
   const localNadeFxSkip = new Set();
+  /** ホスト管理 bot（netId -> Enemy）。ホストのみ使用 */
+  const hostBots = new Map();
+  let hostId = null;
+  let roster = [];
+  let botAcc = 0;
 
   function ensureHook() {
     if (unsub || typeof Net === 'undefined') return;
@@ -19,6 +24,8 @@ const Online = (() => {
       if (ev === 'welcome') {
         myTeam = data.team || 'blue';
         myRole = data.role || 'active';
+        hostId = data.host || null;
+        roster = Array.isArray(data.roster) ? data.roster : [];
         // 試合中の再接続だけマップをサーバーに合わせる。
         // lobby 接続時は DO 既定 desert でローカル選択を潰さない。
         if (data.match && data.map && typeof applyMapSelection === 'function') {
@@ -47,6 +54,9 @@ const Online = (() => {
             }
           }
         }
+      } else if (ev === 'roster') {
+        hostId = data.host || null;
+        roster = Array.isArray(data.players) ? data.players : [];
       } else if (ev === 'peer') {
         if (data.op === 'join') ensureRemote(data.id, data.team || 'red');
         else if (data.op === 'leave') removeRemote(data.id);
@@ -208,8 +218,15 @@ const Online = (() => {
     if (!snap || !Array.isArray(snap.players)) return;
     const seen = new Set();
     const selfId = typeof Net !== 'undefined' ? Net.getState().selfId : null;
+    let adopted = false;
     for (const p of snap.players) {
       if (!p || !p.id || p.id === selfId) continue;
+      // ホスト管理 bot は Enemy として描画するので remote にはしない。
+      // 試合中にホストを引き継いだ場合はここで Enemy へ変換する
+      if (p.bot && isHost()) {
+        if (!hostBots.has(p.id)) { adoptBot(p); adopted = true; }
+        continue;
+      }
       seen.add(p.id);
       const r = ensureRemote(p.id, p.team, p.weapon);
       if (!r) continue;
@@ -242,12 +259,114 @@ const Online = (() => {
     for (const id of [...remotes.keys()]) {
       if (!seen.has(id)) removeRemote(id);
     }
+    if (adopted) declareBots();
   }
 
   function claimHit(targetId, part) {
     if (!game.online || typeof Net === 'undefined') return;
     const weapon = typeof arsenal !== 'undefined' ? arsenal.activeId : 'assault';
     Net.sendHit(targetId, part || 'torso', weapon);
+  }
+
+  /* ---------- ホスト管理 bot ---------- */
+  function isHost() {
+    const selfId = typeof Net !== 'undefined' ? Net.getState().selfId : null;
+    return !!selfId && selfId === hostId;
+  }
+
+  /** 現在の hostBots をサーバーへ宣言（同期の正はこちら） */
+  function declareBots() {
+    if (!isHost() || typeof Net === 'undefined' || !Net.getState().connected) return;
+    const list = [];
+    for (const [id, e] of hostBots) {
+      list.push({ id, name: e.netName || 'BOT', team: e.team });
+    }
+    Net.sendBots(list);
+  }
+
+  function clearHostBots() {
+    for (const [, e] of hostBots) e.destroy();
+    hostBots.clear();
+  }
+
+  /** 試合開始時: 各チーム5人に満たない分を bot で補充（ホストのみ） */
+  function spawnHostBots() {
+    clearHostBots();
+    if (!isHost() || typeof Enemy === 'undefined') return;
+    const humans = { blue: 0, red: 0 };
+    for (const p of roster) {
+      if (p.role === 'waiting') continue;
+      humans[p.team === 'blue' ? 'blue' : 'red']++;
+    }
+    const selfId = Net.getState().selfId;
+    if (!roster.some(p => p.id === selfId)) {
+      humans[myTeam === 'blue' ? 'blue' : 'red']++;
+    }
+    const taken = [];
+    const pickSpawn = (team) => {
+      const pool = (typeof TDM_SPAWNS !== 'undefined' ? TDM_SPAWNS[team] : [[0, 50]])
+        .filter(([x, z]) => !taken.some(([tx, tz]) => Math.abs(tx - x) < 1.5 && Math.abs(tz - z) < 1.5));
+      const list = pool.length ? pool : (typeof TDM_SPAWNS !== 'undefined' ? TDM_SPAWNS[team] : [[0, 50]]);
+      return list[(Math.random() * list.length) | 0];
+    };
+    let n = 0;
+    for (const team of ['blue', 'red']) {
+      const need = Math.max(0, 5 - humans[team]);
+      for (let i = 0; i < need; i++) {
+        const sp = pickSpawn(team);
+        taken.push(sp);
+        const kind = i === need - 1 ? 'sniper' : 'grunt';
+        const e = new Enemy(sp[0], sp[1], kind, team);
+        e.netId = `bot${(++n)}-${Math.random().toString(36).slice(2, 6)}`;
+        e.netName = `BOT-${team === 'blue' ? 'B' : 'R'}${i + 1}`;
+        e.g.rotation.y = Math.atan2(-sp[0], -sp[1]);
+        enemies.push(e);
+        hostBots.set(e.netId, e);
+      }
+    }
+    if (typeof rebuildHitMeshes === 'function') rebuildHitMeshes();
+    declareBots();
+  }
+
+  /** ホスト引き継ぎ: snap 上の bot を Enemy に変換して管理を移す */
+  function adoptBot(p) {
+    if (typeof Enemy === 'undefined') return;
+    removeRemote(p.id);
+    const e = new Enemy(p.x, p.z, p.weapon === 'sniper' ? 'sniper' : 'grunt', p.team);
+    e.netId = p.id;
+    e.netName = 'BOT';
+    e.pos.set(p.x, 0, p.z);
+    e.g.position.copy(e.pos);
+    if (p.alive === false) {
+      e.alive = false;
+      e.hp = 0;
+      e.pendingRespawn = true;
+      e.respawnT = 2.5;
+      e.g.visible = false;
+    } else {
+      e.hp = Number.isFinite(p.hp) ? p.hp : 100;
+    }
+    enemies.push(e);
+    hostBots.set(p.id, e);
+    if (typeof rebuildHitMeshes === 'function') rebuildHitMeshes();
+  }
+
+  /** bot の射撃 FX を他クライアントへ配信 */
+  function notifyBotFire(id, weapon) {
+    if (!game.online || typeof Net === 'undefined' || !isHost()) return;
+    Net.sendBotFire(id, weapon);
+  }
+
+  /** bot の命中をサーバー判定へ（ダメージはサーバーが計算） */
+  function claimBotHit(botId, targetId, part, weapon) {
+    if (!game.online || typeof Net === 'undefined' || !isHost()) return;
+    Net.sendBotHit(botId, targetId, part || 'torso', weapon || 'assault');
+  }
+
+  /** bot のリスポーンをサーバーへ通知 */
+  function notifyBotRespawn(id) {
+    if (!game.online || typeof Net === 'undefined' || !isHost()) return;
+    Net.sendBotRespawn(id);
   }
 
   function notifyNadeThrow(from, vel) {
@@ -420,6 +539,30 @@ const Online = (() => {
         startRemoteDie(r);
       } else {
         r.alive = true;
+      }
+    }
+
+    // ホスト管理 bot への被弾（HP/生死はサーバーが正。die() は呼ばず演出のみ）
+    const hb = hostBots.get(data.victim);
+    if (hb) {
+      const chest2 = hb.pos.clone();
+      chest2.y += hb.crouched ? 0.95 : 1.25;
+      let dir2 = new THREE.Vector3(0, 0.2, 0);
+      const atk2 = remotes.get(data.attacker);
+      if (atk2) dir2.subVectors(hb.pos, atk2.pos).setY(0.15).normalize();
+      else if (data.attacker === selfId) dir2.subVectors(hb.pos, player.pos).setY(0.15).normalize();
+      if (typeof bloodFX === 'function') bloodFX(chest2, dir2);
+      if (data.kill || !(data.hp > 0)) {
+        hb.alive = false;
+        hb.hp = 0;
+        hb.deathT = 0;
+        hb.removeT = 0;
+        hb.g.visible = true;
+      } else {
+        hb.hp = data.hp;
+        hb.state = 'combat';
+        if (atk2) hb.lastKnown.copy(atk2.pos);
+        else if (data.attacker === selfId) hb.lastKnown.copy(player.pos);
       }
     }
     rebuildOnlineHits();
@@ -613,6 +756,7 @@ const Online = (() => {
     ensureHook();
     applyScore(data && data.score ? data.score : data);
     applyMatchClock({ timeLeft: 0, ...(data || {}) });
+    clearHostBots();
     if (game.online && game.state === 'playing' && typeof endTdmMatch === 'function') {
       endTdmMatch();
     }
@@ -646,6 +790,8 @@ const Online = (() => {
     else if (!resume && (!Number.isFinite(game.tdm.timeLeft) || game.tdm.timeLeft <= 0)) {
       game.tdm.timeLeft = 300;
     }
+    // ホストは足りない枠を bot で補充（サーバーへ宣言まで行う）
+    spawnHostBots();
     if (typeof updateHealthHUD === 'function') updateHealthHUD();
     if (typeof updateGrenadeHUD === 'function') updateGrenadeHUD();
     if (typeof updateMedkitHUD === 'function') updateMedkitHUD();
@@ -694,6 +840,29 @@ const Online = (() => {
           crouch: player.crouching,
           weapon: typeof arsenal !== 'undefined' ? arsenal.activeId : 'assault',
         });
+      }
+    }
+
+    // ホスト管理 bot の位置をまとめて送信（モデル+Z正面 → remote 表示の yaw+π に合わせる）
+    if (isHost() && hostBots.size) {
+      botAcc += dt;
+      if (botAcc >= 0.05) {
+        botAcc = 0;
+        const list = [];
+        for (const [id, e] of hostBots) {
+          if (!e.alive) continue;
+          list.push({
+            id,
+            x: e.pos.x,
+            y: e.pos.y || 0,
+            z: e.pos.z,
+            yaw: e.g.rotation.y - Math.PI,
+            pitch: 0,
+            crouch: !!e.crouched,
+            weapon: e.kind === 'sniper' ? 'sniper' : 'assault',
+          });
+        }
+        if (list.length) Net.sendBotPoses(list);
       }
     }
 
@@ -777,7 +946,9 @@ const Online = (() => {
   function reset() {
     clearRemotes();
     clearNetLoots();
+    clearHostBots();
     sendAcc = 0;
+    botAcc = 0;
     localNadeFxSkip.clear();
   }
 
@@ -795,6 +966,7 @@ const Online = (() => {
     notifyNadeThrow, claimNadeBoom, claimHeal, notifyHealStart, notifyHealCancel,
     claimLoot, syncLoadoutToServer,
     isWaiting, applyMatchClock,
+    isHost, notifyBotFire, claimBotHit, notifyBotRespawn,
   };
 })();
 
