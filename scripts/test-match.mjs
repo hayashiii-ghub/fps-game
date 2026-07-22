@@ -13,6 +13,7 @@ import {
   resumeByToken,
   serializeMatch,
   restoreMatch,
+  shouldFastTick,
 } from '../worker/match.js';
 
 assert.equal(MATCH_SEC, 300);
@@ -20,24 +21,29 @@ assert.equal(MATCH_SEC, 300);
 let m = createMatchState();
 assert.equal(m.phase, 'lobby');
 assert.equal(canStartMatch(m).ok, true);
+assert.equal(shouldFastTick(m), false);
 
 const started = startMatch(m, 'jungle', 10_000);
 assert.equal(started.ok, true);
 assert.equal(m.phase, 'live');
+assert.equal(shouldFastTick(m), true);
 assert.equal(m.map, 'jungle');
 assert.equal(m.endsAt, 10_000 + MATCH_SEC * 1000);
 assert.equal(canStartMatch(m).ok, false);
 
 tickMatch(m, 10_000 + 60_000);
 assert.equal(m.phase, 'live');
+assert.equal(shouldFastTick(m), true);
 const pub = matchPublic(m, 10_000 + 60_000);
 assert.equal(pub.phase, 'live');
 assert.equal(pub.timeLeft, 240);
 
 tickMatch(m, 10_000 + MATCH_SEC * 1000);
 assert.equal(m.phase, 'ended');
+assert.equal(shouldFastTick(m), false);
 assert.equal(matchPublic(m, 10_000 + MATCH_SEC * 1000).timeLeft, 0);
 assert.equal(canStartMatch(m).ok, true);
+assert.equal(shouldFastTick(null), false);
 
 const again = startMatch(m, 'desert', 400_000);
 assert.equal(again.ok, true);

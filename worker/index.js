@@ -31,6 +31,7 @@ import {
   serializeMatch,
   restoreMatch,
   sanitizeToken,
+  shouldFastTick,
   MATCH_SEC,
 } from './match.js';
 import { checkMsgRate } from './rate.js';
@@ -526,16 +527,27 @@ export class Room extends DurableObject {
     }
   }
 
+  /** live 中だけ 50ms ループを張る。lobby/ended は起こさない（無料枠・hibernation） */
   async ensureAlarm() {
+    if (!shouldFastTick(this.match)) return;
     const next = await this.ctx.storage.getAlarm();
     if (next == null) {
       await this.ctx.storage.setAlarm(Date.now() + SNAP_MS);
     }
   }
 
+  async scheduleNextAlarm() {
+    if (!shouldFastTick(this.match)) return;
+    await this.ctx.storage.setAlarm(Date.now() + SNAP_MS);
+  }
+
   async alarm() {
     await this.hydrate();
     const now = Date.now();
+
+    // lobby/ended の残骸 alarm — 高速ループを再開しない
+    if (!shouldFastTick(this.match)) return;
+
     const ended = tickMatch(this.match, now);
     if (ended) {
       this.broadcastAll({
@@ -545,28 +557,24 @@ export class Room extends DurableObject {
         blue: this.score.blue,
         red: this.score.red,
       });
+      this.broadcastSnap();
       await this.persist(true);
+      // ended → ループ停止（次の match_start で ensureAlarm）
+      return;
     }
 
     this.broadcastSnap();
 
-    if (this.match.phase === 'live') {
-      this.match.supplyAcc += SNAP_MS;
-      const need = this.match.supplyArmed ? SUPPLY_EVERY_MS : SUPPLY_FIRST_MS;
-      if (this.match.supplyAcc >= need) {
-        this.match.supplyAcc = 0;
-        this.match.supplyArmed = true;
-        this.spawnSupply();
-      }
+    this.match.supplyAcc += SNAP_MS;
+    const need = this.match.supplyArmed ? SUPPLY_EVERY_MS : SUPPLY_FIRST_MS;
+    if (this.match.supplyAcc >= need) {
+      this.match.supplyAcc = 0;
+      this.match.supplyArmed = true;
+      this.spawnSupply();
     }
 
     await this.persist(false);
-
-    if (this.sessions.size > 0
-      || Object.keys(this.reservations).length > 0
-      || this.match.phase === 'live') {
-      await this.ctx.storage.setAlarm(Date.now() + SNAP_MS);
-    }
+    await this.scheduleNextAlarm();
   }
 
   clearLoots() {
@@ -671,10 +679,9 @@ export class Room extends DurableObject {
       } catch (_) { /* ignore */ }
     }
     await this.persist(true);
+    await this.ensureAlarm(); // live の 50ms ループ開始
     return { ok: true };
   }
-
-  emitDmg(attacker, victim, part, weapon, applied, extra) {
     this.broadcastAll({
       t: 'dmg',
       attacker: attacker ? attacker.id : null,

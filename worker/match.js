@@ -60,6 +60,14 @@ export function tickMatch(state, now) {
   return true;
 }
 
+/**
+ * 50ms スナップ／試合タイマーの高速 tick が必要か。
+ * lobby / ended はイベント駆動にして DO を hibernate 可能にする。
+ */
+export function shouldFastTick(state) {
+  return !!(state && state.phase === 'live');
+}
+
 export function matchPublic(state, now) {
   const t = Number(now) || Date.now();
   return {
