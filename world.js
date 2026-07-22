@@ -270,6 +270,9 @@ function buildMaterials() {
     concrete: L({ map: texConcrete() }),
     metalRed: L({ map: texMetal('#7d4033', '#4a241c') }),
     metalBlue: L({ map: texMetal('#33506b', '#1d2f42') }),
+    // 赤チーム服（青と同程度の明度。暖色マップで茶に寄らないようやや彩度高め）
+    suitRed: L({ map: texMetal('#8b4048', '#552428') }),
+    suitRedDark: L({ map: texMetal('#5c2a30', '#35161a') }),
     metalGreen: L({ map: texMetal('#4c5a3e', '#2c3624') }),
     metalGrey: L({ map: texMetal('#6e6e66', '#41413c') }),
     wood: L({ map: texWood() }),

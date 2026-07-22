@@ -506,19 +506,26 @@ const Online = (() => {
     if (!game.online || !data) return;
     applyScore(data.score);
     const selfId = Net.getState().selfId;
+    const hs = data.part === 'head';
 
     if (data.attacker === selfId) {
       game.hits++;
       if (typeof AudioSys !== 'undefined') {
         AudioSys.hitmark(!!data.kill);
-        if (data.part === 'head') AudioSys.headshot();
+        if (hs) AudioSys.headshot();
       }
       if (typeof showHitmarker === 'function') showHitmarker(!!data.kill);
       if (data.kill) {
         game.kills++;
         if (data.weapon === 'grenade') game.grenadeKills = (game.grenadeKills || 0) + 1;
-        addKillfeed(data.weapon === 'grenade' ? 'グレネード撃破' : '撃破', true);
+        if (typeof showKillToast === 'function') showKillToast();
       }
+    }
+
+    if (data.kill && typeof addKillfeedMatch === 'function') {
+      const atk = resolveActor(data.attacker);
+      const vic = resolveActor(data.victim);
+      addKillfeedMatch(atk.name, atk.team, vic.name, vic.team, hs);
     }
 
     if (data.victim === selfId) {
@@ -567,6 +574,22 @@ const Online = (() => {
       }
     }
     rebuildOnlineHits();
+  }
+
+  function resolveActor(id) {
+    const selfId = typeof Net !== 'undefined' ? Net.getState().selfId : null;
+    if (id && id === selfId) {
+      const me = roster.find(p => p.id === selfId);
+      const nm = (me && me.name) || (typeof localStorage !== 'undefined' && localStorage.getItem('kgfps_player_name')) || 'YOU';
+      return { name: nm, team: myTeam === 'blue' ? 'blue' : 'red' };
+    }
+    const p = roster.find(x => x.id === id);
+    if (p) return { name: p.name || p.id, team: p.team === 'blue' ? 'blue' : 'red' };
+    const bot = hostBots.get(id);
+    if (bot) return { name: bot.netName || id, team: bot.team === 'blue' ? 'blue' : 'red' };
+    const r = remotes.get(id);
+    if (r) return { name: id, team: r.team === 'blue' ? 'blue' : 'red' };
+    return { name: id || '?', team: 'red' };
   }
 
   function applyServerDamage(data) {

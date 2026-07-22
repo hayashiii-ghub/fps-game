@@ -112,14 +112,49 @@ function showHitmarker(kill) {
   if (kill) el.classList.add('kill');
   el.classList.add('show');
 }
-function addKillfeed(text, hs) {
+function addKillfeed(text, hs, team) {
   const kf = $('killfeed');
+  if (!kf) return;
   const div = document.createElement('div');
-  div.className = 'kf' + (hs ? ' hs' : '');
+  let cls = 'kf';
+  if (team === 'blue' || team === 'red') cls += ` ${team}`;
+  if (hs) cls += ' hs';
+  div.className = cls;
   div.textContent = text;
   kf.appendChild(div);
   while (kf.children.length > 5) kf.removeChild(kf.firstChild);
   setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 4200);
+}
+/** オンライン用: 攻撃者→被害者をチーム色付きで表示 */
+function addKillfeedMatch(atkName, atkTeam, vicName, vicTeam, hs) {
+  const kf = $('killfeed');
+  if (!kf) return;
+  const esc = (s) => String(s || '?')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const at = atkTeam === 'blue' ? 'blue' : 'red';
+  const vt = vicTeam === 'blue' ? 'blue' : 'red';
+  const div = document.createElement('div');
+  div.className = 'kf' + (hs ? ' hs' : '');
+  div.innerHTML =
+    `<span class="kn ${at}">${esc(atkName)}</span>` +
+    `<span class="ksep">▸</span>` +
+    `<span class="kn ${vt}">${esc(vicName)}</span>`;
+  kf.appendChild(div);
+  while (kf.children.length > 5) kf.removeChild(kf.firstChild);
+  setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 4200);
+}
+function showKillToast() {
+  const el = $('killtoast');
+  if (!el) return;
+  el.textContent = `KILL ${game.kills}`;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+function ensurePointerLock() {
+  if (game.noLock || game.state !== 'playing') return;
+  if (document.pointerLockElement) return;
+  try { document.body.requestPointerLock(); } catch (_) { /* gesture 待ち */ }
 }
 function spawnFloater(text, hs) {
   const div = document.createElement('div');
@@ -313,7 +348,7 @@ function onPlayerKilled(fromPos) {
     game.tdm.redKills++;
     updateTdmHUD();
   }
-  addKillfeed('あなたが撃破された', false);
+  if (!game.online) addKillfeed('あなたが撃破された', false, 'blue');
   game.tdm.waitingRespawn = true;
   game.tdm.respawnT = TDM_RESPAWN_SEC;
   game.deathCamT = 0;
@@ -360,6 +395,7 @@ function respawnPlayer() {
   player.spawnProtT = 2;
   spawnFloater('再出撃', false);
   if (game.online && typeof Online !== 'undefined') Online.notifyRespawn();
+  ensurePointerLock();
 }
 
 function endTdmMatch() {

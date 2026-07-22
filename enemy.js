@@ -33,11 +33,11 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
   if (team === 'blue') {
     bodyMat = MAT.metalBlue; darkMat = MAT.metalGrey;
   } else if (kind === 'elite') {
-    bodyMat = MAT.burnt; darkMat = MAT.darkMetal;
+    bodyMat = MAT.suitRedDark; darkMat = MAT.darkMetal;
   } else if (kind === 'rusher') {
-    bodyMat = MAT.camoDark; darkMat = MAT.camo;
+    bodyMat = MAT.suitRedDark; darkMat = MAT.suitRed;
   } else {
-    bodyMat = MAT.camo; darkMat = MAT.camoDark;
+    bodyMat = MAT.suitRed; darkMat = MAT.suitRedDark;
   }
 
   // 脚
@@ -793,14 +793,15 @@ class Enemy {
         recordPlayerKill();
         const pts = headshot ? 150 : 100;
         game.score += pts;
-        addKillfeed(headshot ? `ヘッドショット ＋${pts}` : `敵排除 ＋${pts}`, headshot);
+        addKillfeed(headshot ? `ヘッドショット ＋${pts}` : `敵排除 ＋${pts}`, headshot, 'red');
+        if (typeof showKillToast === 'function') showKillToast();
         spawnFloater(headshot ? `HEADSHOT +${pts}` : `+${pts}`, headshot);
         updateScoreHUD();
       } else {
         const label = this.team === 'red'
           ? (headshot ? '味方撃破 (HS)' : '味方撃破')
           : (headshot ? '味方戦死 (HS)' : '味方戦死');
-        addKillfeed(label, headshot);
+        addKillfeed(label, headshot, this.team === 'red' ? 'red' : 'blue');
       }
       updateTdmHUD();
       // TDM: 撃破ドロップは常に弾/キット/グレ
@@ -822,7 +823,8 @@ class Enemy {
       : this.kind === 'rusher' ? '突撃兵'
       : '敵兵';
     const label = headshot ? `${name}ヘッド ＋${pts}` : `${name}排除 ＋${pts}`;
-    addKillfeed(label, headshot);
+    addKillfeed(label, headshot, 'red');
+    if (typeof showKillToast === 'function') showKillToast();
     spawnFloater(headshot ? `HEADSHOT +${pts}` : `+${pts}`, headshot);
     updateScoreHUD();
     rebuildHitMeshes();

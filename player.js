@@ -982,7 +982,9 @@ function updatePlayer(dt) {
   player.targetEyeH = player.crouching ? 1.06 : 1.62;
   player.eyeH = lerp(player.eyeH, player.targetEyeH, 1 - Math.exp(-12 * dt));
 
-  let speed = player.crouching ? 2.4 : (player.sprinting ? 7.2 : 4.6);
+  // 空中はスプリント速度を出さない（ホッピング移動のナーフ）
+  const canSprint = player.sprinting && player.onGround;
+  let speed = player.crouching ? 2.4 : (canSprint ? 7.2 : 4.6);
   // 武器ごとの移動差（グレ構えはアサルト基準）。切替直後は滑らかに追従
   const wantMoveMul = player.nadeAim
     ? WEAPON_DEFS.assault.moveMul
@@ -1179,6 +1181,8 @@ function initInput() {
   document.addEventListener('keyup', e => { input.keys[e.code] = false; });
   document.addEventListener('mousedown', e => {
     if (game.state !== 'playing') return;
+    // ESC 後やリスポーン待ちでロックが外れたとき、クリックで復帰
+    if (!game.noLock && !document.pointerLockElement) ensurePointerLock();
     if (e.button === 0) {
       if (player.nadeAim) {
         throwGrenade();
