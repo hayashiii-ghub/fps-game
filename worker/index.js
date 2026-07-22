@@ -682,6 +682,8 @@ export class Room extends DurableObject {
     await this.ensureAlarm(); // live の 50ms ループ開始
     return { ok: true };
   }
+
+  emitDmg(attacker, victim, part, weapon, applied, extra) {
     this.broadcastAll({
       t: 'dmg',
       attacker: attacker ? attacker.id : null,
