@@ -317,9 +317,10 @@ function pushYawObb(cx, cy, cz, hx, hy, hz, yaw) {
   if (![cx, cy, cz, hx, hy, hz].every(Number.isFinite)) return;
   if (hx < 1e-4 && hz < 1e-4) return;
   const y = yaw || 0;
+  // sin を反転: resolveCollision の local 変換を Three.js Y 回転（x'=c x+s z, z'=-s x+c z）に合わせる
   colliders.push({
     cx, cy, cz, hx, hy, hz,
-    cos: Math.cos(y), sin: Math.sin(y),
+    cos: Math.cos(y), sin: -Math.sin(y),
   });
 }
 
@@ -889,7 +890,7 @@ function bigRock(x, z, s, rotY) {
   return m;
 }
 
-/* 遺跡の壁・柱 */
+/* 遺跡の壁・柱 — 他の box 壁と同じ葉メッシュ自動登録 */
 function ruinsWall(x, z, w, h, rotY) {
   return box(w, h, 0.55, MAT.stone, x, h / 2, z, rotY);
 }
@@ -899,19 +900,31 @@ function pillar(x, z, h) {
   return addObstacle(m);
 }
 
-/* 岩窟 — 壁2枚＋天井の簡易グロット（天井は頭上なので移動は素通し） */
+/* 岩窟 — building() 型: 壁2枚は明示 OBB、天井は頭上なので markDecor（移動素通し） */
 function grotto(x, z, rotY) {
+  const yaw = rotY || 0;
   const g = new THREE.Group();
   const wallL = new THREE.Mesh(new THREE.BoxGeometry(7.4, 3.6, 1.2), MAT.mossRock);
   wallL.position.set(0, 1.8, -2.9);
   const wallR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.4, 5.6), MAT.mossRock);
   wallR.position.set(-3.4, 1.7, 0);
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.9, 7.0), MAT.mossRock);
+  const roof = markDecor(new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.9, 7.0), MAT.mossRock));
   roof.position.set(0, 3.45, -0.4);
   g.add(wallL); g.add(wallR); g.add(roof);
   g.position.set(x, 0, z);
-  g.rotation.y = rotY || 0;
-  return addObstacle(g);
+  g.rotation.y = yaw;
+  addObstacle(g, false);
+  // ローカルオフセットを yaw でワールドへ（Three.js Y 回転と同式）
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const toWorld = (lx, lz) => ({
+    wx: x + lx * cos + lz * sin,
+    wz: z - lx * sin + lz * cos,
+  });
+  const wL = toWorld(0, -2.9);
+  pushYawObb(wL.wx, 1.8, wL.wz, 3.7, 1.8, 0.6, yaw);
+  const wR = toWorld(-3.4, 0);
+  pushYawObb(wR.wx, 1.7, wR.wz, 0.6, 1.7, 2.8, yaw);
+  return g;
 }
 
 /* 南沖の海（境界の外。見た目だけ） */
@@ -967,7 +980,8 @@ function buildJungleMap() {
   temple.add(tDoor);
   temple.position.set(6, 0, -8);
   addObstacle(temple, false);
-  pushYawObb(6, 1.7, -8, 3.5, 1.7, 2.6, 0);
+  // 屋根外形まで固体（本体だけの OBB だと軒下をすり抜けて見た目と食い違う）
+  pushYawObb(6, 2.0, -8, 4.0, 2.0, 3.1, 0);
 
   ruinsWall(-7, 2, 6, 1.7, 0.12);   keep(-7, 2, 4.5);
   ruinsWall(7, 4, 5, 1.4, -0.35);   keep(7, 4, 4);

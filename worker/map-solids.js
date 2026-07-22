@@ -11,10 +11,11 @@ function snapYaw(yaw) {
 
 function solid(cx, cy, cz, hx, hy, hz, yaw = 0) {
   const y = yaw || 0;
+  // sin 反転で Three.js Y 回転と world.js pushYawObb / resolveCollision に揃える
   return {
     cx, cy, cz, hx, hy, hz,
     cos: Math.cos(y),
-    sin: Math.sin(y),
+    sin: -Math.sin(y),
   };
 }
 
@@ -34,6 +35,22 @@ function bigRock(x, z, s, rotY) {
 
 function ruinsWall(x, z, w, h, rotY) {
   return solid(x, h / 2, z, w / 2, h / 2, 0.55 / 2, rotY || 0);
+}
+
+/** world.js grotto — 壁2枚のみ（天井は decor） */
+function grotto(x, z, rotY) {
+  const yaw = rotY || 0;
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const toWorld = (lx, lz) => ({
+    cx: x + lx * cos + lz * sin,
+    cz: z - lx * sin + lz * cos,
+  });
+  const wL = toWorld(0, -2.9);
+  const wR = toWorld(-3.4, 0);
+  return [
+    solid(wL.cx, 1.8, wL.cz, 3.7, 1.8, 0.6, yaw),
+    solid(wR.cx, 1.7, wR.cz, 0.6, 1.7, 2.8, yaw),
+  ];
 }
 
 function berm(x, z, w, d) {
@@ -124,8 +141,8 @@ const DESERT = [
 ];
 
 const JUNGLE = [
-  // temple hub — world.js pushYawObb(6, 1.7, -8, 3.5, 1.7, 2.6, 0)
-  solid(6, 1.7, -8, 3.5, 1.7, 2.6, 0),
+  // temple hub — 屋根外形まで（world.js pushYawObb(6, 2.0, -8, 4.0, 2.0, 3.1, 0)）
+  solid(6, 2.0, -8, 4.0, 2.0, 3.1, 0),
   ruinsWall(-7, 2, 6, 1.7, 0.12),
   ruinsWall(7, 4, 5, 1.4, -0.35),
   ruinsWall(-2, 8, 4.4, 1.25, 0.5),
@@ -153,9 +170,8 @@ const JUNGLE = [
   container(2.8, -44, 0.06),
   container(-6.8, -43.9, 0.02, 2.6),
   container(-7, -37.5, 1.58),
-  // grotto walls (approx local → world at 32,42 yaw ~0.4) — simplified cover boxes
-  solid(32, 1.8, 39.1, 3.7, 1.8, 0.6, 0.4),
-  solid(28.6, 1.7, 42, 0.6, 1.7, 2.8, 0.4),
+  // grotto(30, 40, 0.5) — 壁2枚（天井なし）
+  ...grotto(30, 40, 0.5),
   berm(0, -58, 120, 4),
   berm(0, 58, 120, 4),
   berm(-58, 0, 4, 120),

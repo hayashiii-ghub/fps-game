@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { validateHit, markFired } from '../worker/combat.js';
-import { lineOfSightClear, segmentHitsSolid } from '../worker/map-solids.js';
+import { lineOfSightClear, segmentHitsSolid, solidsForMap } from '../worker/map-solids.js';
 
 // 中央遺跡 temple (6,1.7,-8) を東西に挟む線は遮断
 assert.equal(
@@ -24,6 +24,15 @@ const wall = {
 };
 assert.equal(segmentHitsSolid(-5, 1, 0, 5, 1, 0, wall), true);
 assert.equal(segmentHitsSolid(-5, 1, 5, 5, 1, 5, wall), false);
+
+// map-solids の yaw 符号が Three.js 揃え（sin = -sin(yaw)）であること
+{
+  const grottoWall = solidsForMap('jungle').find(o =>
+    Math.abs(o.cx - 28.61) < 0.05 && Math.abs(o.cz - 37.455) < 0.05);
+  assert.ok(grottoWall, 'grotto wallL solid exists');
+  assert.ok(Math.abs(grottoWall.cos - Math.cos(0.5)) < 1e-6);
+  assert.ok(Math.abs(grottoWall.sin - (-Math.sin(0.5))) < 1e-6, 'sin = -sin(yaw)');
+}
 
 const atk = {
   alive: true, hp: 100, team: 'blue', crouch: false,
