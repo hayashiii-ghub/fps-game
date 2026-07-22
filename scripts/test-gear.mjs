@@ -9,8 +9,10 @@ import {
   applyHeal,
   pickDeathDrop,
   tryGrantLoot,
-  WEAPONS,
+  buildSessionAttachment,
+  sanitizeLoadout,
 } from '../worker/gear.js';
+import { sanitizeWeapon } from '../worker/pose.js';
 
 assert.equal(grenadeDmgAt(0), 38);
 assert.ok(grenadeDmgAt(5) < 38);
@@ -54,6 +56,22 @@ assert.equal(tryGrantLoot(inv, 'nade').ok, true);
 assert.equal(inv.grenades, 1);
 assert.equal(tryGrantLoot(inv, 'armor').ok, true);
 assert.equal(inv.armor, true);
-assert.ok(WEAPONS.has('smg'));
+assert.equal(sanitizeWeapon('smg'), 'smg');
+
+const lo = sanitizeLoadout('shotgun', 'sniper');
+const att = buildSessionAttachment({
+  id: 'p1', room: 'ABC', team: 'blue', token: 'tok12345678',
+  role: 'active', name: 'P1', joinedAt: 1,
+  hp: 42, alive: false, grenades: 1, medkits: 0, armor: true,
+  weapon: 'shotgun', main: lo.main, sub: lo.sub, owned: lo.owned,
+  spawnProtUntil: 9, lastRespawnAt: 3,
+});
+assert.equal(att.hp, 42);
+assert.equal(att.alive, false);
+assert.equal(att.main, 'shotgun');
+assert.equal(att.sub, 'sniper');
+assert.equal(att.owned.shotgun, true);
+assert.equal(att.owned.sniper, true);
+assert.equal(att.owned.assault, false);
 
 console.log('ok gear');

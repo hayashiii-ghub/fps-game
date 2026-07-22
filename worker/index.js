@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { normalizeRoomCode, isValidRoomCode, randomRoomCode } from './room-code.js';
 import { sanitizePose } from './pose.js';
-import { validateHit, applyDamage, markFired } from './combat.js';
+import { validateHit, applyDamage, markFired, canRespawn, applyRespawn } from './combat.js';
 import {
   defaultLoadout,
   validateNadeThrow,
@@ -18,6 +18,7 @@ import {
   tryGrantLoot,
   sanitizeLoadout,
   ownsWeapon,
+  buildSessionAttachment,
 } from './gear.js';
 import {
   createMatchState,
@@ -348,6 +349,21 @@ export class Room extends DurableObject {
       && session.alive;
   }
 
+  /** hibernation 復帰用に WS attachment を最新化（人間セッションのみ） */
+  touchAttachment(session) {
+    if (!session || session.bot) return;
+    const ws = this.wsForSession(session);
+    if (!ws) return;
+    try { ws.serializeAttachment(buildSessionAttachment(session)); } catch (_) { /* ignore */ }
+  }
+
+  wsForSession(session) {
+    for (const [ws, s] of this.sessions) {
+      if (s === session) return ws;
+    }
+    return null;
+  }
+
   async fetch(request) {
     await this.hydrate();
     const url = new URL(request.url);
@@ -415,21 +431,7 @@ export class Room extends DurableObject {
       };
     }
 
-    server.serializeAttachment({
-      id: session.id,
-      room: code,
-      team: session.team,
-      token: session.token,
-      role: session.role,
-      name: session.name,
-      joinedAt: session.joinedAt,
-      hp: session.hp,
-      alive: session.alive,
-      grenades: session.grenades,
-      medkits: session.medkits,
-      armor: session.armor,
-      weapon: session.weapon,
-    });
+    server.serializeAttachment(buildSessionAttachment(session));
     this.sessions.set(server, session);
 
     // welcome は握手完了後に送る
@@ -637,6 +639,7 @@ export class Room extends DurableObject {
       s.spawnProtUntil = now + 2000;
       s.lastFireAt = 0;
       s.shotgunPellets = 0;
+      s.lastRespawnAt = 0;
     }
     for (const r of Object.values(this.reservations)) {
       if (!r) continue;
@@ -653,6 +656,7 @@ export class Room extends DurableObject {
       r.alive = true;
       r.role = 'active';
       r.spawnProtUntil = now + 2000;
+      r.lastRespawnAt = 0;
     }
 
     const pub = matchPublic(this.match, now);
@@ -668,6 +672,7 @@ export class Room extends DurableObject {
       duration: MATCH_SEC,
     });
     for (const [ws, s] of this.sessions) {
+      this.touchAttachment(s);
       try {
         ws.send(JSON.stringify({ t: 'inv', id: s.id, ...this.invPayload(s) }));
         ws.send(JSON.stringify({
@@ -709,6 +714,7 @@ export class Room extends DurableObject {
       this.spawnDeathDrop(victim);
     }
     this.emitDmg(attacker, victim, part, weapon, applied, extra);
+    this.touchAttachment(victim);
   }
 
   handleHit(attacker, msg) {
@@ -738,6 +744,7 @@ export class Room extends DurableObject {
     session.grenades = result.grenades;
     session.pendingNade = true;
     session.lastNadeAt = now;
+    this.touchAttachment(session);
     const body = sanitizeNadeThrow(msg);
     this.broadcast(exceptWs, {
       t: 'nade_throw',
@@ -784,9 +791,7 @@ export class Room extends DurableObject {
   }
 
   handleHealStart(session, ws) {
-    if (!this.isCombatant(session) && !(session && session.role === 'active' && this.match.phase === 'live')) {
-      return;
-    }
+    if (!this.isCombatant(session)) return;
     const now = Date.now();
     if (!checkMsgRate(session, now, 'heal', 200).ok) return;
     const result = beginHeal(session, now);
@@ -799,13 +804,14 @@ export class Room extends DurableObject {
   }
 
   handleHeal(session, ws) {
-    if (!this.isCombatant(session) && !(session && session.role === 'active' && this.match.phase === 'live')) return;
+    if (!this.isCombatant(session)) return;
     const now = Date.now();
     if (!checkMsgRate(session, now, 'heal_done', 200).ok) return;
     const result = applyHeal(session, now);
     if (!result.ok) return;
     session.hp = result.hp;
     session.medkits = result.medkits;
+    this.touchAttachment(session);
     const payload = {
       t: 'healed',
       id: session.id,
@@ -826,6 +832,7 @@ export class Room extends DurableObject {
     session.sub = lo.sub;
     session.owned = lo.owned;
     session.weapon = lo.weapon;
+    this.touchAttachment(session);
     try {
       ws.send(JSON.stringify({
         t: 'loadout_lock',
@@ -852,6 +859,7 @@ export class Room extends DurableObject {
     }
     this.loots.delete(id);
     this.broadcastAll({ t: 'loot_gone', lootId: id });
+    this.touchAttachment(session);
     try {
       ws.send(JSON.stringify({
         t: 'loot_grant',
@@ -864,12 +872,12 @@ export class Room extends DurableObject {
   }
 
   handleRespawn(session) {
-    if (session.role === 'waiting' || this.match.phase !== 'live') return;
-    session.hp = 100;
-    session.alive = true;
-    session.spawnProtUntil = Date.now() + 2000;
-    session.pendingNade = false;
+    const now = Date.now();
+    if (!canRespawn(session, this.match.phase, now).ok) return;
+    if (!checkMsgRate(session, now, 'respawn', 200).ok) return;
+    applyRespawn(session, now);
     cancelHealChannel(session);
+    this.touchAttachment(session);
     this.broadcastAll({
       t: 'respawn',
       id: session.id,
@@ -896,6 +904,7 @@ export class Room extends DurableObject {
       owned: session.owned || sanitizeLoadout(session.main, session.sub).owned,
       joinedAt: session.joinedAt,
       spawnProtUntil: session.spawnProtUntil || 0,
+      lastRespawnAt: session.lastRespawnAt || 0,
       reservedAt: Date.now(),
     };
   }
@@ -961,9 +970,11 @@ export class Room extends DurableObject {
     }
 
     if (msg.t === 'name') {
+      if (!checkMsgRate(session, Date.now(), 'name', 300).ok) return;
       const n = String(msg.name || '').replace(/[<>&"']/g, '').trim().slice(0, 12);
       if (n && n !== session.name) {
         session.name = n;
+        this.touchAttachment(session);
         this.broadcastRoster();
       }
       return;
@@ -1010,17 +1021,8 @@ export class Room extends DurableObject {
       this.ensureHost();
       if (session.id !== this.hostId) return;
       const attacker = this.bots.get(String(msg.botId || ''));
-      if (!attacker || this.match.phase !== 'live' || !attacker.alive) return;
-      const targetId = String(msg.targetId || '');
-      const found = this.findById(targetId);
-      const victim = found ? found.s : this.bots.get(targetId);
-      if (!victim || victim.role === 'waiting') return;
-      const now = Date.now();
-      const weapon = String(msg.weapon || 'assault');
-      const result = validateHit({ attacker, victim, part: msg.part, weapon, now });
-      if (!result.ok) return;
-      markFired(attacker, weapon, now, result);
-      this.applyHitResult(attacker, victim, result.part, weapon, result.dmg);
+      if (!attacker) return;
+      this.handleHit(attacker, msg);
       return;
     }
 
@@ -1028,10 +1030,10 @@ export class Room extends DurableObject {
       this.ensureHost();
       if (session.id !== this.hostId) return;
       const b = this.bots.get(String(msg.id || ''));
-      if (!b || this.match.phase !== 'live') return;
-      b.hp = 100;
-      b.alive = true;
-      b.spawnProtUntil = Date.now() + 2000;
+      if (!b) return;
+      const now = Date.now();
+      if (!canRespawn(b, this.match.phase, now).ok) return;
+      applyRespawn(b, now);
       this.broadcastAll({ t: 'respawn', id: b.id, team: b.team });
       return;
     }
@@ -1111,31 +1113,24 @@ export class Room extends DurableObject {
   }
 
   async webSocketClose(ws, code, reason) {
-    await this.hydrate();
-    const session = this.sessions.get(ws);
-    this.sessions.delete(ws);
-    if (session) {
-      this.reserveSession(session);
-      if (session.role !== 'waiting') {
-        this.broadcast(null, { t: 'peer', op: 'leave', id: session.id });
-      }
-      this.broadcastRoster();
-      await this.persist(true);
-    }
+    await this.onSocketGone(ws);
     try { ws.close(code, reason); } catch (_) { /* ignore */ }
   }
 
   async webSocketError(ws) {
+    await this.onSocketGone(ws);
+  }
+
+  async onSocketGone(ws) {
     await this.hydrate();
     const session = this.sessions.get(ws);
     this.sessions.delete(ws);
-    if (session) {
-      this.reserveSession(session);
-      if (session.role !== 'waiting') {
-        this.broadcast(null, { t: 'peer', op: 'leave', id: session.id });
-      }
-      this.broadcastRoster();
-      await this.persist(true);
+    if (!session) return;
+    this.reserveSession(session);
+    if (session.role !== 'waiting') {
+      this.broadcast(null, { t: 'peer', op: 'leave', id: session.id });
     }
+    this.broadcastRoster();
+    await this.persist(true);
   }
 }

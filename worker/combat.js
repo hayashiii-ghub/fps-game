@@ -148,4 +148,32 @@ export function applyDamage(victim, dmg) {
   return { hp, kill, dmg: scaled };
 }
 
-export { clamp };
+/** 人間リスポーンの最短間隔（連打全快を防ぐ） */
+export const RESPAWN_MIN_MS = 1500;
+export const SPAWN_PROT_MS = 2000;
+
+/**
+ * 死亡済み・live 中のみ許可。生存中の t:'respawn' 連打による全快を拒む。
+ * @returns {{ ok:true } | { ok:false, reason:string }}
+ */
+export function canRespawn(session, phase, now = Date.now(), minMs = RESPAWN_MIN_MS) {
+  if (!session) return { ok: false, reason: 'session' };
+  if (session.role === 'waiting') return { ok: false, reason: 'waiting' };
+  if (phase !== 'live') return { ok: false, reason: 'phase' };
+  if (session.alive !== false) return { ok: false, reason: 'alive' };
+  const last = Number(session.lastRespawnAt) || 0;
+  const t = Number(now) || 0;
+  if (last && t - last < minMs) return { ok: false, reason: 'cooldown' };
+  return { ok: true };
+}
+
+/** 全快＋スポーン無敵。canRespawn 通過後に呼ぶ。 */
+export function applyRespawn(session, now = Date.now(), protMs = SPAWN_PROT_MS) {
+  const t = Number(now) || Date.now();
+  session.hp = 100;
+  session.alive = true;
+  session.spawnProtUntil = t + protMs;
+  session.lastRespawnAt = t;
+  session.pendingNade = false;
+  return { hp: session.hp, spawnProtUntil: session.spawnProtUntil };
+}

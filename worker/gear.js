@@ -4,7 +4,6 @@
 import { clamp, sanitizeWeapon } from './pose.js';
 
 export { sanitizeWeapon };
-export const WEAPONS = new Set(['assault', 'smg', 'shotgun', 'pistol', 'sniper']);
 
 /** プレイヤー被弾半径（クライアント explodeGrenade と揃える） */
 export const NADE_PLAYER_R = 9.6;
@@ -178,6 +177,35 @@ export function defaultLoadout() {
     pendingNade: false,
     lastNadeAt: 0,
     healStartedAt: 0,
+    lastRespawnAt: 0,
+  };
+}
+
+/**
+ * hibernation 復帰用の WS attachment。戦闘状態（hp/owned 等）を含める。
+ */
+export function buildSessionAttachment(session) {
+  if (!session) return null;
+  const lo = sanitizeLoadout(session.main, session.sub);
+  return {
+    id: session.id,
+    room: session.room,
+    team: session.team,
+    token: session.token || '',
+    role: session.role || 'active',
+    name: session.name,
+    joinedAt: session.joinedAt,
+    hp: Number.isFinite(session.hp) ? session.hp : 100,
+    alive: session.alive !== false,
+    grenades: session.grenades,
+    medkits: session.medkits,
+    armor: !!session.armor,
+    weapon: session.weapon || lo.weapon,
+    main: session.main || lo.main,
+    sub: session.sub || lo.sub,
+    owned: session.owned || lo.owned,
+    spawnProtUntil: session.spawnProtUntil || 0,
+    lastRespawnAt: session.lastRespawnAt || 0,
   };
 }
 
