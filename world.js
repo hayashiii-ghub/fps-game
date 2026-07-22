@@ -867,13 +867,21 @@ function grassTuft(x, z, s = 1) {
   return g;
 }
 
-/* 倒木 — 低い遮蔽 */
+/* 倒木 — 低い遮蔽（長軸明示 OBB。tilt AABB に落とさない） */
 function fallenLog(x, z, rotY) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, rand(3.4, 4.6), 8), MAT.bark);
-  m.rotation.z = Math.PI / 2;
-  m.rotation.y = rotY || 0;
-  m.position.set(x, 0.32, z);
-  return addObstacle(m); // 横倒し → ワールド AABB 相当の 1 OBB
+  const len = 4.0;
+  const r = 0.33;
+  const yaw = rotY || 0;
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, len, 8), MAT.bark);
+  m.rotation.z = Math.PI / 2; // 長軸 → 親ローカル X
+  m.position.y = r;
+  g.add(m);
+  g.position.set(x, 0, z);
+  g.rotation.y = yaw;
+  addObstacle(g, false);
+  pushYawObb(x, r, z, len * 0.5, r, r, yaw);
+  return g;
 }
 
 /* 大岩（苔むした岩盤）— 見た目一致の明示 OBB（Dodeca 自動 AABB は外側に膨らむ） */

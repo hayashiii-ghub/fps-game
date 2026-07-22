@@ -34,6 +34,26 @@ assert.equal(segmentHitsSolid(-5, 1, 5, 5, 1, 5, wall), false);
   assert.ok(Math.abs(grottoWall.sin - (-Math.sin(0.5))) < 1e-6, 'sin = -sin(yaw)');
 }
 
+// berm は world.js addBerms と同寸（|z|=62, 半幅 64）
+{
+  const south = solidsForMap('jungle').find(o => o.cx === 0 && o.cz === -62);
+  assert.ok(south, 'south berm');
+  assert.equal(south.hx, 64);
+  assert.equal(south.hz, 3);
+}
+
+// 土嚢・倒木が LoS に載っている（欠落していたカバー）
+assert.equal(
+  lineOfSightClear('desert', 0, 0.5, -9, 0, 0.5, -3),
+  false,
+  'desert sandbags block',
+);
+assert.equal(
+  lineOfSightClear('jungle', 10, 0.4, 22, 10, 0.4, 30),
+  false,
+  'jungle fallenLog blocks',
+);
+
 const atk = {
   alive: true, hp: 100, team: 'blue', crouch: false,
   pose: { x: -5, y: 0, z: -8 }, lastFireAt: 0,
