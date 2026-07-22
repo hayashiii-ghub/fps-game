@@ -18,6 +18,7 @@ const Online = (() => {
   let roster = [];
   let botAcc = 0;
 
+  /** 試合ネット購読（ロビー UI は main.initOnlineLobby の Net.on） */
   function ensureHook() {
     if (unsub || typeof Net === 'undefined') return;
     unsub = Net.on((ev, data) => {

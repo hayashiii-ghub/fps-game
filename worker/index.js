@@ -371,7 +371,6 @@ export class Room extends DurableObject {
       return Response.json({ ok: true, phase: this.match.phase });
     }
     const code = normalizeRoomCode(url.searchParams.get('room'));
-    const tokenIn = sanitizeToken(url.searchParams.get('token'));
 
     const pair = new WebSocketPair();
     const client = pair[0];
@@ -381,63 +380,70 @@ export class Room extends DurableObject {
 
     const now = Date.now();
     pruneReservations(this.reservations, now);
-    const resumed = resumeByToken(this.reservations, tokenIn);
-    let session;
-
-    if (resumed.ok) {
-      const prev = resumed.player;
-      delete this.reservations[tokenIn];
-      session = {
-        ...defaultLoadout(),
-        ...prev,
-        id: prev.id,
-        room: code,
-        team: prev.team || this.pickTeam(),
-        token: tokenIn,
-        role: 'active',
-        name: prev.name || `P-${String(prev.id).slice(0, 4).toUpperCase()}`,
-        joinedAt: prev.joinedAt || now,
-        pose: null,
-        lastFireAt: 0,
-        spawnProtUntil: Math.max(prev.spawnProtUntil || 0, now + 1500),
-      };
-      // 予約から戻した所持を上書きされないよう default の後に再適用
-      session.hp = Number.isFinite(prev.hp) ? prev.hp : 100;
-      session.alive = prev.alive !== false && session.hp > 0;
-      session.grenades = Number.isFinite(prev.grenades) ? prev.grenades : session.grenades;
-      session.medkits = Number.isFinite(prev.medkits) ? prev.medkits : session.medkits;
-      session.armor = !!prev.armor;
-      session.weapon = prev.weapon || 'assault';
-    } else {
-      const join = resolveJoin(this.match, null);
-      const id = crypto.randomUUID().slice(0, 8);
-      const team = this.pickTeam();
-      const token = this.newToken();
-      const load = defaultLoadout();
-      session = {
-        id,
-        room: code,
-        team,
-        token,
-        role: join.role,
-        name: `P-${id.slice(0, 4).toUpperCase()}`,
-        joinedAt: now,
-        pose: null,
-        hp: 100,
-        alive: true,
-        spawnProtUntil: 0,
-        lastFireAt: 0,
-        ...load,
-      };
-    }
+    // identity は hello(token) で確定。クエリに token を載せない。
+    const join = resolveJoin(this.match, null);
+    const id = crypto.randomUUID().slice(0, 8);
+    const team = this.pickTeam();
+    const token = this.newToken();
+    const load = defaultLoadout();
+    const session = {
+      id,
+      room: code,
+      team,
+      token,
+      role: join.role,
+      name: `P-${id.slice(0, 4).toUpperCase()}`,
+      joinedAt: now,
+      pose: null,
+      hp: 100,
+      alive: true,
+      spawnProtUntil: 0,
+      lastFireAt: 0,
+      pendingHello: true,
+      ...load,
+    };
 
     server.serializeAttachment(buildSessionAttachment(session));
     this.sessions.set(server, session);
 
-    // welcome は握手完了後に送る
-    this.ctx.waitUntil(this.afterAccept(server, session));
-
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /** hello の token で予約復帰。なければ仮セッションのまま確定。 */
+  bindHelloIdentity(session, tokenRaw) {
+    const tokenIn = sanitizeToken(tokenRaw);
+    if (!tokenIn || !session.pendingHello) return false;
+    const resumed = resumeByToken(this.reservations, tokenIn);
+    if (!resumed.ok) return false;
+    const prev = resumed.player;
+    delete this.reservations[tokenIn];
+    const now = Date.now();
+    Object.assign(session, {
+      ...defaultLoadout(),
+      ...prev,
+      id: prev.id,
+      room: session.room,
+      team: prev.team || session.team,
+      token: tokenIn,
+      role: 'active',
+      name: prev.name || `P-${String(prev.id).slice(0, 4).toUpperCase()}`,
+      joinedAt: prev.joinedAt || now,
+      pose: null,
+      lastFireAt: 0,
+      spawnProtUntil: Math.max(prev.spawnProtUntil || 0, now + 1500),
+      pendingHello: false,
+    });
+    session.hp = Number.isFinite(prev.hp) ? prev.hp : 100;
+    session.alive = prev.alive !== false && session.hp > 0;
+    session.grenades = Number.isFinite(prev.grenades) ? prev.grenades : session.grenades;
+    session.medkits = Number.isFinite(prev.medkits) ? prev.medkits : session.medkits;
+    session.armor = !!prev.armor;
+    session.weapon = prev.weapon || 'assault';
+    session.main = prev.main || session.main;
+    session.sub = prev.sub || session.sub;
+    session.owned = prev.owned || session.owned;
+    session.lastRespawnAt = prev.lastRespawnAt || 0;
+    return true;
   }
 
   async afterAccept(server, session) {
@@ -729,6 +735,7 @@ export class Room extends DurableObject {
     const weapon = String(msg.weapon || 'assault');
     const result = validateHit({
       attacker, victim, part: msg.part, weapon, now,
+      map: this.match.map,
     });
     if (!result.ok) return;
 
@@ -927,9 +934,19 @@ export class Room extends DurableObject {
     if (!msg || typeof msg.t !== 'string') return;
 
     if (msg.t === 'hello') {
-      ws.send(JSON.stringify(this.welcomePayload(session, ws)));
+      if (session.pendingHello) {
+        this.bindHelloIdentity(session, msg.token);
+        session.pendingHello = false;
+        this.touchAttachment(session);
+        this.ctx.waitUntil(this.afterAccept(ws, session));
+      } else {
+        try { ws.send(JSON.stringify(this.welcomePayload(session, ws))); } catch (_) { /* ignore */ }
+      }
       return;
     }
+
+    // hello 完了前は試合メッセージを受けない
+    if (session.pendingHello) return;
 
     if (msg.t === 'ping') {
       const pub = matchPublic(this.match, Date.now());

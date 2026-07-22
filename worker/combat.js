@@ -3,6 +3,7 @@
  */
 import { clamp } from './pose.js';
 import { ownsWeapon } from './gear.js';
+import { lineOfSightClear, poseEyeY } from './map-solids.js';
 
 export const WEAPON_DMG = {
   assault: { head: 70, torso: 34, limb: 24 },
@@ -114,6 +115,7 @@ export function validateHit({
   part,
   weapon,
   now,
+  map,
 }) {
   if (!attacker || !victim) return { ok: false, reason: 'missing' };
   if (!attacker.alive || attacker.hp <= 0) return { ok: false, reason: 'attacker_dead' };
@@ -127,6 +129,18 @@ export function validateHit({
   const hitPart = sanitizePart(part);
   const dist = poseDist(attacker.pose, victim.pose);
   if (!(dist <= MAX_RANGE)) return { ok: false, reason: 'range' };
+
+  if (attacker.pose && victim.pose) {
+    const ay = poseEyeY(attacker.pose, attacker.crouch || attacker.pose.crouch);
+    const by = poseEyeY(victim.pose, victim.crouch || victim.pose.crouch);
+    if (!lineOfSightClear(
+      map,
+      attacker.pose.x, ay, attacker.pose.z,
+      victim.pose.x, by, victim.pose.z,
+    )) {
+      return { ok: false, reason: 'los' };
+    }
+  }
 
   const fire = canFire(attacker, weapon, now);
   if (!fire.ok) return fire;

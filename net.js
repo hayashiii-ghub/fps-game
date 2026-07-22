@@ -72,11 +72,9 @@ const Net = (() => {
     } catch (_) { /* ignore */ }
   }
 
-  function wsUrl(code, token) {
+  function wsUrl(code) {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    let u = `${proto}//${location.host}/api/ws?room=${encodeURIComponent(code)}`;
-    if (token) u += `&token=${encodeURIComponent(token)}`;
-    return u;
+    return `${proto}//${location.host}/api/ws?room=${encodeURIComponent(code)}`;
   }
 
   function stopHeartbeat() {
@@ -162,11 +160,13 @@ const Net = (() => {
       room,
       attempt: reconnectAttempt,
     });
-    const sock = new WebSocket(wsUrl(room, playerToken));
+    const sock = new WebSocket(wsUrl(room));
     ws = sock;
     sock.addEventListener('open', () => {
       if (ws !== sock) return;
       reconnectAttempt = 0;
+      // token はクエリに載せず、握手直後の hello で渡す
+      send({ t: 'hello', token: playerToken || '' });
       startHeartbeat();
       emit('status', { state: 'open', room });
     });

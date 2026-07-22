@@ -242,7 +242,13 @@ function startGame(mode, noLock) {
 
   if (game.mode === 'tdm') {
     setTimeout(() => {
-      if (game.state === 'playing' && game.startGen === startGen && game.mode === startMode) startTdmMatch();
+      if (game.state !== 'playing' || game.startGen !== startGen || game.mode !== startMode) return;
+      // ONLINE の試合ブートは Online、LOCAL AI スポーンは startTdmMatch
+      if (game.online && typeof Online !== 'undefined') {
+        Online.onMatchStart({ resume: !!game._onlineResume });
+      } else {
+        startTdmMatch();
+      }
     }, 800);
   } else {
     setTimeout(() => {
@@ -554,6 +560,7 @@ function renderRoster(host, players) {
 function initOnlineLobby() {
   if (typeof Net === 'undefined') return;
   if (typeof Online !== 'undefined') Online.ensureHook();
+  // ロビー UI 専用。試合オーケストレーション（snap/dmg/match_start 処理）は Online.ensureHook
   Net.on((ev, data) => {
     if (ev === 'status') {
       if (data.state === 'connecting') setOnlineStatus(`接続中… ROOM ${data.room}`);

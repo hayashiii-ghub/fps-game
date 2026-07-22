@@ -875,13 +875,18 @@ function fallenLog(x, z, rotY) {
   return addObstacle(m); // 横倒し → ワールド AABB 相当の 1 OBB
 }
 
-/* 大岩（苔むした岩盤）— 見た目一致の固体カバー */
+/* 大岩（苔むした岩盤）— 見た目一致の明示 OBB（Dodeca 自動 AABB は外側に膨らむ） */
 function bigRock(x, z, s, rotY) {
   const m = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), MAT.mossRock);
   m.scale.y = 0.7;
-  m.position.set(x, s * 0.38, z);
-  m.rotation.y = rotY || 0;
-  return addObstacle(m);
+  const cy = s * 0.38;
+  m.position.set(x, cy, z);
+  const yaw = rotY || 0;
+  m.rotation.y = yaw;
+  addObstacle(m, false);
+  // 塊の見た目に近い直方体（幾何 AABB よりタイト）
+  pushYawObb(x, cy, z, s * 0.72, s * 0.7, s * 0.72, yaw);
+  return m;
 }
 
 /* 遺跡の壁・柱 */
