@@ -39,6 +39,8 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
   } else {
     bodyMat = MAT.suitRed; darkMat = MAT.suitRedDark;
   }
+  // チーム色アクセント（ヘルメット縁・肩・背嚢ストライプ）。胴より明るく遠距離でも読める
+  const accentMat = team === 'blue' ? MAT.accentBlue : MAT.accentRed;
 
   // 脚
   const legL = new THREE.Group(), legR = new THREE.Group();
@@ -47,7 +49,7 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
     thigh.position.y = -0.21;
     const shin = reg(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.14), darkMat), 'limb');
     shin.position.y = -0.62;
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.24), MAT.darkMetal);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), MAT.darkMetal);
     boot.position.set(0, -0.86, 0.04);
     leg.add(thigh); leg.add(shin); leg.add(boot);
     leg.position.set(sx, 0.92, 0);
@@ -69,27 +71,52 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
   belt.position.y = 0.02;
   torso.add(belt);
 
-  // 頭
+  // 肩パッド（暗色ベース＋チーム色トップ）
+  for (const sx of [-1, 1]) {
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.2), darkMat);
+    pad.position.set(sx * 0.28, 0.48, 0.02);
+    torso.add(pad);
+    const padTop = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.035, 0.21), accentMat);
+    padTop.position.set(sx * 0.28, 0.54, 0.02);
+    torso.add(padTop);
+  }
+
+  // 背嚢＋チーム色ストライプ
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.34, 0.14), darkMat);
+  pack.position.set(0, 0.3, -0.2);
+  torso.add(pack);
+  const packStripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.02), accentMat);
+  packStripe.position.set(0, 0.3, -0.28);
+  torso.add(packStripe);
+
+  // 頭（直方体スタックの疑似ボクセル。球は使わない）
   const headG = new THREE.Group();
   headG.position.y = 0.62;
-  const head = reg(new THREE.Mesh(new THREE.SphereGeometry(0.135, 12, 10), MAT.skin), 'head');
-  head.position.y = 0.05;
-  const helmet = reg(new THREE.Mesh(new THREE.SphereGeometry(0.155, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), darkMat), 'head');
-  helmet.position.y = 0.075;
-  const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.04), MAT.glass);
-  goggles.position.set(0, 0.06, 0.12);
-  headG.add(head); headG.add(helmet); headG.add(goggles);
+  const head = reg(new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.22), MAT.skin), 'head');
+  head.position.y = 0.04;
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.16), MAT.skin);
+  jaw.position.set(0, -0.06, 0.02);
+  const helmet = reg(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.3), darkMat), 'head');
+  helmet.position.y = 0.14;
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.04, 0.32), accentMat);
+  rim.position.y = 0.07;
+  const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 0.06), MAT.glass);
+  goggles.position.set(0, 0.05, 0.14);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.04), accentMat);
+  visor.position.set(0, 0.1, 0.15);
+  headG.add(head); headG.add(jaw); headG.add(helmet); headG.add(rim);
+  headG.add(goggles); headG.add(visor);
   torso.add(headG);
 
   // 腕＋ライフル（胴体子）
   const armM = bodyMat;
-  const armL = reg(new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.34, 0.12), armM), 'limb');
-  armL.position.set(-0.24, 0.3, 0.2);
-  armL.rotation.x = -0.55; armL.rotation.z = 0.3;
+  const armL = reg(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.13), armM), 'limb');
+  armL.position.set(-0.26, 0.28, 0.18);
+  armL.rotation.x = -0.55; armL.rotation.z = 0.28;
   torso.add(armL);
-  const armR = reg(new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.34, 0.12), armM), 'limb');
-  armR.position.set(0.25, 0.28, 0.18);
-  armR.rotation.x = -0.5; armR.rotation.z = -0.25;
+  const armR = reg(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.13), armM), 'limb');
+  armR.position.set(0.26, 0.26, 0.16);
+  armR.rotation.x = -0.5; armR.rotation.z = -0.22;
   torso.add(armR);
 
   const rifle = new THREE.Group();
@@ -97,13 +124,11 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
     new THREE.BoxGeometry(0.06, 0.09, isSniper ? 0.95 : 0.72), MAT.gunmetal);
   rifle.add(rBody);
   const rBarrel = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.014, 0.014, isSniper ? 0.55 : 0.28, 6), MAT.darkMetal);
-  rBarrel.rotation.x = Math.PI / 2;
+    new THREE.BoxGeometry(0.028, 0.028, isSniper ? 0.55 : 0.28), MAT.darkMetal);
   rBarrel.position.z = isSniper ? -0.72 : -0.48;
   rifle.add(rBarrel);
   if (isSniper) {
-    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.2, 8), MAT.darkMetal);
-    scope.rotation.x = Math.PI / 2;
+    const scope = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.2), MAT.darkMetal);
     scope.position.set(0, 0.08, -0.1);
     rifle.add(scope);
   }
