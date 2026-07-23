@@ -323,7 +323,7 @@ function resetArsenal() {
   player.nadeAim = false;
   player.moveMul = WEAPON_DEFS[arsenal.activeId].moveMul;
   player.medkits = tdm ? 2 : 0;
-  player.medkitMax = 3;
+  player.medkitMax = tdm ? 3 : 5; // Survival は5、TDM は3
   player.healing = false;
   player.healT = 0;
   player.armor = false;
