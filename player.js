@@ -9,6 +9,7 @@ const player = {
   yaw: 0, pitch: 0,
   hp: 100, alive: true,
   crouching: false, sprinting: false, onGround: true,
+  jumpCd: 0, // 着地後の再ジャンプ抑制（ホッピング移動ナーフ）
   eyeH: 1.62, targetEyeH: 1.62,
   bobPhase: 0, stepSign: 1,
   lastDamage: -99, regenDelay: 6,
@@ -1006,7 +1007,9 @@ function updatePlayer(dt) {
   player.vel.z = lerp(player.vel.z, wz / wl * speed * (mx || mz ? 1 : 0), 1 - Math.exp(-accel * dt));
 
   player.vel.y -= 13.5 * dt;
-  if (k.Space && player.onGround) {
+  if (player.jumpCd > 0) player.jumpCd = Math.max(0, player.jumpCd - dt);
+  // 着地直後は再ジャンプ不可（1回目のジャンプは強くてよい／連続ホッピングだけ抑える）
+  if (k.Space && player.onGround && player.jumpCd <= 0) {
     player.vel.y = 4.6;
     player.onGround = false;
   }
@@ -1024,7 +1027,10 @@ function updatePlayer(dt) {
   }
   player.pos.y += player.vel.y * dt;
   if (player.pos.y <= 0) {
-    if (!player.onGround && player.vel.y < -5) { AudioSys.land(); weapon.kickR += 0.05; }
+    if (!player.onGround) {
+      if (player.vel.y < -5) { AudioSys.land(); weapon.kickR += 0.05; }
+      player.jumpCd = 0.28;
+    }
     player.pos.y = 0; player.vel.y = 0; player.onGround = true;
   }
   resolveCollision(player.pos, player.radius, colH, player.vel);
@@ -1153,7 +1159,8 @@ function updateWeapon(dt) {
     });
     g.visible = t < 0.72;
     if (scopeEl) scopeEl.style.opacity = String(clamp((t - 0.25) / 0.55, 0, 1));
-    chEl.style.opacity = 0;
+    // 腰撃ち時は通常レティクル。ADS／スプリント中のみ消す
+    chEl.style.opacity = (t > 0.05 || player.sprinting) ? 0 : 1;
   } else if (arsenal.activeId === 'pistol' || arsenal.activeId === 'shotgun') {
     // ハンドガン／ショットガンADS＝腰撃ち固定。レティクルは残し、広がりだけ絞る
     g.visible = true;
