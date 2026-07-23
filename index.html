@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -372,7 +372,8 @@
   .menu-overlay > h1,
   .menu-overlay > .menu-status,
   .menu-overlay > .menu-stack,
-  .menu-overlay > .note {
+  .menu-overlay > .note,
+  .menu-overlay > .lang-toggle {
     flex-shrink: 0;
   }
   .menu-overlay > .menu-stack { flex-shrink: 1; }
@@ -445,6 +446,18 @@
     text-shadow: 0 1px 2px rgba(0,0,0,.8);
   }
   .note { margin-top: 20px; font-size: 11px; color: #8b846d; letter-spacing: .15em; }
+  .lang-toggle {
+    display: inline-flex; gap: 0; margin-top: clamp(6px, 1vh, 12px);
+    border: 1px solid rgba(216,192,138,.35);
+  }
+  .lang-btn {
+    padding: 5px 12px; background: transparent; border: none;
+    color: #a09880; cursor: pointer; font-family: inherit;
+    font-size: 11px; letter-spacing: .2em;
+  }
+  .lang-btn:hover { color: #efe6c4; background: rgba(216,192,138,.1); }
+  .lang-btn.sel { color: #14150f; background: #d8c08a; }
+  #pause .lang-toggle { margin-top: 18px; }
 
   #pause, #death, #result { display: none; }
   #pause .btn,
@@ -543,70 +556,69 @@
   <div class="menu-stack">
     <div class="sect-label mono">MAIN WEAPON</div>
     <div class="chip-row" id="mainWeaponRow">
-      <button type="button" class="wchip" data-w="assault"><h4>ASSAULT</h4>AUTO ― 汎用・中遠距離</button>
-      <button type="button" class="wchip" data-w="smg"><h4>SMG</h4>AUTO ― 高連射・近中距離</button>
-      <button type="button" class="wchip" data-w="shotgun"><h4>SHOTGUN</h4>PUMP ― 散弾・近距離決戦</button>
-      <button type="button" class="wchip" data-w="sniper"><h4>SNIPER</h4>BOLT ― 一撃・遠距離</button>
+      <button type="button" class="wchip" data-w="assault"><h4>ASSAULT</h4><span data-i18n="weapon.blurb.assault">AUTO ― 汎用・中遠距離</span></button>
+      <button type="button" class="wchip" data-w="smg"><h4>SMG</h4><span data-i18n="weapon.blurb.smg">AUTO ― 高連射・近中距離</span></button>
+      <button type="button" class="wchip" data-w="shotgun"><h4>SHOTGUN</h4><span data-i18n="weapon.blurb.shotgun">PUMP ― 散弾・近距離決戦</span></button>
+      <button type="button" class="wchip" data-w="sniper"><h4>SNIPER</h4><span data-i18n="weapon.blurb.sniper">BOLT ― 一撃・遠距離</span></button>
     </div>
     <div class="sect-label mono">SUB WEAPON</div>
     <div class="chip-row" id="subWeaponRow">
-      <button type="button" class="wchip" data-w="assault"><h4>ASSAULT</h4>AUTO ― 汎用・中遠距離</button>
-      <button type="button" class="wchip" data-w="smg"><h4>SMG</h4>AUTO ― 高連射・近中距離</button>
-      <button type="button" class="wchip" data-w="shotgun"><h4>SHOTGUN</h4>PUMP ― 散弾・近距離決戦</button>
-      <button type="button" class="wchip" data-w="sniper"><h4>SNIPER</h4>BOLT ― 一撃・遠距離</button>
+      <button type="button" class="wchip" data-w="assault"><h4>ASSAULT</h4><span data-i18n="weapon.blurb.assault">AUTO ― 汎用・中遠距離</span></button>
+      <button type="button" class="wchip" data-w="smg"><h4>SMG</h4><span data-i18n="weapon.blurb.smg">AUTO ― 高連射・近中距離</span></button>
+      <button type="button" class="wchip" data-w="shotgun"><h4>SHOTGUN</h4><span data-i18n="weapon.blurb.shotgun">PUMP ― 散弾・近距離決戦</span></button>
+      <button type="button" class="wchip" data-w="sniper"><h4>SNIPER</h4><span data-i18n="weapon.blurb.sniper">BOLT ― 一撃・遠距離</span></button>
     </div>
-    <div class="sect-label mono">SIDEARM ― HANDGUN（全員常備・特殊枠）</div>
+    <div class="sect-label mono" data-i18n="lobby.sidearm">SIDEARM ― HANDGUN（全員常備・特殊枠）</div>
     <div class="sect-label mono">MAP</div>
     <div class="mode-card">
       <button type="button" class="mc sel" id="mapDesertBtn">
         <h3>DESERT</h3>
-        砂漠の拠点。開けた射線とコンテナ群。<br>
-        遠距離の撃ち合いが主体。
+        <span data-i18n="map.desert.desc" data-i18n-html>砂漠の拠点。開けた射線とコンテナ群。<br>遠距離の撃ち合いが主体。</span>
       </button>
       <button type="button" class="mc" id="mapJungleBtn">
         <h3>JUNGLE</h3>
-        密林。遺跡・港・採石場・岩窟。<br>
-        茂みは弾を遮るが通り抜けられる。
+        <span data-i18n="map.jungle.desc" data-i18n-html>密林。遺跡・港・採石場・岩窟。<br>茂みは弾を遮るが通り抜けられる。</span>
       </button>
     </div>
     <div class="sect-label mono">MODE</div>
     <div class="mode-card mode-3">
       <button type="button" class="mc" id="startSurvivalBtn">
         <h3>SURVIVAL</h3>
-        5ステージ防衛。各ステージにテーマあり。<br>
-        狙撃銃は敵狙撃兵撃破でも入手。自動回復あり。
+        <span data-i18n="mode.survival.desc" data-i18n-html>5ステージ防衛。各ステージにテーマあり。<br>狙撃銃は敵狙撃兵撃破でも入手。自動回復あり。</span>
       </button>
       <button type="button" class="mc" id="startTdmBtn">
         <h3>TDM ― LOCAL</h3>
-        5v5・5分・キル数勝負（AI）。装備固定。<br>
-        グレ2・キット2。撃破ドロップあり。
+        <span data-i18n="mode.tdmLocal.desc" data-i18n-html>5v5・5分・キル数勝負（AI）。装備固定。<br>グレ2・キット2。撃破ドロップあり。</span>
       </button>
       <button type="button" class="mc" id="startOnlineTdmBtn">
         <h3>TDM ― ONLINE</h3>
-        ルームを建てて友達と対戦。足りない枠は AI が補充。<br>
-        サーバー権威の5分タイマー。
+        <span data-i18n="mode.tdmOnline.desc" data-i18n-html>ルームを建てて友達と対戦。足りない枠は AI が補充。<br>サーバー権威の5分タイマー。</span>
       </button>
     </div>
     <div class="online-panel" id="onlinePanel" hidden>
       <div class="orow" id="onlineEntryRow">
-        <button type="button" class="obtn primary" id="onlineCreateBtn">部屋を建てる</button>
+        <button type="button" class="obtn primary" id="onlineCreateBtn" data-i18n="online.create">部屋を建てる</button>
         <input id="onlineCodeInput" maxlength="6" placeholder="CODE" lang="en" autocapitalize="off" autocomplete="off" spellcheck="false">
-        <button type="button" class="obtn" id="onlineJoinBtn">コードで入る</button>
+        <button type="button" class="obtn" id="onlineJoinBtn" data-i18n="online.join">コードで入る</button>
       </div>
       <div class="orow" id="onlineRoomRow" hidden>
-        <input id="onlineNameInput" maxlength="12" placeholder="名前" autocomplete="off" spellcheck="false">
-        <button type="button" class="obtn primary" id="onlineStartBtn">試合開始</button>
-        <button type="button" class="obtn" id="onlineLeaveBtn">退出</button>
+        <input id="onlineNameInput" maxlength="12" data-i18n-placeholder="online.namePh" placeholder="名前" autocomplete="off" spellcheck="false">
+        <button type="button" class="obtn primary" id="onlineStartBtn" data-i18n="online.start">試合開始</button>
+        <button type="button" class="obtn" id="onlineLeaveBtn" data-i18n="online.leave">退出</button>
       </div>
       <div id="rosterList" class="mono" hidden></div>
-      <div id="onlineStatus" class="mono">ルーム未接続</div>
+      <div id="onlineStatus" class="mono" data-i18n="online.idle">ルーム未接続</div>
     </div>
-    <div class="menu-foot mono">
+    <div class="menu-foot mono" data-i18n="controls" data-i18n-html>
       WASD 移動　SHIFT ダッシュ　C しゃがみ　SPACE ジャンプ　左 射撃　右 照準<br>
       R リロード　G グレネード　F キット　Q/E 武器切替　ESC ポーズ
     </div>
   </div>
-  <div class="note">※ 音が出ます　※ マウスポインタがロックされます</div>
+  <div class="note" data-i18n="note.audio">※ 音が出ます　※ マウスポインタがロックされます</div>
+  <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
+    <button type="button" class="lang-btn" data-lang="ja">JA</button>
+    <button type="button" class="lang-btn" data-lang="en">EN</button>
+  </div>
 </div>
 
 <div id="deploy"><div class="deploy-text">DEPLOYING<span class="blink">_</span></div></div>
@@ -614,47 +626,53 @@
 
 <div id="pause" class="overlay">
   <h1 class="title-font">PAUSED</h1>
-  <div class="tagline">一 時 停 止</div>
-  <button class="btn" id="resumeBtn">再 開</button>
-  <button class="btn" id="restartBtn">ロビーへ</button>
+  <div class="tagline" data-i18n="pause.tag">一 時 停 止</div>
+  <button class="btn" id="resumeBtn" data-i18n="pause.resume">再 開</button>
+  <button class="btn" id="restartBtn" data-i18n="pause.lobby">ロビーへ</button>
+  <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
+    <button type="button" class="lang-btn" data-lang="ja">JA</button>
+    <button type="button" class="lang-btn" data-lang="en">EN</button>
+  </div>
 </div>
 
 <div id="death" class="overlay">
   <h1 class="title-font">K.I.A.</h1>
-  <div class="tagline">戦 死</div>
+  <div class="tagline" data-i18n="death.tag">戦 死</div>
   <div class="stats">
-    <span>到達ステージ</span><b id="stWave">1</b>
-    <span>キル数</span><b id="stKills">0</b>
-    <span>ヘッドショット</span><b id="stHs">0</b>
-    <span>HS率</span><b id="stHsRate">0%</b>
-    <span>命中率</span><b id="stAcc">0%</b>
-    <span>最長キル</span><b id="stLong">—</b>
-    <span>グレキル</span><b id="stNade">0</b>
-    <span>スコア</span><b id="stScore">0</b>
+    <span data-i18n="stat.wave">到達ステージ</span><b id="stWave">1</b>
+    <span data-i18n="stat.kills">キル数</span><b id="stKills">0</b>
+    <span data-i18n="stat.hs">ヘッドショット</span><b id="stHs">0</b>
+    <span data-i18n="stat.hsRate">HS率</span><b id="stHsRate">0%</b>
+    <span data-i18n="stat.acc">命中率</span><b id="stAcc">0%</b>
+    <span data-i18n="stat.long">最長キル</span><b id="stLong">—</b>
+    <span data-i18n="stat.nade">グレキル</span><b id="stNade">0</b>
+    <span data-i18n="stat.score">スコア</span><b id="stScore">0</b>
   </div>
-  <button class="btn" id="retryBtn">再出撃</button>
-  <button class="btn" id="lobbyBtn">ロビーへ</button>
+  <button class="btn" id="retryBtn" data-i18n="death.retry">再出撃</button>
+  <button class="btn" id="lobbyBtn" data-i18n="death.lobby">ロビーへ</button>
 </div>
 
 <div id="result" class="overlay">
   <h1 class="title-font" id="resultTitle">VICTORY</h1>
-  <div class="tagline" id="resultSub">勝 利</div>
+  <div class="tagline" id="resultSub" data-i18n="result.victory">勝 利</div>
   <div class="stats" id="resultStats"></div>
-  <button class="btn" id="resultRetryBtn">もう一度</button>
-  <button class="btn" id="resultLobbyBtn">ロビーへ</button>
+  <button class="btn" id="resultRetryBtn" data-i18n="result.retry">もう一度</button>
+  <button class="btn" id="resultLobbyBtn" data-i18n="result.lobby">ロビーへ</button>
 </div>
 
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./ai-steer.js?v=play61"></script>
-<script src="./audio.js?v=play61"></script>
-<script src="./world.js?v=play61"></script>
-<script src="./effects.js?v=play61"></script>
-<script src="./player.js?v=play61"></script>
-<script src="./enemy.js?v=play61"></script>
-<script src="./net.js?v=play61"></script>
-<script src="./online.js?v=play61"></script>
-<script src="./main.js?v=play61"></script>
+<script src="./i18n.js?v=play63"></script>
+<script src="./tdm-respawn.js?v=play63"></script>
+<script src="./ai-steer.js?v=play63"></script>
+<script src="./audio.js?v=play63"></script>
+<script src="./world.js?v=play63"></script>
+<script src="./effects.js?v=play63"></script>
+<script src="./player.js?v=play63"></script>
+<script src="./enemy.js?v=play63"></script>
+<script src="./net.js?v=play63"></script>
+<script src="./online.js?v=play63"></script>
+<script src="./main.js?v=play63"></script>
 </body>
 </html>

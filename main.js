@@ -96,7 +96,7 @@ function updateScoreHUD() {
 function updateWaveHUD() {
   if (game.mode === 'tdm') return;
   const alive = enemies.filter(e => e.alive).length;
-  $('waveinfo').textContent = `STAGE ${game.wave} ― 残敵 ${alive + game.spawnQueue}`;
+  $('waveinfo').textContent = t('hud.enemiesLeft', { n: game.wave, m: alive + game.spawnQueue });
 }
 function updateTdmHUD() {
   const timer = $('tdmtimer');
@@ -180,16 +180,19 @@ function showBanner(text, sub) {
 function showStageClearBanner(stage) {
   const def = typeof getStageDef === 'function' ? getStageDef(stage)
     : (typeof STAGE_DEFS !== 'undefined' ? STAGE_DEFS[stage] : null);
-  const theme = def && def.title
-    ? def.title.replace(/^STAGE\s*\d+\s*[―\-–]\s*/, '')
-    : '';
+  let theme = '';
+  if (typeof stageTheme === 'function') theme = stageTheme(stage);
+  else if (def && def.title) theme = def.title.replace(/^STAGE\s*\d+\s*[―\-–]\s*/, '');
+  const clearSub = theme
+    ? t('stage.clear.sub', { theme })
+    : t('stage.clear.subPlain');
   const b = $('banner');
   b.classList.remove('show', 'clear');
   b.innerHTML =
     `<div class="clear-rule"></div>` +
     `<div class="clear-label">AREA SECURED</div>` +
     `STAGE ${stage} CLEAR` +
-    `<div class="sub">${theme ? theme + ' ― ' : ''}制圧完了　中央で補給せよ</div>` +
+    `<div class="sub">${clearSub}</div>` +
     `<div class="clear-rule"></div>`;
   void b.offsetWidth;
   b.classList.add('show', 'clear');
@@ -337,14 +340,14 @@ function survivalVictory() {
   if (typeof cancelNadeAim === 'function') cancelNadeAim();
   if (typeof cancelHeal === 'function') cancelHeal();
   if (document.pointerLockElement) document.exitPointerLock();
-  showResult('MISSION COMPLETE', 'STAGE 5 クリア ― 全ステージ突破', {
-    '到達ステージ': String(game.wave),
-    'キル数': String(game.kills),
-    'ヘッドショット': String(game.headshots),
-    'HS率': formatHsRate(),
-    '最長キル': formatLongestKill(),
-    'グレキル': String(game.grenadeKills || 0),
-    'スコア': String(game.score),
+  showResult('MISSION COMPLETE', t('result.survClear'), {
+    [t('stat.wave')]: String(game.wave),
+    [t('stat.kills')]: String(game.kills),
+    [t('stat.hs')]: String(game.headshots),
+    [t('stat.hsRate')]: formatHsRate(),
+    [t('stat.long')]: formatLongestKill(),
+    [t('stat.nade')]: String(game.grenadeKills || 0),
+    [t('stat.score')]: String(game.score),
   });
 }
 
@@ -354,7 +357,7 @@ function onPlayerKilled(fromPos) {
     game.tdm.redKills++;
     updateTdmHUD();
   }
-  if (!game.online) addKillfeed('あなたが撃破された', false, 'blue');
+  if (!game.online) addKillfeed(t('feed.youDied'), false, 'blue');
   game.tdm.waitingRespawn = true;
   game.tdm.respawnT = TDM_RESPAWN_SEC;
   game.deathCamT = 0;
@@ -386,9 +389,11 @@ function respawnPlayer() {
   player.alive = true;
   player.recoilP = player.recoilY = 0;
   player.eyeH = 1.62;
-  // TDM: 弾は死亡で初期ロードアウトにリセット（グレ/キットは持ち越し）
+  // TDM: 弾・所持は初期ロードアウトにリセット（グレ/キットは持ち越し）
+  arsenal.owned = ownedFromLoadout();
   arsenal.slots = makeTdmAmmoSlots();
-  applyWeaponStats(arsenal.activeId);
+  const main = LOADOUT_POOL.includes(game.loadoutMain) ? game.loadoutMain : 'assault';
+  applyWeaponStats(resolveTdmRespawnWeapon(arsenal.activeId, arsenal.slots, main));
   game.tdm.waitingRespawn = false;
   game.tdm.respawnT = 0;
   const rw = $('respawnwrap');
@@ -399,7 +404,7 @@ function respawnPlayer() {
   updateMedkitHUD();
   updateAmmoHUD();
   player.spawnProtT = 2;
-  spawnFloater('再出撃', false);
+  spawnFloater(t('floater.respawn'), false);
   if (game.online && typeof Online !== 'undefined') Online.notifyRespawn();
   ensurePointerLock();
 }
@@ -417,15 +422,15 @@ function endTdmMatch() {
   let title, sub;
   if (b > r) { title = 'VICTORY'; sub = 'BLUE TEAM WINS'; }
   else if (b < r) { title = 'DEFEAT'; sub = 'RED TEAM WINS'; }
-  else { title = 'DRAW'; sub = '同点 ― 引き分け'; }
+  else { title = 'DRAW'; sub = t('result.draw'); }
   showResult(title, sub, {
     'BLUE': String(b),
     'RED': String(r),
-    'あなたのキル': String(game.kills),
-    'ヘッドショット': String(game.headshots),
-    'HS率': formatHsRate(),
-    '最長キル': formatLongestKill(),
-    'グレキル': String(game.grenadeKills || 0),
+    [t('stat.yourKills')]: String(game.kills),
+    [t('stat.hs')]: String(game.headshots),
+    [t('stat.hsRate')]: formatHsRate(),
+    [t('stat.long')]: formatLongestKill(),
+    [t('stat.nade')]: String(game.grenadeKills || 0),
   });
 }
 
@@ -606,7 +611,11 @@ function setOnlinePanelJoined(joined) {
 }
 
 /** オンライン名簿の描画（ホスト★・チーム色・自分マーカー）と開始ボタンの制御 */
+let lastRosterHost = null;
+let lastRosterPlayers = null;
 function renderRoster(host, players) {
+  lastRosterHost = host;
+  lastRosterPlayers = players;
   const el = $('rosterList');
   if (!el) return;
   el.innerHTML = '';
@@ -623,8 +632,8 @@ function renderRoster(host, players) {
     name.className = 'rname';
     name.textContent = p.name || p.id;
     row.appendChild(name);
-    if (p.id === selfId) row.appendChild(document.createTextNode('（あなた）'));
-    if (p.role === 'waiting') row.appendChild(document.createTextNode(' ― 次試合待ち'));
+    if (p.id === selfId) row.appendChild(document.createTextNode(t('online.you')));
+    if (p.role === 'waiting') row.appendChild(document.createTextNode(t('online.waitingNext')));
     const team = document.createElement('span');
     team.className = p.team === 'blue' ? 'rteam-b' : 'rteam-r';
     team.textContent = ` ${(p.team || '?').toUpperCase()}`;
@@ -635,8 +644,24 @@ function renderRoster(host, players) {
   if (startBtn) {
     const amHost = !!selfId && selfId === host;
     startBtn.disabled = !amHost;
-    startBtn.textContent = amHost ? '試合開始' : 'HOST が開始します';
+    startBtn.textContent = amHost ? t('online.startHost') : t('online.startWait');
   }
+}
+
+function refreshOnlineLocale() {
+  if (lastRosterPlayers) renderRoster(lastRosterHost, lastRosterPlayers);
+  if (typeof Net === 'undefined') return;
+  const st = Net.getState();
+  if (!st.connected) {
+    const status = $('onlineStatus');
+    if (status && !status.dataset.dynamic) setOnlineStatus(t('online.idle'));
+  } else {
+    setOnlineStatus(t('net.open', { room: st.room }));
+  }
+}
+
+function onLocaleChange() {
+  refreshOnlineLocale();
 }
 
 function initOnlineLobby() {
@@ -645,15 +670,15 @@ function initOnlineLobby() {
   // ロビー UI 専用。試合オーケストレーション（snap/dmg/match_start 処理）は Online.ensureHook
   Net.on((ev, data) => {
     if (ev === 'status') {
-      if (data.state === 'connecting') setOnlineStatus(`接続中… ROOM ${data.room}`);
+      if (data.state === 'connecting') setOnlineStatus(t('net.connecting', { room: data.room }));
       else if (data.state === 'reconnecting') {
-        setOnlineStatus(`再接続中… ROOM ${data.room} (#${data.attempt || '?'})`);
-      } else if (data.state === 'open') setOnlineStatus(`接続中 ROOM ${data.room}`);
+        setOnlineStatus(t('net.reconnecting', { room: data.room, n: data.attempt || '?' }));
+      } else if (data.state === 'open') setOnlineStatus(t('net.open', { room: data.room }));
       else if (data.state === 'closed') {
-        setOnlineStatus('切断 ― 自動再接続します');
+        setOnlineStatus(t('net.closed'));
         setOnlinePanelJoined(false);
       } else if (data.state === 'failed') {
-        setOnlineStatus(data.message || `接続失敗 ROOM ${data.room}`);
+        setOnlineStatus(data.message || t('net.fail', { room: data.room }));
         setOnlinePanelJoined(false);
       }
     } else if (ev === 'welcome') {
@@ -661,7 +686,7 @@ function initOnlineLobby() {
       const phase = data.phase || (data.match ? 'live' : 'lobby');
       const role = data.role || 'active';
       let msg = `ROOM ${data.room}  TEAM ${data.team || '?'}  ${phase.toUpperCase()}  PEERS ${peerN}`;
-      if (role === 'waiting') msg += '  ― 次試合待ち';
+      if (role === 'waiting') msg += t('online.waitingNext');
       if (phase === 'live' && Number.isFinite(data.timeLeft)) {
         msg += `  ${Math.floor(data.timeLeft / 60)}:${String(data.timeLeft % 60).padStart(2, '0')}`;
       }
@@ -680,17 +705,17 @@ function initOnlineLobby() {
       const st = Net.getState();
       setOnlineStatus(`ROOM ${st.room}  YOU ${st.selfId}  TEAM ${st.team || '?'}  (${data.op} ${data.id})`);
     } else if (ev === 'match_start') {
-      setOnlineStatus(`試合開始 MAP ${(data.map || '').toUpperCase()} ― LIVE`);
+      setOnlineStatus(t('net.matchLive', { map: (data.map || '').toUpperCase() }));
     } else if (ev === 'match_end') {
-      setOnlineStatus(`試合終了 ${data.blue || 0}–${data.red || 0} ― 再戦可`);
+      setOnlineStatus(t('net.matchEnd', { blue: data.blue || 0, red: data.red || 0 }));
     } else if (ev === 'match_deny') {
       setOnlineStatus(data.reason === 'not_host'
-        ? '開始権は HOST にあります'
-        : `開始不可: ${data.reason || data.phase || 'denied'}`);
+        ? t('net.hostOnly')
+        : t('net.deny', { reason: data.reason || data.phase || 'denied' }));
     } else if (ev === 'pong') {
       // heartbeat 用。デバッグ文字列で接続ステータスを潰さない
     } else if (ev === 'error') {
-      setOnlineStatus(`エラー: ${data.message || 'unknown'}`);
+      setOnlineStatus(t('net.error', { msg: data.message || 'unknown' }));
     }
   });
   const createBtn = $('onlineCreateBtn');
@@ -716,16 +741,16 @@ function initOnlineLobby() {
   if (createBtn) createBtn.addEventListener('click', async () => {
     uiBlip();
     try {
-      setOnlineStatus('部屋を作成中…');
+      setOnlineStatus(t('net.creating'));
       const code = await Net.createRoom();
       if (input) input.value = code;
       Net.connect(code);
     } catch (e) {
       const msg = String(e && e.message ? e.message : e);
       if (/Exceeded allowed volume|free tier/i.test(msg)) {
-        setOnlineStatus('サーバー上限（Durable Objects 無料枠）― 時間をおくか有料プランが必要');
+        setOnlineStatus(t('net.doCap'));
       } else {
-        setOnlineStatus(`作成失敗: ${msg}`);
+        setOnlineStatus(t('net.createFail', { msg }));
       }
     }
   });
@@ -738,19 +763,19 @@ function initOnlineLobby() {
     if (typeof Net !== 'undefined') Net.disconnect();
     if (typeof Online !== 'undefined') Online.reset();
     setOnlinePanelJoined(false);
-    setOnlineStatus('ルーム未接続');
+    setOnlineStatus(t('online.idle'));
   });
   if (startBtn) startBtn.addEventListener('click', () => {
     uiBlip();
     if (!Net.getState().connected) {
-      setOnlineStatus('先にルームへ接続してください');
+      setOnlineStatus(t('net.needRoom'));
       return;
     }
     if (typeof Online !== 'undefined') Online.ensureHook();
     if (!Net.sendMatchStart(game.map || 'desert')) {
-      setOnlineStatus('送信失敗');
+      setOnlineStatus(t('net.sendFail'));
     } else {
-      setOnlineStatus(`試合開始要求… MAP ${(game.map || 'desert').toUpperCase()}`);
+      setOnlineStatus(t('net.startReq', { map: (game.map || 'desert').toUpperCase() }));
     }
   });
 }
@@ -770,8 +795,8 @@ function initMenus() {
     uiBlip();
     showOnlinePanel(true);
     setOnlineStatus(Net.getState().connected
-      ? `接続中 ROOM ${Net.getState().room}`
-      : '部屋を建てるか、CODE で参加');
+      ? t('net.open', { room: Net.getState().room })
+      : t('net.hint'));
   });
   initOnlineLobby();
   const mapD = $('mapDesertBtn'), mapJ = $('mapJungleBtn');
@@ -1032,6 +1057,7 @@ function debugDrive() {
 
 /* ---------- 起動 ---------- */
 function boot() {
+  if (typeof initI18n === 'function') initI18n();
   initWorld();
   buildGun();
   initTracers();

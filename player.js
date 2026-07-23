@@ -233,8 +233,24 @@ function saveActiveAmmo() {
 }
 
 function applyWeaponStats(id) {
-  const def = WEAPON_DEFS[id];
-  const slot = arsenal.slots[id];
+  let def = WEAPON_DEFS[id];
+  if (!def) {
+    id = 'assault';
+    def = WEAPON_DEFS.assault;
+  }
+  let slot = arsenal.slots[id];
+  if (!slot) {
+    // 拾い武器のまま slots をロードアウトに戻した直後など
+    id = typeof resolveTdmRespawnWeapon === 'function'
+      ? resolveTdmRespawnWeapon(id, arsenal.slots, game.loadoutMain)
+      : (game.loadoutMain || 'assault');
+    def = WEAPON_DEFS[id] || WEAPON_DEFS.assault;
+    slot = arsenal.slots[id];
+    if (!slot) {
+      slot = { mag: magCapacity(def), reserve: def.tdmReserve != null ? def.tdmReserve : def.startReserve };
+      arsenal.slots[id] = slot;
+    }
+  }
   arsenal.activeId = id;
   weapon.magSize = magCapacity(def);
   weapon.mag = Math.min(slot.mag, weapon.magSize);
@@ -275,7 +291,7 @@ function cycleWeapon(dir) {
   applyWeaponStats(next);
   // ハンドガンへの切替は速め（近接応戦用）
   weapon.switchLock = next === 'pistol' ? 0.14 : 0.28;
-  spawnFloater(WEAPON_DEFS[next].label, false);
+  spawnFloater(WEAPON_DEFS[next] ? weaponLabel(next) : next, false);
 }
 
 function makeTdmAmmoSlots() {
@@ -417,12 +433,12 @@ function updateHeal(dt) {
     if (game.online && typeof Online !== 'undefined') {
       // HP/キットはサーバー healed / inv が正
       Online.claimHeal();
-      spawnFloater('応急処置 完了', false);
+      spawnFloater(t('floater.healed'), false);
       return;
     }
     player.medkits = Math.max(0, player.medkits - 1);
     updateMedkitHUD();
-    spawnFloater('応急処置 完了', false);
+    spawnFloater(t('floater.healed'), false);
   }
 }
 
@@ -445,7 +461,7 @@ function grantSniper() {
     const before = slot.reserve;
     slot.reserve = Math.min(slot.reserve + 10, def.maxReserve);
     if (arsenal.activeId === 'sniper') weapon.reserve = slot.reserve;
-    spawnFloater(slot.reserve > before ? '狙撃弾 +10' : '狙撃弾 MAX', false);
+    spawnFloater(slot.reserve > before ? t('floater.sniperAmmo') : t('floater.sniperAmmoMax'), false);
     updateAmmoHUD();
     return false;
   }
@@ -453,7 +469,7 @@ function grantSniper() {
   arsenal.slots.sniper = { mag: magCapacity(WEAPON_DEFS.sniper), reserve: 15 };
   saveActiveAmmo();
   applyWeaponStats('sniper');
-  spawnFloater('スナイパーライフル 取得', true);
+  spawnFloater(t('floater.sniperGot'), true);
   return true;
 }
 
@@ -467,7 +483,9 @@ function grantSurvWeapon(id, replaceId) {
     const before = slot.reserve;
     slot.reserve = Math.min(slot.reserve + 8, def.maxReserve);
     if (arsenal.activeId === id) weapon.reserve = slot.reserve;
-    spawnFloater(slot.reserve > before ? `${def.label}弾 +8` : `${def.label}弾 MAX`, false);
+    spawnFloater(slot.reserve > before
+      ? t('floater.wepAmmo', { name: weaponLabel(id) })
+      : t('floater.wepAmmoMax', { name: weaponLabel(id) }), false);
     updateAmmoHUD();
     return false;
   }
@@ -483,14 +501,16 @@ function grantSurvWeapon(id, replaceId) {
   arsenal.owned[id] = true;
   arsenal.slots[id] = { mag: carryMag, reserve: carryReserve };
   applyWeaponStats(id);
-  spawnFloater(replaceId ? `${def.label} に強化` : `${def.label} 取得`, true);
+  spawnFloater(replaceId
+    ? t('floater.wepUpgrade', { name: weaponLabel(id) })
+    : t('floater.wepGot', { name: weaponLabel(id) }), true);
   return true;
 }
 
 /** 拡張マガジン：弾倉 +20%（永続・1回。Survival Stage3+ / TDM 中央補給） */
 function grantExtMag() {
   if (player.extMag) {
-    spawnFloater('拡張マガジン装備中', false);
+    spawnFloater(t('floater.extMagOn'), false);
     return false;
   }
   player.extMag = true;
@@ -501,7 +521,7 @@ function grantExtMag() {
   weapon.mag = Math.min(weapon.magSize, weapon.mag + gain);
   const slot = arsenal.slots[arsenal.activeId];
   if (slot) slot.mag = weapon.mag;
-  spawnFloater('拡張マガジン +20%', true);
+  spawnFloater(t('floater.extMag'), true);
   updateAmmoHUD();
   return true;
 }
@@ -527,19 +547,19 @@ function grantShotgun() {
   arsenal.slots.shotgun = { mag: magCapacity(WEAPON_DEFS.shotgun), reserve: WEAPON_DEFS.shotgun.startReserve };
   saveActiveAmmo();
   applyWeaponStats('shotgun');
-  spawnFloater('ショットガン 取得', true);
+  spawnFloater(t('floater.shotgunGot'), true);
   return true;
 }
 
 /** Survival Stage 3 以降の防具：被ダメ約 28% 軽減（マッチ中永続） */
 function grantArmor() {
   if (player.armor) {
-    spawnFloater('防具装備中', false);
+    spawnFloater(t('floater.armorOn'), false);
     return false;
   }
   player.armor = true;
   player.dmgMul = 0.72;
-  spawnFloater('強化防具 取得', true);
+  spawnFloater(t('floater.armorGot'), true);
   if (typeof updateArmorHUD === 'function') updateArmorHUD();
   return true;
 }

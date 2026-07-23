@@ -818,14 +818,14 @@ class Enemy {
         recordPlayerKill();
         const pts = headshot ? 150 : 100;
         game.score += pts;
-        addKillfeed(headshot ? `ヘッドショット ＋${pts}` : `敵排除 ＋${pts}`, headshot, 'red');
+        addKillfeed(headshot ? t('feed.hs', { pts }) : t('feed.elim', { pts }), headshot, 'red');
         if (typeof showKillToast === 'function') showKillToast();
         spawnFloater(headshot ? `HEADSHOT +${pts}` : `+${pts}`, headshot);
         updateScoreHUD();
       } else {
         const label = this.team === 'red'
-          ? (headshot ? '味方撃破 (HS)' : '味方撃破')
-          : (headshot ? '味方戦死 (HS)' : '味方戦死');
+          ? (headshot ? t('feed.tkHs') : t('feed.tk'))
+          : (headshot ? t('feed.tdHs') : t('feed.td'));
         addKillfeed(label, headshot, this.team === 'red' ? 'red' : 'blue');
       }
       updateTdmHUD();
@@ -843,11 +843,11 @@ class Enemy {
       : 100;
     const pts = headshot ? base + 50 : base;
     game.score += pts;
-    const name = this.kind === 'elite' ? '精鋭'
-      : this.kind === 'sniper' ? '狙撃兵'
-      : this.kind === 'rusher' ? '突撃兵'
-      : '敵兵';
-    const label = headshot ? `${name}ヘッド ＋${pts}` : `${name}排除 ＋${pts}`;
+    const name = this.kind === 'elite' ? t('feed.kind.elite')
+      : this.kind === 'sniper' ? t('feed.kind.sniper')
+      : this.kind === 'rusher' ? t('feed.kind.rusher')
+      : t('feed.kind.grunt');
+    const label = headshot ? t('feed.kindHs', { name, pts }) : t('feed.kindElim', { name, pts });
     addKillfeed(label, headshot, 'red');
     if (typeof showKillToast === 'function') showKillToast();
     spawnFloater(headshot ? `HEADSHOT +${pts}` : `+${pts}`, headshot);
@@ -1003,7 +1003,7 @@ function dropSupplyBundle(announce) {
     spawnLoot(p, game.map === 'jungle' ? 'sg_surv' : 'sr_surv');
   }
   if (announce !== false) {
-    spawnFloater(game.mode === 'tdm' ? '中央補給' : 'ステージ補給', false);
+    spawnFloater(game.mode === 'tdm' ? t('floater.supplyCenter') : t('floater.supplyStage'), false);
   }
 }
 
@@ -1129,10 +1129,10 @@ function updateLoot(dt) {
         const amount = game.mode === 'tdm' ? 45 : 90;
         if (addReserveAmmo(amount)) {
           picked = true;
-          spawnFloater(game.mode === 'tdm' ? '弾薬 +45' : '弾薬 +90', false);
+          spawnFloater(game.mode === 'tdm' ? t('floater.ammo45') : t('floater.ammo90'), false);
         } else if (!l.maxSaid) {
           l.maxSaid = true;
-          spawnFloater('弾薬 MAX', false);
+          spawnFloater(t('floater.ammoMax'), false);
         }
       } else if (l.type === 'sniper') {
         grantSniper();
@@ -1149,18 +1149,18 @@ function updateLoot(dt) {
       } else if (l.type === 'nade') {
         if (addGrenades(1)) {
           picked = true;
-          spawnFloater('グレネード +1', false);
+          spawnFloater(t('floater.nade'), false);
         } else if (!l.maxSaid) {
           l.maxSaid = true;
-          spawnFloater('グレネード MAX', false);
+          spawnFloater(t('floater.nadeMax'), false);
         }
       } else if (l.type === 'med') {
         if (addMedkits(1)) {
           picked = true;
-          spawnFloater('応急キット +1', false);
+          spawnFloater(t('floater.kit'), false);
         } else if (!l.maxSaid) {
           l.maxSaid = true;
-          spawnFloater('応急キット MAX', false);
+          spawnFloater(t('floater.kitMax'), false);
         }
       }
       if (picked) {
@@ -1180,22 +1180,16 @@ function updateLoot(dt) {
 const SURVIVAL_MAX = 5;
 const STAGE_DEFS = {
   1: {
-    title: 'STAGE 1 ― 接触',
-    sub: '敵歩兵接近 ― 迎撃せよ',
     concurrent: 4,
     queue: ['grunt', 'grunt', 'grunt', 'grunt', 'grunt'],
     fog: BASE_FOG_DENSITY, dim: false, accMul: 1.05,
   },
   2: {
-    title: 'STAGE 2 ― 狙撃線',
-    sub: '狙撃兵確認 ― 遮蔽を使え',
     concurrent: 5,
     queue: ['grunt', 'grunt', 'sniper', 'grunt', 'grunt', 'sniper', 'grunt'],
     fog: BASE_FOG_DENSITY, dim: false, accMul: 1.15,
   },
   3: {
-    title: 'STAGE 3 ― 強襲',
-    sub: '精鋭確認 ― 防具を確保せよ',
     concurrent: 5,
     queue: [
       'rusher', 'grunt', 'rusher', 'elite', 'grunt',
@@ -1204,8 +1198,6 @@ const STAGE_DEFS = {
     fog: BASE_FOG_DENSITY, dim: false, accMul: 1.2,
   },
   4: {
-    title: 'STAGE 4 ― 砂嵐',
-    sub: '視界不良 ― 音に頼れ',
     concurrent: 6,
     queue: [
       'grunt', 'rusher', 'sniper', 'grunt', 'rusher',
@@ -1214,8 +1206,6 @@ const STAGE_DEFS = {
     fog: 0.018, dim: true, accMul: 1.3,
   },
   5: {
-    title: 'STAGE 5 ― 最終防衛',
-    sub: '最終山場 ― 精鋭・狙撃・突撃の混成',
     concurrent: 7,
     queue: [
       'elite', 'rusher', 'grunt', 'sniper', 'elite',
@@ -1243,9 +1233,17 @@ function weatherAtmosphere(kind) {
 }
 
 function weatherBannerSub(kind) {
-  if (kind === 'squall') return 'スコール ― 視界不良。音に頼れ';
-  if (kind === 'hurricane') return 'ハリケーン ― 視界不良。音に頼れ';
+  if (kind === 'squall') return t('weather.squall');
+  if (kind === 'hurricane') return t('weather.hurricane');
   return null;
+}
+
+function stageTheme(n) {
+  if (n === 4) {
+    const kind = getMapWeatherKind(game.map);
+    return kind === 'squall' ? t('stage.4.theme.squall') : t('stage.4.theme.hurricane');
+  }
+  return t(`stage.${n}.theme`);
 }
 
 /** 天候を適用（null でクリア）。Survival / TDM 共通 */
@@ -1277,16 +1275,18 @@ function rollTdmWeather(seed) {
 /** Stage4+ はマップ別天候。Stage5 も同じ気候を継続 */
 function getStageDef(n) {
   const base = Object.assign({}, STAGE_DEFS[n] || STAGE_DEFS[1]);
+  base.title = t(`stage.${n}.title`);
+  base.sub = t(`stage.${n}.sub`);
   if (n >= 4) {
     const kind = getMapWeatherKind(game.map);
     const atm = weatherAtmosphere(kind);
     if (n === 4) {
       if (kind === 'squall') {
-        base.title = 'STAGE 4 ― スコール';
-        base.sub = '雷雨 ― 視界不良。音に頼れ';
+        base.title = t('stage.4.title.squall');
+        base.sub = t('stage.4.sub.squall');
       } else {
-        base.title = 'STAGE 4 ― ハリケーン';
-        base.sub = '砂嵐 ― 視界不良。音に頼れ';
+        base.title = t('stage.4.title.hurricane');
+        base.sub = t('stage.4.sub.hurricane');
       }
     }
     base.fog = atm.fog;
@@ -1339,7 +1339,7 @@ function updateWaves(dt) {
   if (game.intermission > 0) {
     game.intermission -= dt;
     document.getElementById('waveinfo').textContent =
-      `補給タイム ― 次まで ${Math.ceil(game.intermission)}`;
+      t('intermission', { n: Math.ceil(game.intermission) });
     if (game.intermission <= 0) {
       if (game.wave >= SURVIVAL_MAX) survivalVictory();
       else startWave(game.wave + 1);
@@ -1438,7 +1438,7 @@ function startTdmMatch() {
   player.spawnProtT = 2;
   const w = typeof rollTdmWeather === 'function' ? rollTdmWeather() : null;
   const sub = (typeof weatherBannerSub === 'function' && weatherBannerSub(w))
-    || '5v5・5分 ― キル数で勝敗';
+    || t('tdm.sub');
   showBanner('TEAM DEATHMATCH', sub);
   updateTdmHUD();
 }

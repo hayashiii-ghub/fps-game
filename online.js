@@ -80,7 +80,7 @@ const Online = (() => {
         onServerMatchEnd(data);
       } else if (ev === 'match_deny') {
         if (typeof setOnlineStatus === 'function') {
-          setOnlineStatus(`試合開始不可 (${data.reason || data.phase || 'denied'})`);
+          setOnlineStatus(t('net.matchDeny', { reason: data.reason || data.phase || 'denied' }));
         }
       } else if (ev === 'respawn') {
         onPeerRespawn(data);
@@ -103,7 +103,7 @@ const Online = (() => {
       } else if (ev === 'loot_grant') {
         onLootGrant(data);
       } else if (ev === 'supply') {
-        if (typeof spawnFloater === 'function') spawnFloater('中央補給', false);
+        if (typeof spawnFloater === 'function') spawnFloater(t('floater.supplyCenter'), false);
       } else if (ev === 'status' && data.state === 'closed') {
         clearRemotes();
         clearNetLoots();
@@ -500,16 +500,16 @@ const Online = (() => {
     if (data.inv) applyInv(data.inv, true);
     if (data.type === 'ammo' && typeof addReserveAmmo === 'function') {
       addReserveAmmo(45);
-      if (typeof spawnFloater === 'function') spawnFloater('弾薬 +45', false);
+      if (typeof spawnFloater === 'function') spawnFloater(t('floater.ammo45'), false);
     } else if (data.type === 'nade' && typeof spawnFloater === 'function') {
-      spawnFloater('グレネード +1', false);
+      spawnFloater(t('floater.nade'), false);
     } else if (data.type === 'med' && typeof spawnFloater === 'function') {
-      spawnFloater('応急キット +1', false);
+      spawnFloater(t('floater.kit'), false);
     } else if (data.type === 'armor') {
       player.armor = true;
       player.dmgMul = 0.72;
       if (typeof updateArmorHUD === 'function') updateArmorHUD();
-      if (typeof spawnFloater === 'function') spawnFloater('強化防具 取得', true);
+      if (typeof spawnFloater === 'function') spawnFloater(t('floater.armorGot'), true);
     } else if (data.type === 'extmag') {
       if (!player.extMag && typeof grantExtMag === 'function') grantExtMag();
     } else if (data.type === 'sr_surv' || data.type === 'sg_surv') {

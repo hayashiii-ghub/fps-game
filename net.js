@@ -108,7 +108,7 @@ const Net = (() => {
         state: 'failed',
         room: code,
         attempt: reconnectAttempt,
-        message: '接続できません（サーバーまたはネットワークを確認）',
+        message: (typeof t === 'function' ? t('net.unreachable') : '接続できません（サーバーまたはネットワークを確認）'),
       });
       return;
     }
