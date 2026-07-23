@@ -19,7 +19,7 @@ for f in \
   player.js \
   world.js \
   three.min.js \
-  og.png \
+  og.jpg \
   favicon.svg \
   favicon.png \
   favicon-32.png \

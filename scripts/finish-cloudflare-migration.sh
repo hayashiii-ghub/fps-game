@@ -32,7 +32,7 @@ URL="${URL%/}"
 echo "==> Verify ${URL}/"
 curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "${URL}/"
 curl -fsS "${URL}/" | grep -q 'KIMI GROK FPS'
-curl -fsS -o /dev/null -w "og.png %{http_code}\n" "${URL}/og.png"
+curl -fsS -o /dev/null -w "og.jpg %{http_code}\n" "${URL}/og.jpg"
 
 echo "==> Patch OGP / README → ${URL}"
 python3 - <<PY

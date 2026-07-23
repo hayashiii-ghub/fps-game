@@ -14,5 +14,5 @@
 /three.min.js
   Cache-Control: public, max-age=604800, immutable
 
-/og.png
+/og.jpg
   Cache-Control: public, max-age=604800

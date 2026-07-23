@@ -134,7 +134,7 @@ URLにクエリを付けると検証用モードで起動する。
 | `audio.js` | 手続き音響 |
 | `main.js` | ゲーム状態・メインループ・HUD・ミニマップ |
 | `three.min.js` | three.js r128 |
-| `og.png` | SNS 共有用 OGP 画像 |
+| `og.jpg` | SNS 共有用 OGP 画像 |
 | `_headers` | Workers Static Assets 用キャッシュ／セキュリティヘッダ |
 | `wrangler.toml` | Workers Static Assets + Room Durable Object（`/api/*`） |
 | `scripts/prepare-cf-assets.sh` | 配信用 `.cf-assets/` を作成 |
