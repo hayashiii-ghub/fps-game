@@ -1305,7 +1305,13 @@ function updateWeapon(dt) {
 
 /* ---------- 入力 ---------- */
 function initInput() {
+  const typingTarget = (el) => {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+  };
   document.addEventListener('keydown', e => {
+    if (typingTarget(e.target)) return; // ロビーの名前/コード入力中は操作に使わない
     input.keys[e.code] = true;
     if (e.code === 'KeyR') startReload();
     if (e.code === 'KeyQ') { if (!player.nadeAim) cycleWeapon(1); }
@@ -1314,7 +1320,10 @@ function initInput() {
     if (e.code === 'KeyF') startHeal();
     if (e.code === 'Space') e.preventDefault();
   });
-  document.addEventListener('keyup', e => { input.keys[e.code] = false; });
+  document.addEventListener('keyup', e => {
+    if (typingTarget(e.target)) return;
+    input.keys[e.code] = false;
+  });
   document.addEventListener('mousedown', e => {
     if (game.state !== 'playing') return;
     // ESC 後やリスポーン待ちでロックが外れたとき、クリックで復帰

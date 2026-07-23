@@ -491,6 +491,46 @@ function savePlayerName(n) {
   try { localStorage.setItem(PLAYER_NAME_KEY, n); } catch (_) { /* ignore */ }
 }
 
+/**
+ * ルームコード入力を IME / Shift に依存せずラテン大文字にする。
+ * 物理キー位置から文字を入れる（名前欄には使わない）。
+ */
+function bindLatinKeys(el, { upper = false } = {}) {
+  if (!el) return;
+  el.setAttribute('lang', 'en');
+  el.setAttribute('autocapitalize', 'off');
+  el.setAttribute('autocomplete', 'off');
+  el.setAttribute('spellcheck', 'false');
+  el.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    let ch = null;
+    if (e.code.startsWith('Key') && e.code.length === 4) {
+      const letter = e.code.slice(3);
+      ch = upper ? letter : letter.toLowerCase();
+    } else if (e.code.startsWith('Digit') && e.code.length === 6) {
+      ch = e.code.slice(5);
+    } else if (e.code.startsWith('Numpad') && e.code.length === 7 && e.code[6] >= '0' && e.code[6] <= '9') {
+      ch = e.code.slice(6);
+    } else if (!upper && e.code === 'Space') {
+      ch = ' ';
+    } else if (!upper && (e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+      ch = '-';
+    } else {
+      return; // Backspace / 矢印などはブラウザ任せ
+    }
+    e.preventDefault();
+    if (typeof el.value !== 'string') return;
+    const max = el.maxLength > 0 ? el.maxLength : 64;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    if (el.value.length - (end - start) + 1 > max) return;
+    el.value = el.value.slice(0, start) + ch + el.value.slice(end);
+    const caret = start + 1;
+    try { el.setSelectionRange(caret, caret); } catch (_) { /* ignore */ }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
 /** ロビーのマップ選択。選ぶと背景のマップも即切り替わる */
 function applyMapSelection(id) {
   game.map = (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[id]) ? id : 'desert';
@@ -648,8 +688,7 @@ function initOnlineLobby() {
         ? '開始権は HOST にあります'
         : `開始不可: ${data.reason || data.phase || 'denied'}`);
     } else if (ev === 'pong') {
-      const tl = Number.isFinite(data.timeLeft) ? ` time=${data.timeLeft}` : '';
-      setOnlineStatus(`PONG peers=${data.peers} phase=${data.phase || '?'}${tl}`);
+      // heartbeat 用。デバッグ文字列で接続ステータスを潰さない
     } else if (ev === 'error') {
       setOnlineStatus(`エラー: ${data.message || 'unknown'}`);
     }
@@ -660,6 +699,8 @@ function initOnlineLobby() {
   const leaveBtn = $('onlineLeaveBtn');
   const nameInput = $('onlineNameInput');
   const input = $('onlineCodeInput');
+  // ルームコードだけ Shift なしで大文字ラテン入力。名前は IME 含めブラウザ標準のまま
+  bindLatinKeys(input, { upper: true });
   if (nameInput) {
     nameInput.value = loadPlayerName();
     let nameTimer = null;
