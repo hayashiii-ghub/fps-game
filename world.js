@@ -15,11 +15,19 @@ let currentMapId = null;
 /** ミニマップの地色（マップごとに変える） */
 let MINIMAP_BG = 'rgba(38, 32, 22, 0.98)';
 
-/** Survival ステージ演出用（砂嵐など） */
+/** Survival ステージ演出用（砂嵐・スコールなど） */
 function setAtmosphere(opts = {}) {
   const density = opts.density !== undefined ? opts.density : BASE_FOG_DENSITY;
   const dim = !!opts.dim;
-  if (scene && scene.fog) scene.fog.density = density;
+  if (scene && scene.fog) {
+    scene.fog.density = density;
+    if (opts.fogColor !== undefined) {
+      scene.fog.color.set(opts.fogColor);
+    } else if (MAP_DEFS[currentMapId]) {
+      // 指定なし＝マップ既定色へ戻す（Stage4+ 天候色のリーク防止）
+      scene.fog.color.setHex(MAP_DEFS[currentMapId].fog);
+    }
+  }
   if (worldSun) worldSun.intensity = dim ? 0.5 : 1.05;
   if (worldHemi) worldHemi.intensity = dim ? 0.45 : 0.95;
 }

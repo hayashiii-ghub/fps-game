@@ -25,6 +25,7 @@ const player = {
   medkitMax: 3,
   armor: false,
   dmgMul: 1,
+  extMag: false,       // Survival 拡張マガジン（弾倉 +20%）
   healing: false,
   healT: 0,
   healDur: 2,
@@ -34,9 +35,9 @@ const player = {
   spawnProtT: 0,
 };
 
-/** @type {'assault'|'smg'|'shotgun'|'sniper'|'pistol'} */
-const WEAPON_ORDER = ['assault', 'smg', 'shotgun', 'sniper', 'pistol'];
-/** メイン/サブのロードアウト選択肢（ハンドガンは常備の特殊枠） */
+/** @type {'assault'|'smg'|'shotgun'|'sniper'|'sr_surv'|'sg_surv'|'pistol'} */
+const WEAPON_ORDER = ['assault', 'smg', 'shotgun', 'sniper', 'sr_surv', 'sg_surv', 'pistol'];
+/** メイン/サブのロードアウト選択肢（ハンドガンは常備の特殊枠。Survival 限定は含めない） */
 const LOADOUT_POOL = ['assault', 'smg', 'shotgun', 'sniper'];
 
 const WEAPON_DEFS = {
@@ -129,15 +130,52 @@ const WEAPON_DEFS = {
     // 頭は一撃、胴は95%（非一撃）、四肢は非致死
     dmg: { head: 200, torso: 95, limb: 55 },
   },
+  // Survival Desert 限定：胴一撃ボルト
+  sr_surv: {
+    id: 'sr_surv', label: '強襲スナイパー', mode: 'BOLT',
+    magSize: 5, startReserve: 12, tdmReserve: 8, maxReserve: 30,
+    fireInterval: 1.25, reloadDur: 2.8, auto: false,
+    moveMul: 0.88,
+    adsMoveMul: 0.38,
+    spreadHip: 0.085, spreadAds: 0.0006,
+    bloomAdd: 0.01, bloomMax: 0.02, bloomDecay: 0.05,
+    recoilP: [0.022, 0.03], recoilY: 0.006,
+    kickZ: 0.095, kickR: 0.13, adsRecoil: 0.42,
+    adsFov: 20, adsSens: 0.36, scale: 1,
+    hip: { x: 0.22, y: -0.2, z: -0.42, rx: 0.02, ry: 0.1 },
+    ads: { x: 0, y: -0.1, z: -0.52, rx: 0, ry: 0 },
+    dmg: { head: 200, torso: 100, limb: 55 },
+  },
+  // Survival Jungle 限定：腰撃ち集弾＝通常構え相当
+  sg_surv: {
+    id: 'sg_surv', label: '強襲ショットガン', mode: 'PUMP',
+    magSize: 6, startReserve: 20, tdmReserve: 14, maxReserve: 48,
+    fireInterval: 0.9, reloadDur: 2.6, auto: false,
+    moveMul: 0.97,
+    adsMoveMul: 0.5,
+    spreadHip: 0.022, spreadAds: 0.014,
+    bloomAdd: 0.004, bloomMax: 0.02, bloomDecay: 0.05,
+    recoilP: [0.016, 0.022], recoilY: 0.006,
+    kickZ: 0.085, kickR: 0.11, adsRecoil: 0.7,
+    adsFov: 75, adsSens: 0.88, scale: 0.98,
+    hip: { x: 0.21, y: -0.19, z: -0.4, rx: 0, ry: 0.06 },
+    ads: { x: 0.19, y: -0.18, z: -0.41, rx: 0.01, ry: 0.05 },
+    pellets: 8,
+    dmg: { head: 20, torso: 15, limb: 10 },
+    dmgFalloff: { start: 12, end: 25, min: 0.5 },
+    pump: true,
+  },
 };
 
 const arsenal = {
-  owned: { assault: true, smg: true, shotgun: false, sniper: false, pistol: true },
+  owned: { assault: true, smg: true, shotgun: false, sniper: false, sr_surv: false, sg_surv: false, pistol: true },
   slots: {
     assault: { mag: 30, reserve: 120 },
     smg: { mag: 25, reserve: 100 },
     shotgun: { mag: 6, reserve: 24 },
     sniper: { mag: 5, reserve: 15 },
+    sr_surv: { mag: 5, reserve: 12 },
+    sg_surv: { mag: 6, reserve: 20 },
     pistol: { mag: 12, reserve: 60 },
   },
   activeId: 'assault',
@@ -162,6 +200,16 @@ const weapon = {
 const input = { keys: {}, lmb: false, rmb: false };
 
 function activeDef() { return WEAPON_DEFS[arsenal.activeId]; }
+function isSniperWeapon(id) {
+  return id === 'sniper' || id === 'sr_surv';
+}
+function isShotgunWeapon(id) {
+  return id === 'shotgun' || id === 'sg_surv';
+}
+function magCapacity(def) {
+  const base = (def && def.magSize) || 30;
+  return player.extMag ? Math.ceil(base * 1.2) : base;
+}
 
 /** 距離によるダメージ倍率。dmgFalloff が無い武器は常に 1。 */
 function weaponDamageMul(def, dist) {
@@ -188,8 +236,8 @@ function applyWeaponStats(id) {
   const def = WEAPON_DEFS[id];
   const slot = arsenal.slots[id];
   arsenal.activeId = id;
-  weapon.mag = slot.mag;
-  weapon.magSize = def.magSize;
+  weapon.magSize = magCapacity(def);
+  weapon.mag = Math.min(slot.mag, weapon.magSize);
   weapon.reserve = slot.reserve;
   weapon.fireInterval = def.fireInterval;
   weapon.reloadDur = def.reloadDur;
@@ -232,7 +280,8 @@ function cycleWeapon(dir) {
 
 function makeTdmAmmoSlots() {
   const slots = {};
-  for (const id of WEAPON_ORDER) {
+  // TDM はロビー武器＋ハンドガンのみ（Survival 限定は載せない）
+  for (const id of [...LOADOUT_POOL, 'pistol']) {
     const def = WEAPON_DEFS[id];
     slots[id] = { mag: def.magSize, reserve: def.tdmReserve };
   }
@@ -241,7 +290,10 @@ function makeTdmAmmoSlots() {
 
 /** ロードアウト（メイン＋サブ・重複不可）に基づく所持武器。ハンドガンは常備 */
 function ownedFromLoadout() {
-  const owned = { assault: false, smg: false, shotgun: false, sniper: false, pistol: true };
+  const owned = {
+    assault: false, smg: false, shotgun: false, sniper: false,
+    sr_surv: false, sg_surv: false, pistol: true,
+  };
   const main = LOADOUT_POOL.includes(game.loadoutMain) ? game.loadoutMain : 'assault';
   const sub = LOADOUT_POOL.includes(game.loadoutSub) ? game.loadoutSub : 'smg';
   owned[main] = true;
@@ -276,6 +328,7 @@ function resetArsenal() {
   player.healT = 0;
   player.armor = false;
   player.dmgMul = 1;
+  player.extMag = false;
   player.spawnProtT = 0;
   clearGrenades();
   hideNadeArc();
@@ -397,10 +450,84 @@ function grantSniper() {
     return false;
   }
   arsenal.owned.sniper = true;
-  arsenal.slots.sniper = { mag: 5, reserve: 15 };
+  arsenal.slots.sniper = { mag: magCapacity(WEAPON_DEFS.sniper), reserve: 15 };
   saveActiveAmmo();
   applyWeaponStats('sniper');
   spawnFloater('スナイパーライフル 取得', true);
+  return true;
+}
+
+/** Survival マップ限定武器。所持済みなら専用弾 +8。replaceId があればその通常武器を外して置き換え */
+function grantSurvWeapon(id, replaceId) {
+  const def = WEAPON_DEFS[id];
+  if (!def) return false;
+  if (arsenal.owned[id]) {
+    saveActiveAmmo();
+    const slot = arsenal.slots[id];
+    const before = slot.reserve;
+    slot.reserve = Math.min(slot.reserve + 8, def.maxReserve);
+    if (arsenal.activeId === id) weapon.reserve = slot.reserve;
+    spawnFloater(slot.reserve > before ? `${def.label}弾 +8` : `${def.label}弾 MAX`, false);
+    updateAmmoHUD();
+    return false;
+  }
+  saveActiveAmmo();
+  let carryMag = magCapacity(def);
+  let carryReserve = def.startReserve;
+  if (replaceId && arsenal.owned[replaceId] && arsenal.slots[replaceId]) {
+    const from = arsenal.slots[replaceId];
+    carryMag = Math.min(magCapacity(def), from.mag || magCapacity(def));
+    carryReserve = Math.min(def.maxReserve, from.reserve || def.startReserve);
+    arsenal.owned[replaceId] = false;
+  }
+  arsenal.owned[id] = true;
+  arsenal.slots[id] = { mag: carryMag, reserve: carryReserve };
+  applyWeaponStats(id);
+  spawnFloater(replaceId ? `${def.label} に強化` : `${def.label} 取得`, true);
+  return true;
+}
+
+/** Survival Stage3 以降：弾倉 +20%（永続・1回） */
+function grantExtMag() {
+  if (player.extMag) {
+    spawnFloater('拡張マガジン装備中', false);
+    return false;
+  }
+  player.extMag = true;
+  const def = activeDef();
+  const oldSize = weapon.magSize;
+  weapon.magSize = magCapacity(def);
+  const gain = Math.max(0, weapon.magSize - oldSize);
+  weapon.mag = Math.min(weapon.magSize, weapon.mag + gain);
+  const slot = arsenal.slots[arsenal.activeId];
+  if (slot) slot.mag = weapon.mag;
+  spawnFloater('拡張マガジン +20%', true);
+  updateAmmoHUD();
+  return true;
+}
+
+/** Survival マップ限定ドロップ。
+ * 強化版所持→弾 / 通常同種所持→強化版に置換 / 未所持→通常武器を1本追加。 */
+function grantSurvMapDrop(survId) {
+  if (survId === 'sr_surv') {
+    if (arsenal.owned.sr_surv) return grantSurvWeapon('sr_surv');
+    if (arsenal.owned.sniper) return grantSurvWeapon('sr_surv', 'sniper');
+    return grantSniper();
+  }
+  if (survId === 'sg_surv') {
+    if (arsenal.owned.sg_surv) return grantSurvWeapon('sg_surv');
+    if (arsenal.owned.shotgun) return grantSurvWeapon('sg_surv', 'shotgun');
+    return grantShotgun();
+  }
+  return false;
+}
+
+function grantShotgun() {
+  arsenal.owned.shotgun = true;
+  arsenal.slots.shotgun = { mag: magCapacity(WEAPON_DEFS.shotgun), reserve: WEAPON_DEFS.shotgun.startReserve };
+  saveActiveAmmo();
+  applyWeaponStats('shotgun');
+  spawnFloater('ショットガン 取得', true);
   return true;
 }
 
@@ -713,6 +840,8 @@ function buildGun() {
   arsenal.models.shotgun = buildShotgunModel();
   arsenal.models.pistol = buildPistolModel();
   arsenal.models.sniper = buildSniperModel();
+  arsenal.models.sr_surv = buildSniperModel();
+  arsenal.models.sg_surv = buildShotgunModel();
   for (const id of WEAPON_ORDER) {
     const m = arsenal.models[id];
     camera.add(m.group);
@@ -731,7 +860,7 @@ const _camUp = new THREE.Vector3();
 const _muzzleW = new THREE.Vector3();
 
 function isSniperBolting() {
-  return arsenal.activeId === 'sniper' && game.time < weapon.boltUntil;
+  return isSniperWeapon(arsenal.activeId) && game.time < weapon.boltUntil;
 }
 
 function currentSpread() {
@@ -742,7 +871,7 @@ function currentSpread() {
   s += (spd / 7) * 0.02 * (weapon.ads ? 0.2 : 1);
   if (!player.onGround) s += weapon.ads ? 0.008 : 0.03;
   if (player.crouching) s *= 0.72;
-  return s + weapon.bloom * (weapon.ads && arsenal.activeId === 'sniper' ? 0.35 : 1);
+  return s + weapon.bloom * (weapon.ads && isSniperWeapon(arsenal.activeId) ? 0.35 : 1);
 }
 
 function tryFire(now) {
@@ -810,7 +939,7 @@ function tryFire(now) {
 
   weapon.muzzle.getWorldPosition(_muzzleW);
   // スナイパーADS時は銃口オフセットのトレーサーだとスコープと見た目がズレるので視線起点にする
-  const scopeTracer = arsenal.activeId === 'sniper' && weapon.adsT > 0.45;
+  const scopeTracer = isSniperWeapon(arsenal.activeId) && weapon.adsT > 0.45;
   const tracerFrom = scopeTracer
     ? _from.clone().addScaledVector(_dir, 0.4)
     : _muzzleW;
@@ -820,12 +949,12 @@ function tryFire(now) {
   weapon.flash.material.rotation = rand(0, 6.28);
   weapon.flash.scale.setScalar(rand(0.16, 0.26) * (pellets > 1 ? 1.5 : 1));
   weapon.flashLight.position.copy(scopeTracer ? tracerFrom : _muzzleW);
-  weapon.flashLight.intensity = arsenal.activeId === 'sniper' ? 3.2 : 2.4;
+  weapon.flashLight.intensity = isSniperWeapon(arsenal.activeId) ? 3.2 : 2.4;
 
   if (!scopeTracer) ejectShell(_muzzleW, _right, _up);
 
-  // 弾道確定後にボルト開始。先に ads=false すると腰撃ち散布（0.09）が乗る
-  if (arsenal.activeId === 'sniper') {
+  // 弾道確定後にボルト開始。先に ads=false すると腰撃ち散布が乗る
+  if (isSniperWeapon(arsenal.activeId)) {
     weapon.boltUntil = now + weapon.fireInterval;
     weapon.ads = false;
     AudioSys.bolt();
@@ -1147,12 +1276,12 @@ function updateWeapon(dt) {
   document.documentElement.style.setProperty('--gap', `${gapPx.toFixed(1)}px`);
   const chEl = document.getElementById('crosshair');
   const scopeEl = document.getElementById('scopeoverlay');
-  const sniperAds = arsenal.activeId === 'sniper' && t > 0.05 && !player.nadeAim;
+  const sniperAds = isSniperWeapon(arsenal.activeId) && t > 0.05 && !player.nadeAim;
   if (player.nadeAim) {
     g.visible = false;
     if (scopeEl) scopeEl.style.opacity = '0';
     chEl.style.opacity = 1;
-  } else if (arsenal.activeId === 'sniper') {
+  } else if (isSniperWeapon(arsenal.activeId)) {
     // 覗き込みが進んだら不透明な3D銃身を隠し、視界を2Dスコープに渡す
     g.traverse(o => {
       if (o.userData && o.userData.hideOnAds) o.visible = t < 0.35;
@@ -1161,7 +1290,7 @@ function updateWeapon(dt) {
     if (scopeEl) scopeEl.style.opacity = String(clamp((t - 0.25) / 0.55, 0, 1));
     // 腰撃ち時は通常レティクル。ADS／スプリント中のみ消す
     chEl.style.opacity = (t > 0.05 || player.sprinting) ? 0 : 1;
-  } else if (arsenal.activeId === 'pistol' || arsenal.activeId === 'shotgun') {
+  } else if (isShotgunWeapon(arsenal.activeId) || arsenal.activeId === 'pistol') {
     // ハンドガン／ショットガンADS＝腰撃ち固定。レティクルは残し、広がりだけ絞る
     g.visible = true;
     if (scopeEl) scopeEl.style.opacity = '0';
@@ -1171,7 +1300,7 @@ function updateWeapon(dt) {
     if (scopeEl) scopeEl.style.opacity = '0';
     chEl.style.opacity = (weapon.ads || player.sprinting) ? 0 : 1;
   }
-  if (!sniperAds && scopeEl && arsenal.activeId !== 'sniper' && !player.nadeAim) scopeEl.style.opacity = '0';
+  if (!sniperAds && scopeEl && !isSniperWeapon(arsenal.activeId) && !player.nadeAim) scopeEl.style.opacity = '0';
 }
 
 /* ---------- 入力 ---------- */

@@ -23,6 +23,8 @@ const game = {
   longestKill: 0, grenadeKills: 0,
   spawnQueue: 0, spawnT: 0, intermission: 0, boomT: 8,
   spawnKinds: [], waveConcurrent: 5, accMul: 1,
+  weather: null,  // hurricane | squall | null
+  lightningT: 0,  // スコール稲光の残り秒
   hurtFlash: 0, shotFired: false, deathCamT: 0,
   noLock: false,
   startGen: 0,
@@ -175,7 +177,8 @@ function showBanner(text, sub) {
 
 /** Survival ステージクリア用（少し豪華） */
 function showStageClearBanner(stage) {
-  const def = typeof STAGE_DEFS !== 'undefined' ? STAGE_DEFS[stage] : null;
+  const def = typeof getStageDef === 'function' ? getStageDef(stage)
+    : (typeof STAGE_DEFS !== 'undefined' ? STAGE_DEFS[stage] : null);
   const theme = def && def.title
     ? def.title.replace(/^STAGE\s*\d+\s*[―\-–]\s*/, '')
     : '';
@@ -240,6 +243,7 @@ function resetGame() {
   player.hp = 100; player.alive = true;
   player.recoilP = player.recoilY = 0;
   player.eyeH = 1.62;
+  if (game.mode !== 'survival') game.weather = null;
 
   resetArsenal();
 
@@ -331,7 +335,7 @@ function survivalVictory() {
   if (typeof cancelNadeAim === 'function') cancelNadeAim();
   if (typeof cancelHeal === 'function') cancelHeal();
   if (document.pointerLockElement) document.exitPointerLock();
-  showResult('MISSION COMPLETE', 'STAGE 5 クリア ― 拠点死守成功', {
+  showResult('MISSION COMPLETE', 'STAGE 5 クリア ― 全ステージ突破', {
     '到達ステージ': String(game.wave),
     'キル数': String(game.kills),
     'ヘッドショット': String(game.headshots),
@@ -755,6 +759,9 @@ function initMenus() {
     for (let i = loots.length - 1; i >= 0; i--) { scene.remove(loots[i].m); loots.splice(i, 1); }
     if (typeof clearGrenades === 'function') clearGrenades();
     if (typeof removeSupplyCrate === 'function') removeSupplyCrate();
+    game.weather = null;
+    game.lightningT = 0;
+    if (typeof setAtmosphere === 'function') setAtmosphere();
     rebuildHitMeshes();
     game.deathUiGen++;
     game.state = 'menu';

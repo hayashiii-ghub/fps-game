@@ -12,6 +12,8 @@ const AudioSys = {
     shotgun: { crack: 2400, crackG: 0.4, bodyF: 1500, bodyEnd: 140, bodyDur: 0.26, bodyG: 1.0, thumpF: 86, thumpG: 0.65, tailG: 0.5, tailDur: 0.6 },
     pistol: { crack: 3800, crackG: 0.5, bodyF: 2500, bodyEnd: 350, bodyDur: 0.11, bodyG: 0.72, thumpF: 120, thumpG: 0.4, tailG: 0.22, tailDur: 0.26 },
     sniper: { crack: 3000, crackG: 0.55, bodyF: 1900, bodyEnd: 120, bodyDur: 0.3, bodyG: 1.0, thumpF: 84, thumpG: 0.6, tailG: 0.55, tailDur: 0.8 },
+    sr_surv: { crack: 2900, crackG: 0.58, bodyF: 1800, bodyEnd: 100, bodyDur: 0.32, bodyG: 1.05, thumpF: 78, thumpG: 0.65, tailG: 0.6, tailDur: 0.85 },
+    sg_surv: { crack: 2400, crackG: 0.4, bodyF: 1500, bodyEnd: 140, bodyDur: 0.26, bodyG: 1.0, thumpF: 86, thumpG: 0.65, tailG: 0.5, tailDur: 0.6 },
   },
 
   init() {
@@ -154,14 +156,14 @@ const AudioSys = {
 
   step(run) {
     if (!this.ok) return;
-    this._noise(0.055, 'lowpass', run ? 700 : 480, run ? 0.11 : 0.06, 0.6 + Math.random() * 0.3);
+    this._noise(0.055, 'lowpass', run ? 700 : 480, run ? 0.2 : 0.12, 0.6 + Math.random() * 0.3);
   },
 
   /* 敵の足音：距離減衰＋パン */
   enemyStep(dist, pan, run) {
     if (!this.ok) return;
     const d = Number.isFinite(dist) ? dist : 30;
-    const g = Math.min(run ? 0.18 : 0.12, 7.2 / Math.max(d, 2.2));
+    const g = Math.min(run ? 0.32 : 0.22, 12 / Math.max(d, 2.2));
     if (g < 0.01) return;
     this._noise(0.055, 'lowpass', run ? 680 : 460, g, 0.55 + Math.random() * 0.3, pan);
   },

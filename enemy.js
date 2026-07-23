@@ -828,7 +828,7 @@ class Enemy {
     spawnFloater(headshot ? `HEADSHOT +${pts}` : `+${pts}`, headshot);
     updateScoreHUD();
     rebuildHitMeshes();
-    if (this.kind === 'sniper') spawnLoot(this.pos, 'sniper');
+    if (this.kind === 'sniper') spawnLoot(this.pos, game.map === 'jungle' ? 'sg_surv' : 'sr_surv');
     else if (this.kind === 'elite' && !player.armor) spawnLoot(this.pos, 'armor');
     else maybeDrop(this.pos);
     checkWaveCleared();
@@ -968,6 +968,10 @@ function dropSupplyBundle(announce) {
   if (game.mode === 'tdm' && Math.random() < 0.22) {
     spawnLoot(p, 'armor');
   }
+  // Survival: Stage3 クリア以降、未所持なら拡張マガジン
+  if (game.mode === 'survival' && game.wave >= 3 && !player.extMag) {
+    spawnLoot(p, 'extmag');
+  }
   if (announce !== false) {
     spawnFloater(game.mode === 'tdm' ? '中央補給' : 'ステージ補給', false);
   }
@@ -1024,10 +1028,18 @@ function tdmDrop(pos) {
 }
 function spawnLootAt(pos, type, opts) {
   let geo, mat, y = 0.12;
-  if (type === 'sniper') {
+  if (type === 'sniper' || type === 'sr_surv') {
     geo = new THREE.BoxGeometry(0.7, 0.12, 0.16);
     mat = sniperMat;
     y = 0.18;
+  } else if (type === 'sg_surv') {
+    geo = new THREE.BoxGeometry(0.55, 0.16, 0.2);
+    mat = sniperMat;
+    y = 0.18;
+  } else if (type === 'extmag') {
+    geo = new THREE.BoxGeometry(0.28, 0.22, 0.4);
+    mat = ammoMat;
+    y = 0.16;
   } else if (type === 'armor') {
     geo = new THREE.BoxGeometry(0.42, 0.28, 0.36);
     mat = armorMat;
@@ -1094,6 +1106,12 @@ function updateLoot(dt) {
         }
       } else if (l.type === 'sniper') {
         grantSniper();
+        picked = true;
+      } else if (l.type === 'sr_surv' || l.type === 'sg_surv') {
+        grantSurvMapDrop(l.type);
+        picked = true;
+      } else if (l.type === 'extmag') {
+        grantExtMag();
         picked = true;
       } else if (l.type === 'armor') {
         grantArmor();
@@ -1178,16 +1196,50 @@ const STAGE_DEFS = {
   },
 };
 
+/** Stage4+ はマップ別天候。Stage5 も同じ気候を継続 */
+function getStageDef(n) {
+  const base = Object.assign({}, STAGE_DEFS[n] || STAGE_DEFS[1]);
+  if (n >= 4) {
+    if (game.map === 'jungle') {
+      if (n === 4) {
+        base.title = 'STAGE 4 ― スコール';
+        base.sub = '雷雨 ― 視界不良。音に頼れ';
+      }
+      base.fog = 0.016;
+      base.dim = true;
+      base.fogColor = 0x2a3a30;
+      base.weather = 'squall';
+    } else {
+      if (n === 4) {
+        base.title = 'STAGE 4 ― ハリケーン';
+        base.sub = '砂嵐 ― 視界不良。音に頼れ';
+      }
+      base.fog = 0.018;
+      base.dim = true;
+      base.fogColor = 0xbfb193;
+      base.weather = 'hurricane';
+    }
+  } else {
+    base.weather = null;
+  }
+  return base;
+}
+
 function startWave(n) {
-  const def = STAGE_DEFS[n] || STAGE_DEFS[1];
+  const def = getStageDef(n);
   game.wave = n;
+  game.weather = def.weather || null;
   game.spawnKinds = def.queue.slice();
   game.spawnQueue = game.spawnKinds.length;
   game.waveTotal = game.spawnQueue;
   game.spawnT = 0.5;
   game.waveConcurrent = def.concurrent;
   game.accMul = def.accMul;
-  if (typeof setAtmosphere === 'function') setAtmosphere({ density: def.fog, dim: def.dim });
+  if (typeof setAtmosphere === 'function') {
+    const atm = { density: def.fog, dim: def.dim };
+    if (def.fogColor !== undefined) atm.fogColor = def.fogColor;
+    setAtmosphere(atm);
+  }
   showBanner(def.title, def.sub);
   AudioSys.wave();
   updateWaveHUD();
@@ -1225,10 +1277,20 @@ function updateWaves(dt) {
     }
   }
 
+  // スコール時は遠雷をやや頻繁に
   game.boomT -= dt;
   if (game.boomT <= 0) {
     AudioSys.boom();
-    game.boomT = rand(14, 38);
+    game.boomT = game.weather === 'squall' ? rand(6, 16) : rand(14, 38);
+  }
+
+  // スコールの短い稲光（dt 駆動。setTimeout は使わない）
+  if (game.lightningT > 0) {
+    game.lightningT -= dt;
+    if (game.lightningT <= 0 && worldSun && game.weather === 'squall') worldSun.intensity = 0.5;
+  } else if (game.weather === 'squall' && worldSun && Math.random() < dt * 0.12) {
+    worldSun.intensity = 1.35;
+    game.lightningT = 0.08;
   }
 }
 
@@ -1251,7 +1313,7 @@ function checkWaveCleared() {
       survivalVictory();
       return;
     }
-    const def = STAGE_DEFS[game.wave];
+    const def = getStageDef(game.wave);
     const peak = def && def.peak;
     // Stage 5 のみ長め補給。通常は段階クリア後の短い補給
     game.intermission = peak ? 14 : 10;
