@@ -20,6 +20,10 @@ for f in \
   world.js \
   three.min.js \
   og.png \
+  favicon.svg \
+  favicon.png \
+  favicon-32.png \
+  favicon-180.png \
   _headers
 do
   cp -a "$f" "$DEST/"
