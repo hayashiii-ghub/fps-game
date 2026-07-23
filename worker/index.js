@@ -313,6 +313,7 @@ export class Room extends DurableObject {
       grenades: s.grenades,
       medkits: s.medkits,
       armor: !!s.armor,
+      extMag: !!s.extMag,
       hp: s.hp,
     };
   }
@@ -438,6 +439,7 @@ export class Room extends DurableObject {
     session.grenades = Number.isFinite(prev.grenades) ? prev.grenades : session.grenades;
     session.medkits = Number.isFinite(prev.medkits) ? prev.medkits : session.medkits;
     session.armor = !!prev.armor;
+    session.extMag = !!prev.extMag;
     session.weapon = prev.weapon || 'assault';
     session.main = prev.main || session.main;
     session.sub = prev.sub || session.sub;
@@ -605,7 +607,7 @@ export class Room extends DurableObject {
   }
 
   spawnSupply() {
-    for (const type of pickSupplyBundle()) {
+    for (const type of pickSupplyBundle(Math.random, this.match.map)) {
       this.spawnLootAt(0, 0, type);
     }
     this.broadcastAll({ t: 'supply', at: { x: 0, z: 0 } });
@@ -636,6 +638,7 @@ export class Room extends DurableObject {
       s.grenadeMax = 5;
       s.medkitMax = 3;
       s.armor = false;
+      s.extMag = false;
       s.pendingNade = false;
       s.lastNadeAt = 0;
       s.healStartedAt = 0;
@@ -657,6 +660,7 @@ export class Room extends DurableObject {
       r.grenades = 2;
       r.medkits = 2;
       r.armor = false;
+      r.extMag = false;
       r.healStartedAt = 0;
       r.hp = 100;
       r.alive = true;
@@ -905,6 +909,7 @@ export class Room extends DurableObject {
       grenades: session.grenades,
       medkits: session.medkits,
       armor: !!session.armor,
+      extMag: !!session.extMag,
       weapon: session.weapon || 'assault',
       main: session.main || 'assault',
       sub: session.sub || 'smg',

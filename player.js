@@ -25,7 +25,7 @@ const player = {
   medkitMax: 3,
   armor: false,
   dmgMul: 1,
-  extMag: false,       // Survival 拡張マガジン（弾倉 +20%）
+  extMag: false,       // 拡張マガジン（弾倉 +20%。Survival Stage3+ / TDM 中央補給）
   healing: false,
   healT: 0,
   healDur: 2,
@@ -83,7 +83,7 @@ const WEAPON_DEFS = {
     moveMul: 0.97,
     adsMoveMul: 0.5,       // 腰撃ち固定の代償（減速）
     // 集弾をややタイトに＋距離威力減衰（拡散と二重で遠距離を抑える）
-    spreadHip: 0.036, spreadAds: 0.022,
+    spreadHip: 0.033, spreadAds: 0.022,
     bloomAdd: 0.004, bloomMax: 0.02, bloomDecay: 0.05,
     recoilP: [0.016, 0.022], recoilY: 0.006,
     kickZ: 0.085, kickR: 0.11, adsRecoil: 0.7,
@@ -487,7 +487,7 @@ function grantSurvWeapon(id, replaceId) {
   return true;
 }
 
-/** Survival Stage3 以降：弾倉 +20%（永続・1回） */
+/** 拡張マガジン：弾倉 +20%（永続・1回。Survival Stage3+ / TDM 中央補給） */
 function grantExtMag() {
   if (player.extMag) {
     spawnFloater('拡張マガジン装備中', false);

@@ -17,6 +17,8 @@ const Online = (() => {
   let hostId = null;
   let roster = [];
   let botAcc = 0;
+  /** match_start の endsAt。resetGame 後も天候シードとして使う */
+  let matchEndsAt = 0;
 
   /** 試合ネット購読（ロビー UI は main.initOnlineLobby の Net.on） */
   function ensureHook() {
@@ -115,6 +117,10 @@ const Online = (() => {
       game.tdm.timeLeft = Math.max(0, data.timeLeft);
       if (typeof updateTdmHUD === 'function') updateTdmHUD();
     }
+    if (Number.isFinite(data.endsAt) && data.endsAt > 0) {
+      matchEndsAt = data.endsAt;
+      game.tdm.endsAt = data.endsAt;
+    }
     if (Number.isFinite(data.blue) || Number.isFinite(data.red)) {
       applyScore({ blue: data.blue, red: data.red, ...data.score });
     }
@@ -142,6 +148,11 @@ const Online = (() => {
       player.dmgMul = inv.armor ? 0.72 : 1;
       if (typeof updateArmorHUD === 'function') updateArmorHUD();
     }
+    if (inv.extMag && !player.extMag && typeof grantExtMag === 'function') {
+      grantExtMag();
+    } else if (typeof inv.extMag === 'boolean') {
+      player.extMag = !!inv.extMag;
+    }
     if (Number.isFinite(inv.hp) && player.alive) {
       player.hp = inv.hp;
       if (typeof updateHealthHUD === 'function') updateHealthHUD();
@@ -150,13 +161,15 @@ const Online = (() => {
 
   function ensureRemote(id, team, weapon) {
     if (!id || (typeof Net !== 'undefined' && id === Net.getState().selfId)) return null;
-    const kind = weapon === 'sniper' ? 'sniper' : 'grunt';
+    const kind = (weapon === 'sniper' || weapon === 'sr_surv') ? 'sniper' : 'grunt';
     let r = remotes.get(id);
     if (r) {
       if (team && r.team !== team) {
         removeRemote(id);
         r = null;
-      } else if (r.weapon !== (weapon || r.weapon) && (weapon === 'sniper' || r.weapon === 'sniper')) {
+      } else if (r.weapon !== (weapon || r.weapon)
+        && (weapon === 'sniper' || weapon === 'sr_surv'
+          || r.weapon === 'sniper' || r.weapon === 'sr_surv')) {
         // スナイパー切替時だけモデル差し替え
         removeRemote(id);
         r = null;
@@ -497,6 +510,10 @@ const Online = (() => {
       player.dmgMul = 0.72;
       if (typeof updateArmorHUD === 'function') updateArmorHUD();
       if (typeof spawnFloater === 'function') spawnFloater('強化防具 取得', true);
+    } else if (data.type === 'extmag') {
+      if (!player.extMag && typeof grantExtMag === 'function') grantExtMag();
+    } else if (data.type === 'sr_surv' || data.type === 'sg_surv') {
+      if (typeof grantSurvMapDrop === 'function') grantSurvMapDrop(data.type);
     }
     if (typeof AudioSys !== 'undefined') AudioSys.pickup();
     if (typeof updateAmmoHUD === 'function') updateAmmoHUD();
@@ -822,8 +839,15 @@ const Online = (() => {
     if (typeof updateArmorHUD === 'function') updateArmorHUD();
     rebuildOnlineHits();
     const code = (typeof Net !== 'undefined' && Net.getState().room) || '';
+    const w = typeof rollTdmWeather === 'function'
+      ? rollTdmWeather(matchEndsAt || game.tdm.endsAt || null)
+      : null;
     if (typeof showBanner === 'function') {
-      showBanner('ONLINE TDM', `ROOM ${code} ― ${resume ? 'RESUME' : 'LIVE'}`);
+      const weatherSub = typeof weatherBannerSub === 'function' ? weatherBannerSub(w) : null;
+      showBanner(
+        'ONLINE TDM',
+        weatherSub || `ROOM ${code} ― ${resume ? 'RESUME' : 'LIVE'}`
+      );
     }
   }
 
@@ -973,6 +997,7 @@ const Online = (() => {
     clearHostBots();
     sendAcc = 0;
     botAcc = 0;
+    matchEndsAt = 0;
     localNadeFxSkip.clear();
   }
 

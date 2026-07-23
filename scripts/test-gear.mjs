@@ -8,6 +8,7 @@ import {
   validateNadeBoom,
   applyHeal,
   pickDeathDrop,
+  pickSupplyBundle,
   tryGrantLoot,
   buildSessionAttachment,
   sanitizeLoadout,
@@ -56,13 +57,46 @@ assert.equal(tryGrantLoot(inv, 'nade').ok, true);
 assert.equal(inv.grenades, 1);
 assert.equal(tryGrantLoot(inv, 'armor').ok, true);
 assert.equal(inv.armor, true);
+assert.equal(tryGrantLoot(inv, 'extmag').ok, true);
+assert.equal(inv.extMag, true);
+assert.equal(tryGrantLoot(inv, 'extmag').ok, false);
+
+const snInv = {
+  main: 'assault', sub: 'smg',
+  owned: { assault: true, smg: true, shotgun: false, sniper: true, sr_surv: false, sg_surv: false, pistol: true },
+};
+assert.equal(tryGrantLoot(snInv, 'sr_surv').ok, true);
+assert.equal(snInv.owned.sr_surv, true);
+assert.equal(snInv.owned.sniper, false);
+
+const bareInv = {
+  main: 'assault', sub: 'smg',
+  owned: { assault: true, smg: true, shotgun: false, sniper: false, sr_surv: false, sg_surv: false, pistol: true },
+};
+assert.equal(tryGrantLoot(bareInv, 'sr_surv').granted.type, 'sniper');
+assert.equal(bareInv.owned.sniper, true);
+
+const jungleBundle = pickSupplyBundle(() => 0.99, 'jungle');
+assert.ok(jungleBundle.includes('ammo'));
+assert.ok(!jungleBundle.includes('armor'));
+assert.ok(!jungleBundle.includes('extmag'));
+assert.ok(!jungleBundle.includes('sg_surv'));
+const alwaysBundle = pickSupplyBundle(() => 0.1, 'jungle');
+assert.ok(alwaysBundle.includes('sg_surv'));
+assert.ok(alwaysBundle.includes('extmag'));
+assert.ok(alwaysBundle.includes('armor'));
+const desertBundle = pickSupplyBundle(() => 0.1, 'desert');
+assert.ok(desertBundle.includes('sr_surv'));
+
 assert.equal(sanitizeWeapon('smg'), 'smg');
+assert.equal(sanitizeWeapon('sr_surv'), 'sr_surv');
+assert.equal(sanitizeWeapon('sg_surv'), 'sg_surv');
 
 const lo = sanitizeLoadout('shotgun', 'sniper');
 const att = buildSessionAttachment({
   id: 'p1', room: 'ABC', team: 'blue', token: 'tok12345678',
   role: 'active', name: 'P1', joinedAt: 1,
-  hp: 42, alive: false, grenades: 1, medkits: 0, armor: true,
+  hp: 42, alive: false, grenades: 1, medkits: 0, armor: true, extMag: true,
   weapon: 'shotgun', main: lo.main, sub: lo.sub, owned: lo.owned,
   spawnProtUntil: 9, lastRespawnAt: 3,
 });
@@ -73,5 +107,6 @@ assert.equal(att.sub, 'sniper');
 assert.equal(att.owned.shotgun, true);
 assert.equal(att.owned.sniper, true);
 assert.equal(att.owned.assault, false);
+assert.equal(att.extMag, true);
 
 console.log('ok gear');

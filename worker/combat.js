@@ -10,13 +10,16 @@ export const WEAPON_DMG = {
   smg: { head: 50, torso: 26, limb: 18 },
   // 近距離胴全弾 (15×8=120) で一撃。頭 20×8 / 肢 10×8
   shotgun: { head: 20, torso: 15, limb: 10 },
+  sg_surv: { head: 20, torso: 15, limb: 10 },
   pistol: { head: 55, torso: 28, limb: 18 },
   sniper: { head: 200, torso: 95, limb: 55 },
+  sr_surv: { head: 200, torso: 100, limb: 55 },
 };
 
 export const WEAPON_FALLOFF = {
   smg: { start: 18, end: 35, min: 0.65 },
   shotgun: { start: 12, end: 25, min: 0.5 },
+  sg_surv: { start: 12, end: 25, min: 0.5 },
   pistol: { start: 15, end: 30, min: 0.7 },
   assault: { start: 28, end: 50, min: 0.82 },
 };
@@ -26,8 +29,10 @@ export const WEAPON_FIRE_MS = {
   assault: 80,
   smg: 70,
   shotgun: 850,
+  sg_surv: 850,
   pistol: 180,
   sniper: 1400,
+  sr_surv: 1400,
 };
 
 /** ショットガン1発あたりのペレット数（クライアント def.pellets と揃える） */
@@ -74,7 +79,7 @@ export function canFire(attacker, weapon, now) {
   const last = attacker.lastFireAt || 0;
   const elapsed = last ? now - last : Infinity;
 
-  if (weapon === 'shotgun') {
+  if (weapon === 'shotgun' || weapon === 'sg_surv') {
     if (!last || elapsed >= minMs * 0.75) {
       return { ok: true, newShot: true };
     }
@@ -94,7 +99,7 @@ export function canFire(attacker, weapon, now) {
 /** validateHit 成功後に呼ぶ。lastFireAt / ペレット数を更新 */
 export function markFired(attacker, weapon, now, fireInfo) {
   if (!attacker) return;
-  if (weapon === 'shotgun') {
+  if (weapon === 'shotgun' || weapon === 'sg_surv') {
     if (fireInfo && fireInfo.newShot) {
       attacker.lastFireAt = now;
       attacker.shotgunPellets = 1;

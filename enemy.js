@@ -956,7 +956,7 @@ function removeSupplyCrate() {
 }
 
 function dropSupplyBundle(announce) {
-  // Survival クリア時は箱なしで中央に物資だけ。TDM は箱あり×2＋たまに防具
+  // Survival クリア時は箱なしで中央に物資だけ。TDM は箱あり×2＋たまに防具／強武器／拡張マガ
   if (game.mode === 'tdm') ensureSupplyCrate();
   const p = new THREE.Vector3(SUPPLY_POS.x, 0, SUPPLY_POS.z);
   const copies = game.mode === 'tdm' ? 2 : 1;
@@ -968,9 +968,14 @@ function dropSupplyBundle(announce) {
   if (game.mode === 'tdm' && Math.random() < 0.22) {
     spawnLoot(p, 'armor');
   }
-  // Survival: Stage3 クリア以降、未所持なら拡張マガジン
-  if (game.mode === 'survival' && game.wave >= 3 && !player.extMag) {
-    spawnLoot(p, 'extmag');
+  // 拡張マガジン: Survival Stage3+ / TDM 中央補給（未所持時）
+  const wantExt =
+    (game.mode === 'tdm' || (game.mode === 'survival' && game.wave >= 3))
+    && !player.extMag;
+  if (wantExt) spawnLoot(p, 'extmag');
+  // TDM: マップ限定の強い武器（Desert=SR / Jungle=SG）
+  if (game.mode === 'tdm' && Math.random() < 0.28) {
+    spawnLoot(p, game.map === 'jungle' ? 'sg_surv' : 'sr_surv');
   }
   if (announce !== false) {
     spawnFloater(game.mode === 'tdm' ? '中央補給' : 'ステージ補給', false);
@@ -1196,29 +1201,73 @@ const STAGE_DEFS = {
   },
 };
 
+/** マップ別天候種別（desert=ハリケーン / jungle=スコール） */
+function getMapWeatherKind(mapId) {
+  return mapId === 'jungle' ? 'squall' : 'hurricane';
+}
+
+/** 天候の霧・減光パラメータ。null なら晴天 */
+function weatherAtmosphere(kind) {
+  if (kind === 'squall') {
+    return { weather: 'squall', fog: 0.016, dim: true, fogColor: 0x2a3a30 };
+  }
+  if (kind === 'hurricane') {
+    return { weather: 'hurricane', fog: 0.018, dim: true, fogColor: 0xbfb193 };
+  }
+  return null;
+}
+
+function weatherBannerSub(kind) {
+  if (kind === 'squall') return 'スコール ― 視界不良。音に頼れ';
+  if (kind === 'hurricane') return 'ハリケーン ― 視界不良。音に頼れ';
+  return null;
+}
+
+/** 天候を適用（null でクリア）。Survival / TDM 共通 */
+function applyWeather(kind) {
+  game.weather = kind || null;
+  game.lightningT = 0;
+  if (typeof setAtmosphere !== 'function') return;
+  const atm = weatherAtmosphere(kind);
+  if (atm) setAtmosphere({ density: atm.fog, dim: atm.dim, fogColor: atm.fogColor });
+  else setAtmosphere();
+}
+
+/**
+ * TDM 用天候抽選（約 1/4）。
+ * seed あり（オンライン endsAt など）なら全員同じ結果、なしなら Math.random。
+ */
+function rollTdmWeather(seed) {
+  let hit;
+  if (seed != null && Number.isFinite(seed) && seed > 0) {
+    hit = ((Math.abs(seed) / 1000) | 0) % 4 === 0;
+  } else {
+    hit = Math.random() < 0.25;
+  }
+  const kind = hit ? getMapWeatherKind(game.map) : null;
+  applyWeather(kind);
+  return kind;
+}
+
 /** Stage4+ はマップ別天候。Stage5 も同じ気候を継続 */
 function getStageDef(n) {
   const base = Object.assign({}, STAGE_DEFS[n] || STAGE_DEFS[1]);
   if (n >= 4) {
-    if (game.map === 'jungle') {
-      if (n === 4) {
+    const kind = getMapWeatherKind(game.map);
+    const atm = weatherAtmosphere(kind);
+    if (n === 4) {
+      if (kind === 'squall') {
         base.title = 'STAGE 4 ― スコール';
         base.sub = '雷雨 ― 視界不良。音に頼れ';
-      }
-      base.fog = 0.016;
-      base.dim = true;
-      base.fogColor = 0x2a3a30;
-      base.weather = 'squall';
-    } else {
-      if (n === 4) {
+      } else {
         base.title = 'STAGE 4 ― ハリケーン';
         base.sub = '砂嵐 ― 視界不良。音に頼れ';
       }
-      base.fog = 0.018;
-      base.dim = true;
-      base.fogColor = 0xbfb193;
-      base.weather = 'hurricane';
     }
+    base.fog = atm.fog;
+    base.dim = atm.dim;
+    base.fogColor = atm.fogColor;
+    base.weather = atm.weather;
   } else {
     base.weather = null;
   }
@@ -1228,18 +1277,13 @@ function getStageDef(n) {
 function startWave(n) {
   const def = getStageDef(n);
   game.wave = n;
-  game.weather = def.weather || null;
   game.spawnKinds = def.queue.slice();
   game.spawnQueue = game.spawnKinds.length;
   game.waveTotal = game.spawnQueue;
   game.spawnT = 0.5;
   game.waveConcurrent = def.concurrent;
   game.accMul = def.accMul;
-  if (typeof setAtmosphere === 'function') {
-    const atm = { density: def.fog, dim: def.dim };
-    if (def.fogColor !== undefined) atm.fogColor = def.fogColor;
-    setAtmosphere(atm);
-  }
+  applyWeather(def.weather || null);
   showBanner(def.title, def.sub);
   AudioSys.wave();
   updateWaveHUD();
@@ -1277,13 +1321,24 @@ function updateWaves(dt) {
     }
   }
 
-  // スコール時は遠雷をやや頻繁に
+  // Survival は常時遠雷。天候時は頻度アップ
   game.boomT -= dt;
   if (game.boomT <= 0) {
     AudioSys.boom();
     game.boomT = game.weather === 'squall' ? rand(6, 16) : rand(14, 38);
   }
+  updateWeatherFx(dt);
+}
 
+/** 天候演出（稲光・TDM 時の遠雷）。Survival の遠雷は updateWaves 側 */
+function updateWeatherFx(dt) {
+  if (game.mode === 'tdm' && game.weather) {
+    game.boomT -= dt;
+    if (game.boomT <= 0) {
+      AudioSys.boom();
+      game.boomT = game.weather === 'squall' ? rand(6, 16) : rand(14, 38);
+    }
+  }
   // スコールの短い稲光（dt 駆動。setTimeout は使わない）
   if (game.lightningT > 0) {
     game.lightningT -= dt;
@@ -1356,7 +1411,10 @@ function startTdmMatch() {
   }
   rebuildHitMeshes();
   player.spawnProtT = 2;
-  showBanner('TEAM DEATHMATCH', '5v5・5分 ― キル数で勝敗');
+  const w = typeof rollTdmWeather === 'function' ? rollTdmWeather() : null;
+  const sub = (typeof weatherBannerSub === 'function' && weatherBannerSub(w))
+    || '5v5・5分 ― キル数で勝敗';
+  showBanner('TEAM DEATHMATCH', sub);
   updateTdmHUD();
 }
 

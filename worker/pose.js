@@ -1,7 +1,7 @@
 /**
  * オンライン用ポーズの検証・正規化
  */
-const WEAPONS = new Set(['assault', 'smg', 'shotgun', 'pistol', 'sniper']);
+const WEAPONS = new Set(['assault', 'smg', 'shotgun', 'pistol', 'sniper', 'sr_surv', 'sg_surv']);
 
 export function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));

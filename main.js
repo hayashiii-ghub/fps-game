@@ -35,6 +35,7 @@ const game = {
     redKills: 0,
     respawnT: 0,
     waitingRespawn: false,
+    endsAt: 0,
   },
 };
 
@@ -230,6 +231,7 @@ function resetGame() {
     redKills: 0,
     respawnT: 0,
     waitingRespawn: false,
+    endsAt: 0,
   };
   if (typeof setAtmosphere === 'function') setAtmosphere();
 
@@ -898,7 +900,10 @@ function tick(dt) {
     updateEnemies(dt);
     if (typeof Online !== 'undefined') Online.update(dt);
     if (game.mode === 'survival') updateWaves(dt);
-    else updateTdm(dt);
+    else {
+      updateTdm(dt);
+      if (game.weather && typeof updateWeatherFx === 'function') updateWeatherFx(dt);
+    }
     updateLoot(dt);
     if (typeof updateSupply === 'function') updateSupply(dt);
     updateMinimap();

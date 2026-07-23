@@ -145,6 +145,8 @@ export function sanitizeLoadout(mainId, subId) {
     smg: false,
     shotgun: false,
     sniper: false,
+    sr_surv: false,
+    sg_surv: false,
     pistol: true,
   };
   owned[main] = true;
@@ -170,6 +172,7 @@ export function defaultLoadout() {
     grenadeMax: 5,
     medkitMax: 3,
     armor: false,
+    extMag: false,
     weapon: lo.weapon,
     main: lo.main,
     sub: lo.sub,
@@ -200,6 +203,7 @@ export function buildSessionAttachment(session) {
     grenades: session.grenades,
     medkits: session.medkits,
     armor: !!session.armor,
+    extMag: !!session.extMag,
     weapon: session.weapon || lo.weapon,
     main: session.main || lo.main,
     sub: session.sub || lo.sub,
@@ -217,11 +221,22 @@ export function pickDeathDrop(rng = Math.random) {
   return 'nade';
 }
 
-/** 中央補給バンドルの種別列（内容×2 + たまに防具） */
-export function pickSupplyBundle(rng = Math.random) {
+/** 中央補給バンドル（内容×2 + たまに防具／拡張マガ／マップ限定強武器） */
+export function pickSupplyBundle(rng = Math.random, mapId = 'desert') {
   const types = ['ammo', 'ammo', 'med', 'med', 'nade', 'nade'];
   if (rng() < 0.22) types.push('armor');
+  if (rng() < 0.28) types.push('extmag');
+  if (rng() < 0.28) types.push(mapId === 'jungle' ? 'sg_surv' : 'sr_surv');
   return types;
+}
+
+function ensureOwned(inv) {
+  if (!inv.owned || typeof inv.owned !== 'object') {
+    inv.owned = sanitizeLoadout(inv.main, inv.sub).owned;
+  }
+  if (inv.owned.sr_surv === undefined) inv.owned.sr_surv = false;
+  if (inv.owned.sg_surv === undefined) inv.owned.sg_surv = false;
+  return inv.owned;
 }
 
 /**
@@ -245,6 +260,33 @@ export function tryGrantLoot(inv, type) {
     if (inv.armor) return { ok: false, reason: 'has' };
     inv.armor = true;
     return { ok: true, granted: { armor: true } };
+  }
+  if (type === 'extmag') {
+    if (inv.extMag) return { ok: false, reason: 'has' };
+    inv.extMag = true;
+    return { ok: true, granted: { extMag: true } };
+  }
+  if (type === 'sr_surv') {
+    const owned = ensureOwned(inv);
+    if (owned.sr_surv) return { ok: true, granted: { type: 'sr_surv', ammo: true } };
+    if (owned.sniper) {
+      owned.sniper = false;
+      owned.sr_surv = true;
+      return { ok: true, granted: { type: 'sr_surv', upgraded: true } };
+    }
+    owned.sniper = true;
+    return { ok: true, granted: { type: 'sniper' } };
+  }
+  if (type === 'sg_surv') {
+    const owned = ensureOwned(inv);
+    if (owned.sg_surv) return { ok: true, granted: { type: 'sg_surv', ammo: true } };
+    if (owned.shotgun) {
+      owned.shotgun = false;
+      owned.sg_surv = true;
+      return { ok: true, granted: { type: 'sg_surv', upgraded: true } };
+    }
+    owned.shotgun = true;
+    return { ok: true, granted: { type: 'shotgun' } };
   }
   if (type === 'ammo') {
     return { ok: true, granted: { ammo: 45 } };
