@@ -13,6 +13,7 @@ for f in \
   tdm-respawn.js \
   ai-steer.js \
   audio.js \
+  grenade-physics.js \
   effects.js \
   enemy.js \
   main.js \

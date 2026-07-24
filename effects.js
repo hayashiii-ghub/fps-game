@@ -177,7 +177,7 @@ function bloodFX(pos, dir) {
 /* ---------- グレネード（構え → 軌道プレビュー → クリック投擲） ---------- */
 const grenades = [];
 const nadeArcDots = [];
-let nadeMat = null;
+let nadeMats = null;
 const _nadeDir = new THREE.Vector3();
 const _nadeFrom = new THREE.Vector3();
 const NADE_ARC_N = 28;
@@ -191,9 +191,14 @@ function clearGrenades() {
 }
 
 function ensureNadeMats() {
-  if (!nadeMat) {
-    nadeMat = new THREE.MeshLambertMaterial({ color: 0x3a4a2a });
-    nadeMat.color.convertSRGBToLinear();
+  if (!nadeMats) {
+    nadeMats = {
+      body: new THREE.MeshLambertMaterial({ color: 0x697355, flatShading: true }),
+      bodyDark: new THREE.MeshLambertMaterial({ color: 0x414a35, flatShading: true }),
+      metal: new THREE.MeshLambertMaterial({ color: 0x5f6059, flatShading: true }),
+      pin: new THREE.MeshLambertMaterial({ color: 0x9a9585, flatShading: true }),
+    };
+    for (const mat of Object.values(nadeMats)) mat.color.convertSRGBToLinear();
   }
   if (nadeArcDots.length === 0) {
     for (let i = 0; i < NADE_ARC_N; i++) {
@@ -208,13 +213,45 @@ function ensureNadeMats() {
   }
 }
 
+function buildGrenadeMesh() {
+  ensureNadeMats();
+  const root = new THREE.Group();
+  const part = (w, h, d, mat, x, y, z, rz = 0) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    mesh.position.set(x, y, z);
+    mesh.rotation.z = rz;
+    mesh.castShadow = true;
+    root.add(mesh);
+  };
+
+  // 箱を積んだ本体。球体より回転が読みやすい非対称シルエットにする。
+  part(0.15, 0.14, 0.12, nadeMats.body, 0, 0, 0);
+  part(0.025, 0.1, 0.13, nadeMats.bodyDark, -0.087, 0, 0);
+  part(0.025, 0.1, 0.13, nadeMats.bodyDark, 0.087, 0, 0);
+  part(0.11, 0.075, 0.025, nadeMats.bodyDark, 0, -0.005, 0.072);
+  part(0.115, 0.035, 0.1, nadeMats.bodyDark, 0, -0.079, 0);
+  part(0.12, 0.04, 0.1, nadeMats.body, 0, 0.085, 0);
+
+  // 信管、安全レバー、四角いピンリング。
+  part(0.065, 0.045, 0.065, nadeMats.metal, 0, 0.126, 0);
+  part(0.025, 0.105, 0.035, nadeMats.pin, 0.055, 0.14, 0, -0.22);
+  const ringX = 0.112, ringY = 0.155;
+  part(0.05, 0.012, 0.012, nadeMats.pin, ringX, ringY + 0.025, 0);
+  part(0.05, 0.012, 0.012, nadeMats.pin, ringX, ringY - 0.025, 0);
+  part(0.012, 0.05, 0.012, nadeMats.pin, ringX - 0.025, ringY, 0);
+  part(0.012, 0.05, 0.012, nadeMats.pin, ringX + 0.025, ringY, 0);
+  root.rotation.set(0.18, 0.35, -0.12);
+  return root;
+}
+
 function getNadeLaunch() {
   camera.getWorldDirection(_nadeDir);
   _nadeFrom.copy(camera.getWorldPosition(new THREE.Vector3()));
-  _nadeFrom.addScaledVector(_nadeDir, 0.55);
   _nadeFrom.y -= 0.05;
   const vel = _nadeDir.clone().multiplyScalar(NADE_SPEED);
   vel.y += lerp(1.2, 6.5, clamp((_nadeDir.y + 0.2) / 0.9, 0, 1));
+  // カメラから手元までの初期移動も球体判定し、壁際の投擲で反対側へ湧かないようにする。
+  GrenadePhysics.advanceGrenadeLaunch({ pos: _nadeFrom, vel }, colliders, 0.55);
   return { from: _nadeFrom.clone(), vel };
 }
 
@@ -230,34 +267,27 @@ function hideNadeArc() {
 function updateNadeArc() {
   ensureNadeMats();
   const { from, vel } = getNadeLaunch();
-  let px = from.x, py = from.y, pz = from.z;
-  let vx = vel.x, vy = vel.y, vz = vel.z;
+  const preview = {
+    pos: { x: from.x, y: from.y, z: from.z },
+    vel: { x: vel.x, y: vel.y, z: vel.z },
+  };
   const step = 0.055;
   let shown = 0;
   for (let i = 0; i < NADE_ARC_N; i++) {
+    let hit = false;
     for (let k = 0; k < 2; k++) {
-      vy -= NADE_GRAV * step;
-      px += vx * step;
-      py += vy * step;
-      pz += vz * step;
-      if (py < 0.09) {
-        py = 0.09;
-        const d = nadeArcDots[shown++];
-        d.visible = true;
-        d.position.set(px, py + 0.05, pz);
-        d.scale.setScalar(1.4);
-        d.material.opacity = 0.95;
-        for (let j = shown; j < NADE_ARC_N; j++) nadeArcDots[j].visible = false;
-        return;
-      }
+      const result = GrenadePhysics.stepGrenadePhysics(preview, colliders, step);
+      hit = hit || result.hit;
     }
     const d = nadeArcDots[shown++];
     d.visible = true;
-    d.position.set(px, py, pz);
+    d.position.set(preview.pos.x, preview.pos.y, preview.pos.z);
     const u = i / NADE_ARC_N;
-    d.scale.setScalar(0.7 + u * 0.6);
-    d.material.opacity = 0.35 + u * 0.5;
+    d.scale.setScalar(hit ? 1.35 : 0.7 + u * 0.6);
+    d.material.opacity = hit ? 0.95 : 0.35 + u * 0.5;
+    if ((i + 1) * step * 2 >= 2.2) break;
   }
+  for (let j = shown; j < NADE_ARC_N; j++) nadeArcDots[j].visible = false;
 }
 
 function throwGrenade() {
@@ -272,11 +302,9 @@ function throwGrenade() {
   player.grenades = Math.max(0, player.grenades - 1);
   updateGrenadeHUD();
   player.grenadeCd = 0.55;
-  ensureNadeMats();
 
   const { from, vel } = getNadeLaunch();
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), nadeMat);
-  m.castShadow = true;
+  const m = buildGrenadeMesh();
   m.position.copy(from);
   scene.add(m);
   grenades.push({ m, vel: vel.clone(), fuse: 2.2, bounced: false, local: true });
@@ -288,9 +316,7 @@ function throwGrenade() {
 }
 
 function spawnRemoteGrenade(from, vel) {
-  ensureNadeMats();
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), nadeMat);
-  m.castShadow = true;
+  const m = buildGrenadeMesh();
   m.position.copy(from);
   scene.add(m);
   grenades.push({ m, vel: vel.clone(), fuse: 2.2, bounced: false, local: false });
@@ -344,29 +370,20 @@ function updateGrenades(dt) {
   for (let i = grenades.length - 1; i >= 0; i--) {
     const g = grenades[i];
     g.fuse -= dt;
-    g.vel.y -= NADE_GRAV * dt;
-    g.m.position.x += g.vel.x * dt;
-    g.m.position.y += g.vel.y * dt;
-    g.m.position.z += g.vel.z * dt;
-    g.m.rotation.x += dt * 8;
-    g.m.rotation.z += dt * 6;
+    const result = GrenadePhysics.stepGrenadePhysics(
+      { pos: g.m.position, vel: g.vel },
+      colliders,
+      dt,
+    );
+    g.bounced = g.bounced || result.hit;
+    const spin = Math.min(12, Math.hypot(g.vel.x, g.vel.y, g.vel.z) * 0.35);
+    g.m.rotation.x += dt * spin;
+    g.m.rotation.z += dt * spin * 0.75;
 
-    if (g.m.position.y < 0.09) {
-      g.m.position.y = 0.09;
-      if (g.vel.y < 0) {
-        g.vel.y *= -0.32;
-        g.vel.x *= 0.7;
-        g.vel.z *= 0.7;
-        if (Math.abs(g.vel.y) < 1.0) {
-          g.vel.y = 0;
-          g.vel.x *= 0.85;
-          g.vel.z *= 0.85;
-        }
-        g.bounced = true;
-      }
-    }
-    g.m.position.x = clamp(g.m.position.x, -59, 59);
-    g.m.position.z = clamp(g.m.position.z, -59, 59);
+    if (g.m.position.x < -59) { g.m.position.x = -59; if (g.vel.x < 0) g.vel.x *= -0.38; }
+    if (g.m.position.x > 59) { g.m.position.x = 59; if (g.vel.x > 0) g.vel.x *= -0.38; }
+    if (g.m.position.z < -59) { g.m.position.z = -59; if (g.vel.z < 0) g.vel.z *= -0.38; }
+    if (g.m.position.z > 59) { g.m.position.z = 59; if (g.vel.z > 0) g.vel.z *= -0.38; }
 
     if (g.fuse <= 0) {
       const p = g.m.position.clone();
