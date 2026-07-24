@@ -85,6 +85,7 @@ function updateHealthHUD() {
   updateArmorHUD();
 }
 function updateScoreHUD() {
+  updateKillsHUD();
   const box = $('scorebox');
   if (game.mode === 'tdm') {
     if (box) box.style.display = 'none';
@@ -92,6 +93,10 @@ function updateScoreHUD() {
   }
   if (box) box.style.display = '';
   $('score').textContent = game.score;
+}
+function updateKillsHUD() {
+  const el = $('killcount');
+  if (el) el.textContent = String(game.kills || 0);
 }
 function updateWaveHUD() {
   if (game.mode === 'tdm') return;
@@ -149,6 +154,7 @@ function addKillfeedMatch(atkName, atkTeam, vicName, vicTeam, hs) {
 function showKillToast() {
   const el = $('killtoast');
   if (!el) return;
+  updateKillsHUD();
   el.textContent = `KILL ${game.kills}`;
   el.classList.remove('show');
   void el.offsetWidth;

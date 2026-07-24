@@ -170,13 +170,20 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
  * 箱プリミティブの輪郭を崩さず、兵士らしい重心移動と銃の保持を付ける。
  * phase は呼び出し側で進めるため、AI とオンライン表示で同じ姿勢になる。
  */
-function poseSoldierLocomotion(rig, speed, phase, dt, crouched = false) {
+function poseSoldierLocomotion(rig, speed, phase, dt, crouched = false, engaged = false) {
   const ease = 1 - Math.exp(-10 * dt);
   const move = clamp((speed - 0.25) / 4.5, 0, 1);
   const running = clamp((speed - 3.5) / 2.5, 0, 1);
+  rig.idlePhase = (rig.idlePhase || 0) + dt;
+  rig.fireKick = (rig.fireKick || 0) * Math.exp(-18 * dt);
+  rig.hitReact = (rig.hitReact || 0) * Math.exp(-11 * dt);
   const stride = Math.sin(phase);
   const step = Math.abs(Math.cos(phase));
   const sway = Math.sin(phase) * move;
+  const breath = Math.sin(rig.idlePhase * 2.15) * (1 - move);
+  const ready = engaged ? 1 : 0;
+  const hit = rig.hitReact || 0;
+  const hitSide = rig.hitSide || 1;
   const targetLeg = stride * (0.34 + running * 0.22) * move;
   const baseTorsoY = 0.95 + (crouched ? -0.32 : 0);
 
@@ -185,29 +192,90 @@ function poseSoldierLocomotion(rig, speed, phase, dt, crouched = false) {
 
   // 足が接地するたび腰が少し沈み、走行時は銃を抱えて前傾する。
   const bob = move * (0.012 + running * 0.018) * step;
-  rig.torso.position.y += (baseTorsoY - bob - rig.torso.position.y) * ease;
-  rig.torso.rotation.x += ((move * 0.035 + running * 0.065) - rig.torso.rotation.x) * ease;
-  rig.torso.rotation.z += ((sway * 0.018) - rig.torso.rotation.z) * ease;
+  rig.torso.position.y += (baseTorsoY - bob + breath * 0.007 - rig.torso.position.y) * ease;
+  rig.torso.rotation.x += ((move * 0.035 + running * 0.065 + hit * 0.12) - rig.torso.rotation.x) * ease;
+  rig.torso.rotation.z += ((sway * 0.018 + hitSide * hit * 0.075) - rig.torso.rotation.z) * ease;
 
   // 上半身と逆向きに頭をわずかに補正し、視線を安定させる。
   if (rig.headG) {
-    rig.headG.rotation.x += ((-running * 0.025) - rig.headG.rotation.x) * ease;
-    rig.headG.rotation.z += ((-sway * 0.012) - rig.headG.rotation.z) * ease;
+    rig.headG.rotation.x += ((-running * 0.025 - ready * 0.018 - hit * 0.04) - rig.headG.rotation.x) * ease;
+    rig.headG.rotation.z += ((-sway * 0.012 - hitSide * hit * 0.045) - rig.headG.rotation.z) * ease;
   }
 
   // 腕と銃は一体で揺らし、歩行中も「構えている」輪郭を保つ。
-  const weaponLift = running * 0.025 + step * move * 0.008;
+  const weaponLift = running * 0.025 + step * move * 0.008 + ready * 0.012 + breath * 0.004;
   const weaponSway = sway * 0.012;
-  if (rig.armL) rig.armL.rotation.x += ((-0.5 - running * 0.08 + weaponSway) - rig.armL.rotation.x) * ease;
-  if (rig.forearmL) rig.forearmL.rotation.x += ((-0.5 - running * 0.05) - rig.forearmL.rotation.x) * ease;
-  if (rig.armR) rig.armR.rotation.x += ((-0.45 - running * 0.07 - weaponSway) - rig.armR.rotation.x) * ease;
-  if (rig.forearmR) rig.forearmR.rotation.x += ((-0.52 - running * 0.04) - rig.forearmR.rotation.x) * ease;
+  if (rig.armL) {
+    rig.armL.rotation.x += ((-0.5 - running * 0.08 + weaponSway - rig.fireKick * 0.08) - rig.armL.rotation.x) * ease;
+    rig.armL.rotation.z += ((0.2 + hitSide * hit * 0.04) - rig.armL.rotation.z) * ease;
+  }
+  if (rig.forearmL) rig.forearmL.rotation.x += ((-0.5 - running * 0.05 - rig.fireKick * 0.05) - rig.forearmL.rotation.x) * ease;
+  if (rig.armR) {
+    rig.armR.rotation.x += ((-0.45 - running * 0.07 - weaponSway - rig.fireKick * 0.1) - rig.armR.rotation.x) * ease;
+    rig.armR.rotation.z += ((-0.2 + hitSide * hit * 0.035) - rig.armR.rotation.z) * ease;
+  }
+  if (rig.forearmR) rig.forearmR.rotation.x += ((-0.52 - running * 0.04 - rig.fireKick * 0.06) - rig.forearmR.rotation.x) * ease;
   if (rig.rifle) {
     rig.rifle.position.y += ((0.27 + weaponLift) - rig.rifle.position.y) * ease;
     rig.rifle.position.x += ((0.09 + weaponSway) - rig.rifle.position.x) * ease;
-    rig.rifle.rotation.x += ((-running * 0.035) - rig.rifle.rotation.x) * ease;
+    rig.rifle.position.z += ((0.33 + rig.fireKick * 0.045) - rig.rifle.position.z) * ease;
+    rig.rifle.rotation.x += ((-running * 0.035 - rig.fireKick * 0.09) - rig.rifle.rotation.x) * ease;
     rig.rifle.rotation.z += ((-weaponSway * 0.7) - rig.rifle.rotation.z) * ease;
   }
+}
+
+/** 膝から力が抜けて上体が遅れて倒れる、短い二段階の死亡姿勢。 */
+function poseSoldierDeath(rig, time, fallDir) {
+  const settle = smoothstep01(time / 0.24);
+  const fall = smoothstep01((time - 0.08) / 0.58);
+  const torsoY = Number.isFinite(rig.deathTorsoY) ? rig.deathTorsoY : 0.95;
+  rig.g.rotation.x = 0.2 * fall;
+  rig.g.rotation.z = fallDir * 1.38 * fall;
+  if (rig.torso) {
+    rig.torso.position.y = torsoY - settle * 0.17;
+    rig.torso.rotation.x = settle * 0.3;
+    rig.torso.rotation.z = fallDir * settle * 0.15;
+  }
+  if (rig.headG) {
+    rig.headG.rotation.x = -settle * 0.14;
+    rig.headG.rotation.z = -fallDir * settle * 0.1;
+  }
+  if (rig.legL) rig.legL.rotation.x = settle * (fallDir > 0 ? 0.24 : -0.12);
+  if (rig.legR) rig.legR.rotation.x = settle * (fallDir > 0 ? -0.12 : 0.24);
+  if (rig.armL) rig.armL.rotation.z = 0.2 + fallDir * settle * 0.2;
+  if (rig.armR) rig.armR.rotation.z = -0.2 + fallDir * settle * 0.16;
+  if (rig.rifle) {
+    rig.rifle.position.y = 0.27 - settle * 0.1;
+    rig.rifle.rotation.x = settle * 0.18;
+    rig.rifle.rotation.z = -fallDir * settle * 0.14;
+  }
+}
+
+function smoothstep01(v) {
+  const k = clamp(v, 0, 1);
+  return k * k * (3 - 2 * k);
+}
+
+/** 死亡姿勢を残さず、次のスポーンを基準姿勢から始める。 */
+function resetSoldierPose(rig, crouched = false) {
+  rig.g.rotation.x = 0;
+  rig.g.rotation.z = 0;
+  rig.torso.position.y = crouched ? 0.63 : 0.95;
+  rig.torso.rotation.x = 0;
+  rig.torso.rotation.z = 0;
+  if (rig.headG) rig.headG.rotation.set(0, 0, 0);
+  if (rig.legL) rig.legL.rotation.x = 0;
+  if (rig.legR) rig.legR.rotation.x = 0;
+  if (rig.armL) rig.armL.rotation.set(-0.5, 0, 0.2);
+  if (rig.forearmL) rig.forearmL.rotation.set(-0.5, 0, -0.15);
+  if (rig.armR) rig.armR.rotation.set(-0.45, 0, -0.2);
+  if (rig.forearmR) rig.forearmR.rotation.set(-0.52, 0, 0.13);
+  if (rig.rifle) {
+    rig.rifle.position.set(0.09, 0.27, 0.33);
+    rig.rifle.rotation.set(0, 0, 0);
+  }
+  rig.fireKick = 0;
+  rig.hitReact = 0;
 }
 
 /* ---------- 敵クラス ---------- */
@@ -259,6 +327,10 @@ class Enemy {
     this.speed = 0;
     this.deathT = 0;
     this.fallDir = Math.random() < 0.5 ? 1 : -1;
+    this.fireKick = 0;
+    this.hitReact = 0;
+    this.hitSide = 1;
+    this.idlePhase = rand(0, 6);
     this.removeT = 0;
     this.suppressT = 0;
     this.target = null;
@@ -476,8 +548,7 @@ class Enemy {
 
     if (!this.alive) {
       this.deathT += dt;
-      const k = Math.min(this.deathT / 0.45, 1);
-      this.g.rotation.x = this.fallDir * (Math.PI / 2) * (k * k * (3 - 2 * k));
+      poseSoldierDeath(this, this.deathT, this.fallDir);
       this.removeT += dt;
       if (game.mode === 'tdm') {
         // TDM は死体を早めに消してリスポーン待ちへ
@@ -680,7 +751,7 @@ class Enemy {
         }
       }
     }
-    poseSoldierLocomotion(this, this.speed, this.walkPhase, dt, this.crouched);
+    poseSoldierLocomotion(this, this.speed, this.walkPhase, dt, this.crouched, this.state === 'combat');
     this.flash.material.opacity *= Math.exp(-25 * dt);
   }
 
@@ -735,6 +806,8 @@ class Enemy {
   fireOne(dist, tgt) {
     this.flash.material.opacity = 0.9;
     this.flash.material.rotation = rand(0, 6.28);
+    this.flash.scale.setScalar(this.kind === 'sniper' ? rand(0.4, 0.48) : rand(0.32, 0.4));
+    this.fireKick = 1;
     const mw = this.muzzle.getWorldPosition(new THREE.Vector3());
 
     const aimPos = tgt ? tgt.pos : player.pos;
@@ -828,6 +901,8 @@ class Enemy {
     if (!this.alive) return;
     if (this.spawnProtT > 0) return;
     this.hp -= dmg;
+    this.hitReact = 1;
+    this.hitSide = dir && Number.isFinite(dir.x) && dir.x < 0 ? -1 : 1;
     bloodFX(point, dir);
     if (this.hp <= 0) {
       this.die(part === 'head', killer, src);
@@ -848,6 +923,8 @@ class Enemy {
     this.hp = 0;
     this.deathT = 0;
     this.removeT = 0;
+    this.deathTorsoY = this.torso.position.y;
+    this.hitReact = 0;
     this.g.visible = true;
 
     const killerIsPlayer = !killer || killer === player || killer.type === 'player';
@@ -916,6 +993,7 @@ class Enemy {
     this.pos.set(sp[0], 0, sp[1]);
     this.g.position.copy(this.pos);
     this.g.rotation.set(0, Math.atan2(-sp[0], -sp[1]), 0);
+    resetSoldierPose(this, this.crouched);
     this.g.visible = true;
     this.hp = 100;
     this.alive = true;

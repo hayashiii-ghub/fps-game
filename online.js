@@ -208,6 +208,10 @@ const Online = (() => {
       dying: false,
       dieT: 0,
       fallDir: 1,
+      fireKick: 0,
+      hitReact: 0,
+      hitSide: 1,
+      idlePhase: Math.random() * 6,
       walkPhase: 0,
       prot: false,
       protT: 0,
@@ -570,6 +574,8 @@ const Online = (() => {
         startRemoteDie(r);
       } else {
         r.alive = true;
+        r.hitReact = 1;
+        r.hitSide = dir.x < 0 ? -1 : 1;
       }
     }
 
@@ -588,9 +594,13 @@ const Online = (() => {
         hb.hp = 0;
         hb.deathT = 0;
         hb.removeT = 0;
+        hb.deathTorsoY = hb.torso ? hb.torso.position.y : 0.95;
+        hb.hitReact = 0;
         hb.g.visible = true;
       } else {
         hb.hp = data.hp;
+        hb.hitReact = 1;
+        hb.hitSide = dir2.x < 0 ? -1 : 1;
         hb.state = 'combat';
         if (atk2) hb.lastKnown.copy(atk2.pos);
         else if (data.attacker === selfId) hb.lastKnown.copy(player.pos);
@@ -661,7 +671,6 @@ const Online = (() => {
     r.alive = true;
     r.dying = false;
     r.dieT = 0;
-    r.g.rotation.x = 0;
     r.g.visible = true;
     r.prot = true;
     r.protT = 2;
@@ -678,6 +687,8 @@ const Online = (() => {
     r.dying = true;
     r.dieT = 0;
     r.fallDir = Math.random() < 0.5 ? 1 : -1;
+    r.deathTorsoY = r.torso ? r.torso.position.y : 0.95;
+    r.hitReact = 0;
     r.g.visible = true;
     r.prot = false;
     r.protT = 0;
@@ -690,7 +701,7 @@ const Online = (() => {
     if (!r) return;
     r.dying = false;
     r.dieT = 0;
-    r.g.rotation.x = 0;
+    resetSoldierPose(r, r.crouch);
   }
 
   function ensureProtAura(r) {
@@ -740,6 +751,7 @@ const Online = (() => {
       r.flash.material.opacity = 0.95;
       r.flash.material.rotation = Math.random() * 6.28;
       r.flash.scale.setScalar(scale * (0.9 + Math.random() * 0.25));
+      r.fireKick = 1;
     }
 
     const mw = r.muzzle
@@ -925,9 +937,7 @@ const Online = (() => {
       // 死亡倒れアニメ（位置は最後の補間を維持）
       if (r.dying) {
         r.dieT += dt;
-        const k = Math.min(r.dieT / 0.45, 1);
-        const s = k * k * (3 - 2 * k);
-        r.g.rotation.x = r.fallDir * (Math.PI / 2) * s;
+        poseSoldierDeath(r, r.dieT, r.fallDir);
         r.g.position.set(r.pos.x, r.pos.y, r.pos.z);
         if (r.flash) r.flash.material.opacity *= Math.exp(-25 * dt);
         if (r.dieT > 2.4) {
@@ -949,6 +959,7 @@ const Online = (() => {
       // 敵モデル正面は +Z、プレイヤー yaw=0 はカメラ -Z → 表示は +π
       r.g.rotation.y = r.yaw + Math.PI;
       r.g.rotation.x = 0;
+      r.g.rotation.z = 0;
 
       // 足音＋全身の歩行姿勢（水平移動・接地付近）
       const dx = r.pos.x - prevX;
@@ -964,7 +975,7 @@ const Online = (() => {
           if (d < 42) AudioSys.enemyStep(d, remoteAudioPan(r), speed > 4.5);
         }
       }
-      poseSoldierLocomotion(r, grounded ? speed : 0, r.walkPhase, dt, r.crouch);
+      poseSoldierLocomotion(r, grounded ? speed : 0, r.walkPhase, dt, r.crouch, true);
 
       if (r.flash) r.flash.material.opacity *= Math.exp(-25 * dt);
 

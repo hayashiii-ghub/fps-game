@@ -173,9 +173,15 @@
     position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 15;
     font-size: 13px; letter-spacing: .25em; color: #ddd3b4; text-shadow: 0 1px 3px #000; white-space: nowrap;
   }
-  #scorebox { position: fixed; top: 18px; right: 28px; text-align: right; z-index: 15; }
+  #scorebox { position: fixed; top: 18px; right: 104px; text-align: right; z-index: 15; }
   #score { font-size: 24px; font-weight: 700; text-shadow: 0 1px 3px #000; }
   #scorebox small { font-size: 10px; letter-spacing: .3em; color: #b9b09a; }
+  #killcountbox {
+    position: fixed; top: 18px; right: 28px; z-index: 15; min-width: 52px; text-align: right;
+    padding-left: 12px; border-left: 1px solid rgba(216,192,138,.28); text-shadow: 0 1px 3px #000;
+  }
+  #killcountbox small { display: block; font-size: 9px; letter-spacing: .24em; color: #b9b09a; }
+  #killcount { font-size: 24px; font-weight: 800; color: #efe6c4; }
 
   #tdmhud {
     display: none; position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 15;
@@ -538,6 +544,7 @@
     <div id="tdmscore"><span class="blue">0</span> — <span class="red">0</span></div>
   </div>
   <div id="scorebox"><small>SCORE</small><div id="score" class="mono">0</div></div>
+  <div id="killcountbox"><small>KILLS</small><div id="killcount" class="mono">0</div></div>
   <div id="killfeed"></div>
   <div id="killtoast" class="title-font"></div>
   <div id="banner" class="title-font"></div>
@@ -670,9 +677,9 @@
 <script src="./world.js?v=play63"></script>
 <script src="./effects.js?v=play63"></script>
 <script src="./player.js?v=play63"></script>
-<script src="./enemy.js?v=play64"></script>
+<script src="./enemy.js?v=play65"></script>
 <script src="./net.js?v=play63"></script>
-<script src="./online.js?v=play64"></script>
-<script src="./main.js?v=play63"></script>
+<script src="./online.js?v=play65"></script>
+<script src="./main.js?v=play65"></script>
 </body>
 </html>
