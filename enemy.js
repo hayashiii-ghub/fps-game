@@ -31,7 +31,7 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
   const isSniper = kind === 'sniper';
   let bodyMat, darkMat;
   if (team === 'blue') {
-    bodyMat = MAT.metalBlue; darkMat = MAT.metalGrey;
+    bodyMat = MAT.suitBlue; darkMat = MAT.suitBlueDark;
   } else if (kind === 'elite') {
     bodyMat = MAT.suitRedDark; darkMat = MAT.darkMetal;
   } else if (kind === 'rusher') {
@@ -39,18 +39,18 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
   } else {
     bodyMat = MAT.suitRed; darkMat = MAT.suitRedDark;
   }
-  // チーム色アクセント（ヘルメット縁・肩・背嚢ストライプ）。胴より明るく遠距離でも読める
+  // チーム色は戦闘服の色で見せ、装備は暗色の布・樹脂としてまとめる。
   const accentMat = team === 'blue' ? MAT.accentBlue : MAT.accentRed;
 
-  // 脚
+  // 脚：ボクセル感は残しつつ、人間らしい太さと長さに戻す。
   const legL = new THREE.Group(), legR = new THREE.Group();
   for (const [leg, sx] of [[legL, -0.11], [legR, 0.11]]) {
-    const thigh = reg(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.42, 0.16), darkMat), 'limb');
-    thigh.position.y = -0.21;
-    const shin = reg(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.14), darkMat), 'limb');
-    shin.position.y = -0.62;
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), MAT.darkMetal);
-    boot.position.set(0, -0.86, 0.04);
+    const thigh = reg(new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.4, 0.19), bodyMat), 'limb');
+    thigh.position.y = -0.2;
+    const shin = reg(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.38, 0.17), darkMat), 'limb');
+    shin.position.y = -0.59;
+    const boot = reg(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.27), MAT.darkMetal), 'limb');
+    boot.position.set(0, -0.84, 0.045);
     leg.add(thigh); leg.add(shin); leg.add(boot);
     leg.position.set(sx, 0.92, 0);
     g.add(leg);
@@ -61,81 +61,89 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
   torso.position.y = 0.95;
   g.add(torso);
 
-  const chest = reg(new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.52, 0.24), bodyMat), 'torso');
+  const chest = reg(new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.54, 0.25), bodyMat), 'torso');
   chest.position.y = 0.28;
   torso.add(chest);
-  const vest = reg(new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.34, 0.28), darkMat), 'torso');
-  vest.position.y = 0.3;
+  const vest = reg(new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.31, 0.3), darkMat), 'torso');
+  vest.position.set(0, 0.28, 0.015);
   torso.add(vest);
-  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.09, 0.25), MAT.darkMetal);
-  belt.position.y = 0.02;
+  // プレート装甲ではなく、ベスト前面の小さなマガジンポーチ。
+  for (const sx of [-0.13, 0, 0.13]) {
+    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.12, 0.055), darkMat);
+    pouch.position.set(sx, 0.22, 0.185);
+    torso.add(pouch);
+  }
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.27), MAT.darkMetal);
+  belt.position.y = -0.01;
   torso.add(belt);
 
-  // 肩パッド（暗色ベース＋チーム色トップ）
-  for (const sx of [-1, 1]) {
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.2), darkMat);
-    pad.position.set(sx * 0.28, 0.48, 0.02);
-    torso.add(pad);
-    const padTop = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.035, 0.21), accentMat);
-    padTop.position.set(sx * 0.28, 0.54, 0.02);
-    torso.add(padTop);
-  }
-
-  // 背嚢＋チーム色ストライプ
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.34, 0.14), darkMat);
-  pack.position.set(0, 0.3, -0.2);
+  // 小型背嚢。肩幅より外へ出さず、重装甲の輪郭にしない。
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.31, 0.14), darkMat);
+  pack.position.set(0, 0.27, -0.195);
   torso.add(pack);
-  const packStripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.02), accentMat);
-  packStripe.position.set(0, 0.3, -0.28);
-  torso.add(packStripe);
 
-  // 頭（直方体スタックの疑似ボクセル。球は使わない）
+  // 頭：ヘルメットの影に最小限の肌を見せる。目鼻は造形しない。
   const headG = new THREE.Group();
-  headG.position.y = 0.62;
-  const head = reg(new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.22), MAT.skin), 'head');
-  head.position.y = 0.04;
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.16), MAT.skin);
-  jaw.position.set(0, -0.06, 0.02);
-  const helmet = reg(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.3), darkMat), 'head');
-  helmet.position.y = 0.14;
-  const rim = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.04, 0.32), accentMat);
-  rim.position.y = 0.07;
-  const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 0.06), MAT.glass);
-  goggles.position.set(0, 0.05, 0.14);
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.04), accentMat);
-  visor.position.set(0, 0.1, 0.15);
-  headG.add(head); headG.add(jaw); headG.add(helmet); headG.add(rim);
-  headG.add(goggles); headG.add(visor);
+  headG.position.y = 0.61;
+  const head = reg(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.2), darkMat), 'head');
+  head.position.y = 0.025;
+  const face = reg(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.105, 0.035), MAT.skin), 'head');
+  face.position.set(0, -0.005, 0.115);
+  const helmet = reg(new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.12, 0.27), bodyMat), 'head');
+  helmet.position.y = 0.15;
+  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.035, 0.29), darkMat);
+  brim.position.y = 0.085;
+  // チーム識別は現地テープ程度の細い帯に留める。
+  const helmetBand = new THREE.Mesh(new THREE.BoxGeometry(0.295, 0.025, 0.275), accentMat);
+  helmetBand.position.y = 0.115;
+  headG.add(head); headG.add(face); headG.add(helmet); headG.add(brim); headG.add(helmetBand);
   torso.add(headG);
 
-  // 腕＋ライフル（胴体子）
+  // 腕：戦闘服の袖を主体にし、自然にライフルを抱える太さにする。
   const armM = bodyMat;
-  const armL = reg(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.13), armM), 'limb');
-  armL.position.set(-0.26, 0.28, 0.18);
-  armL.rotation.x = -0.55; armL.rotation.z = 0.28;
+  const armL = reg(new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.32, 0.15), armM), 'limb');
+  armL.position.set(-0.27, 0.3, 0.11);
+  armL.rotation.x = -0.5; armL.rotation.z = 0.2;
   torso.add(armL);
-  const armR = reg(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.13), armM), 'limb');
-  armR.position.set(0.26, 0.26, 0.16);
-  armR.rotation.x = -0.5; armR.rotation.z = -0.22;
+  const forearmL = reg(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.25), armM), 'limb');
+  forearmL.position.set(-0.22, 0.17, 0.26);
+  forearmL.rotation.x = -0.5; forearmL.rotation.z = -0.15;
+  torso.add(forearmL);
+  const gloveL = reg(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.12, 0.16), MAT.darkMetal), 'limb');
+  gloveL.position.set(-0.17, 0.17, 0.37);
+  torso.add(gloveL);
+  const armR = reg(new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.32, 0.15), armM), 'limb');
+  armR.position.set(0.27, 0.3, 0.1);
+  armR.rotation.x = -0.45; armR.rotation.z = -0.2;
   torso.add(armR);
+  const forearmR = reg(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.25), armM), 'limb');
+  forearmR.position.set(0.21, 0.19, 0.26);
+  forearmR.rotation.x = -0.52; forearmR.rotation.z = 0.13;
+  torso.add(forearmR);
+  const gloveR = reg(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.12, 0.16), MAT.darkMetal), 'limb');
+  gloveR.position.set(0.16, 0.18, 0.37);
+  torso.add(gloveR);
 
   const rifle = new THREE.Group();
   const rBody = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.09, isSniper ? 0.95 : 0.72), MAT.gunmetal);
+    new THREE.BoxGeometry(0.07, 0.095, isSniper ? 0.95 : 0.68), MAT.gunmetal);
   rifle.add(rBody);
+  const rStock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.12, 0.23), darkMat);
+  rStock.position.set(0, -0.01, 0.36);
+  rifle.add(rStock);
   const rBarrel = new THREE.Mesh(
-    new THREE.BoxGeometry(0.028, 0.028, isSniper ? 0.55 : 0.28), MAT.darkMetal);
-  rBarrel.position.z = isSniper ? -0.72 : -0.48;
+    new THREE.BoxGeometry(0.03, 0.03, isSniper ? 0.55 : 0.3), MAT.darkMetal);
+  rBarrel.position.z = isSniper ? -0.72 : -0.47;
   rifle.add(rBarrel);
   if (isSniper) {
     const scope = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.2), MAT.darkMetal);
     scope.position.set(0, 0.08, -0.1);
     rifle.add(scope);
   }
-  const rMag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.08), MAT.darkMetal);
-  rMag.position.set(0, -0.1, -0.08);
+  const rMag = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.16, 0.085), MAT.darkMetal);
+  rMag.position.set(0, -0.12, -0.08);
   rifle.add(rMag);
-  rifle.position.set(0.14, 0.32, 0.34);
+  rifle.position.set(0.09, 0.27, 0.33);
   torso.add(rifle);
 
   const muzzle = new THREE.Object3D();
