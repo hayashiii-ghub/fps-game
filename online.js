@@ -189,8 +189,14 @@ const Online = (() => {
       g: m.group,
       parts: m.parts,
       torso: m.torso,
+      headG: m.headG,
       legL: m.legL,
       legR: m.legR,
+      armL: m.armL,
+      forearmL: m.forearmL,
+      armR: m.armR,
+      forearmR: m.forearmR,
+      rifle: m.rifle,
       muzzle: m.muzzle,
       flash: m.flash,
       pos: new THREE.Vector3(),
@@ -944,13 +950,7 @@ const Online = (() => {
       r.g.rotation.y = r.yaw + Math.PI;
       r.g.rotation.x = 0;
 
-      // AI と同じしゃがみ：胴を下げる（部位メッシュ＝ヒットボックスも追従）
-      if (r.torso) {
-        const targetTorsoY = r.crouch ? 0.63 : 0.95;
-        r.torso.position.y += (targetTorsoY - r.torso.position.y) * (1 - Math.exp(-8 * dt));
-      }
-
-      // 足音＋脚振り（水平移動・接地付近）
+      // 足音＋全身の歩行姿勢（水平移動・接地付近）
       const dx = r.pos.x - prevX;
       const dz = r.pos.z - prevZ;
       const speed = Math.hypot(dx, dz) / Math.max(dt, 1e-4);
@@ -959,18 +959,12 @@ const Online = (() => {
         const prev = Math.sin(r.walkPhase);
         r.walkPhase += speed * dt * 2.35;
         const cur = Math.sin(r.walkPhase);
-        const sw = cur * 0.55 * Math.min(speed / 4.5, 1);
-        r.legL.rotation.x = sw;
-        r.legR.rotation.x = -sw;
         if (prev >= 0 && cur < 0 && player.alive && typeof AudioSys !== 'undefined') {
           const d = r.pos.distanceTo(player.pos);
           if (d < 42) AudioSys.enemyStep(d, remoteAudioPan(r), speed > 4.5);
         }
-      } else if (r.legL && r.legR) {
-        const ease = 1 - Math.exp(-10 * dt);
-        r.legL.rotation.x += (0 - r.legL.rotation.x) * ease;
-        r.legR.rotation.x += (0 - r.legR.rotation.x) * ease;
       }
+      poseSoldierLocomotion(r, grounded ? speed : 0, r.walkPhase, dt, r.crouch);
 
       if (r.flash) r.flash.material.opacity *= Math.exp(-25 * dt);
 

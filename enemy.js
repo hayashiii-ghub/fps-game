@@ -159,7 +159,55 @@ function buildEnemyModel(kind = 'grunt', team = 'red') {
 
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; } });
 
-  return { group: g, parts, legL, legR, torso, headG, muzzle, flash };
+  return {
+    group: g, parts, legL, legR, torso, headG,
+    armL, forearmL, armR, forearmR, rifle,
+    muzzle, flash,
+  };
+}
+
+/**
+ * 箱プリミティブの輪郭を崩さず、兵士らしい重心移動と銃の保持を付ける。
+ * phase は呼び出し側で進めるため、AI とオンライン表示で同じ姿勢になる。
+ */
+function poseSoldierLocomotion(rig, speed, phase, dt, crouched = false) {
+  const ease = 1 - Math.exp(-10 * dt);
+  const move = clamp((speed - 0.25) / 4.5, 0, 1);
+  const running = clamp((speed - 3.5) / 2.5, 0, 1);
+  const stride = Math.sin(phase);
+  const step = Math.abs(Math.cos(phase));
+  const sway = Math.sin(phase) * move;
+  const targetLeg = stride * (0.34 + running * 0.22) * move;
+  const baseTorsoY = 0.95 + (crouched ? -0.32 : 0);
+
+  rig.legL.rotation.x += (targetLeg - rig.legL.rotation.x) * ease;
+  rig.legR.rotation.x += (-targetLeg - rig.legR.rotation.x) * ease;
+
+  // 足が接地するたび腰が少し沈み、走行時は銃を抱えて前傾する。
+  const bob = move * (0.012 + running * 0.018) * step;
+  rig.torso.position.y += (baseTorsoY - bob - rig.torso.position.y) * ease;
+  rig.torso.rotation.x += ((move * 0.035 + running * 0.065) - rig.torso.rotation.x) * ease;
+  rig.torso.rotation.z += ((sway * 0.018) - rig.torso.rotation.z) * ease;
+
+  // 上半身と逆向きに頭をわずかに補正し、視線を安定させる。
+  if (rig.headG) {
+    rig.headG.rotation.x += ((-running * 0.025) - rig.headG.rotation.x) * ease;
+    rig.headG.rotation.z += ((-sway * 0.012) - rig.headG.rotation.z) * ease;
+  }
+
+  // 腕と銃は一体で揺らし、歩行中も「構えている」輪郭を保つ。
+  const weaponLift = running * 0.025 + step * move * 0.008;
+  const weaponSway = sway * 0.012;
+  if (rig.armL) rig.armL.rotation.x += ((-0.5 - running * 0.08 + weaponSway) - rig.armL.rotation.x) * ease;
+  if (rig.forearmL) rig.forearmL.rotation.x += ((-0.5 - running * 0.05) - rig.forearmL.rotation.x) * ease;
+  if (rig.armR) rig.armR.rotation.x += ((-0.45 - running * 0.07 - weaponSway) - rig.armR.rotation.x) * ease;
+  if (rig.forearmR) rig.forearmR.rotation.x += ((-0.52 - running * 0.04) - rig.forearmR.rotation.x) * ease;
+  if (rig.rifle) {
+    rig.rifle.position.y += ((0.27 + weaponLift) - rig.rifle.position.y) * ease;
+    rig.rifle.position.x += ((0.09 + weaponSway) - rig.rifle.position.x) * ease;
+    rig.rifle.rotation.x += ((-running * 0.035) - rig.rifle.rotation.x) * ease;
+    rig.rifle.rotation.z += ((-weaponSway * 0.7) - rig.rifle.rotation.z) * ease;
+  }
 }
 
 /* ---------- 敵クラス ---------- */
@@ -171,7 +219,10 @@ class Enemy {
     this.g = m.group;
     this.parts = m.parts;
     this.legL = m.legL; this.legR = m.legR;
-    this.torso = m.torso; this.muzzle = m.muzzle; this.flash = m.flash;
+    this.torso = m.torso; this.headG = m.headG;
+    this.armL = m.armL; this.forearmL = m.forearmL;
+    this.armR = m.armR; this.forearmR = m.forearmR; this.rifle = m.rifle;
+    this.muzzle = m.muzzle; this.flash = m.flash;
     for (const p of this.parts) p.userData.enemy = this;
 
     const protMat = new THREE.MeshBasicMaterial({
@@ -621,9 +672,6 @@ class Enemy {
       const prev = Math.sin(this.walkPhase);
       this.walkPhase += this.speed * dt * 2.4;
       const cur = Math.sin(this.walkPhase);
-      const sw = cur * 0.55 * clamp(this.speed / 4, 0, 1);
-      this.legL.rotation.x = sw;
-      this.legR.rotation.x = -sw;
       // 敵足音（距離減衰・パン）
       if (prev >= 0 && cur < 0 && player.alive) {
         const d = this.pos.distanceTo(player.pos);
@@ -631,12 +679,8 @@ class Enemy {
           AudioSys.enemyStep(d, this.audioPanToPlayer(), this.speed > 4.2);
         }
       }
-    } else {
-      this.legL.rotation.x = lerp(this.legL.rotation.x, 0, 1 - Math.exp(-10 * dt));
-      this.legR.rotation.x = lerp(this.legR.rotation.x, 0, 1 - Math.exp(-10 * dt));
     }
-    const targetY = this.crouched ? -0.32 : 0;
-    this.torso.position.y = lerp(this.torso.position.y, 0.95 + targetY, 1 - Math.exp(-8 * dt));
+    poseSoldierLocomotion(this, this.speed, this.walkPhase, dt, this.crouched);
     this.flash.material.opacity *= Math.exp(-25 * dt);
   }
 
