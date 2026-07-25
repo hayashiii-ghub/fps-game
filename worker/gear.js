@@ -2,6 +2,7 @@
  * オンライン勝負ギア（グレ・回復・ルート）の純ロジック
  */
 import { clamp, sanitizeWeapon } from './pose.js';
+import { getMapConfig } from './map-config.js';
 
 export { sanitizeWeapon };
 
@@ -226,7 +227,7 @@ export function pickSupplyBundle(rng = Math.random, mapId = 'desert') {
   const types = ['ammo', 'ammo', 'med', 'med', 'nade', 'nade'];
   if (rng() < 0.22) types.push('armor');
   if (rng() < 0.28) types.push('extmag');
-  if (rng() < 0.28) types.push(mapId === 'jungle' ? 'sg_surv' : 'sr_surv');
+  if (rng() < 0.28) types.push(getMapConfig(mapId).survivalWeapon);
   return types;
 }
 

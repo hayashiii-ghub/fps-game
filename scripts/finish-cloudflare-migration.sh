@@ -31,7 +31,7 @@ URL="${URL%/}"
 
 echo "==> Verify ${URL}/"
 curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "${URL}/"
-curl -fsS "${URL}/" | grep -q 'KIMI GROK FPS'
+curl -fsS "${URL}/" | grep -q 'FPS ARENA'
 curl -fsS -o /dev/null -w "og.jpg %{http_code}\n" "${URL}/og.jpg"
 
 echo "==> Patch OGP / README → ${URL}"
@@ -39,6 +39,7 @@ python3 - <<PY
 from pathlib import Path
 url = "${URL}"
 replacements = [
+    ("https://kimi-grok-fps.hayashigoto.workers.dev", url),
     ("https://kimi-grok-fps.pages.dev", url),
     ("https://hayashiii-ghub.github.io/fps-game", url),
 ]

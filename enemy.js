@@ -982,7 +982,7 @@ class Enemy {
     spawnFloater(headshot ? `HEADSHOT +${pts}` : `+${pts}`, headshot);
     updateScoreHUD();
     rebuildHitMeshes();
-    if (this.kind === 'sniper') spawnLoot(this.pos, game.map === 'jungle' ? 'sg_surv' : 'sr_surv');
+    if (this.kind === 'sniper') spawnLoot(this.pos, getMapGameplayDef(game.map).survivalWeapon);
     else if (this.kind === 'elite' && !player.armor) spawnLoot(this.pos, 'armor');
     else maybeDrop(this.pos);
     checkWaveCleared();
@@ -1130,7 +1130,7 @@ function dropSupplyBundle(announce) {
   if (wantExt) spawnLoot(p, 'extmag');
   // TDM: マップ限定の強い武器（Desert=SR / Jungle=SG）
   if (game.mode === 'tdm' && Math.random() < 0.28) {
-    spawnLoot(p, game.map === 'jungle' ? 'sg_surv' : 'sr_surv');
+    spawnLoot(p, getMapGameplayDef(game.map).survivalWeapon);
   }
   if (announce !== false) {
     spawnFloater(game.mode === 'tdm' ? t('floater.supplyCenter') : t('floater.supplyStage'), false);
@@ -1346,9 +1346,13 @@ const STAGE_DEFS = {
   },
 };
 
-/** マップ別天候種別（desert=ハリケーン / jungle=スコール） */
+function getMapGameplayDef(mapId) {
+  return (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[mapId]) || MAP_DEFS.desert;
+}
+
+/** マップ定義に紐づいた天候種別 */
 function getMapWeatherKind(mapId) {
-  return mapId === 'jungle' ? 'squall' : 'hurricane';
+  return getMapGameplayDef(mapId).weather;
 }
 
 /** 天候の霧・減光パラメータ。null なら晴天 */

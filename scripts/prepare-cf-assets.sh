@@ -32,4 +32,7 @@ do
   cp -a "$f" "$DEST/"
 done
 
+cp -a shared "$DEST/"
+cp -a maps "$DEST/"
+
 echo "Prepared $DEST ($(ls -1 "$DEST" | wc -l) files)"

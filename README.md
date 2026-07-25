@@ -1,7 +1,7 @@
-# KIMI GROK FPS
+# FPS ARENA
 
-ブラウザで遊べる FPS。three.js 製・ビルド不要・オフライン動作。
-マップは砂漠（DESERT）と密林（JUNGLE）の2つ（今後も追加予定）。
+さまざまなAIモデルが制作したマップで遊べるブラウザFPS。three.js製・ビルド不要・オフライン動作。
+現在はKimi K3制作の砂漠（DESERT）と密林（JUNGLE）を収録し、今後もモデルごとのマップを追加予定。
 
 **▶ プレイ: https://kimi-grok-fps.hayashigoto.workers.dev/**
 
@@ -24,8 +24,8 @@
 - **MAIN / SUB WEAPON** — アサルト / SMG / ショットガン / スナイパーから重複なしで2つ選択。ハンドガンは全員が常備（特殊枠）
   - SMG: 高連射・軽快だが遠距離は苦手（近中距離）
   - ショットガン: 8ペレット散弾・ポンプアクション。近距離決戦用
-- **MAP: DESERT** — 砂漠の拠点。開けた射線とコンテナ群。遠距離の撃ち合いが主体
-- **MAP: JUNGLE** — 密林（PUBG Sanhok 参考）。中央遺跡・東リゾート・南港・西採石場・北西訓練場・北東岩窟。茂みは見た目のみ（弾・視線・移動すべて素通し）
+- **MAP: DESERT — MAP BY Kimi K3** — 砂漠の拠点。開けた射線とコンテナ群。遠距離の撃ち合いが主体
+- **MAP: JUNGLE — MAP BY Kimi K3** — 密林（PUBG Sanhok 参考）。中央遺跡・東リゾート・南港・西採石場・北西訓練場・北東岩窟。茂みは見た目のみ（弾・視線・移動すべて素通し）
 
 モード:
 
@@ -129,7 +129,11 @@ URLにクエリを付けると検証用モードで起動する。
 | ファイル | 役割 |
 | --- | --- |
 | `index.html` | HUD・メニュー・CSS・OGP |
-| `world.js` | シーン・テクスチャ・マップ・コライダ |
+| `world.js` | シーン・テクスチャ・共通マップヘルパー・コライダ |
+| `maps/desert.js` / `maps/jungle.js` | Kimi K3制作のマップ固有配置 |
+| `shared/map-manifest.js` | クライアントとWorkerで共有するマップID・作者・ゲーム特性 |
+| `MAP_AUTHORING.md` | AIモデルへ渡せるマップ制作ガイド |
+| `maps/template.js` | 新規マップbuild関数のテンプレート |
 | `player.js` | プレイヤー操作・武器・被弾・防具 |
 | `enemy.js` | 敵AI・ウェーブ / TDM・ドロップ・中央補給 |
 | `effects.js` | トレーサー／パーティクル／グレネード |
@@ -146,7 +150,7 @@ URLにクエリを付けると検証用モードで起動する。
 
 公式推奨は **Workers + Static Assets**（Pages ではなくこちら）。GitHub Pages は使わない。
 
-公開 URL は初回デプロイ後に決まる形です:
+現在の公開Workerは旧プロジェクト名のURLを継続利用しています。表示ブランドはFPS ARENAです:
 
 `https://kimi-grok-fps.hayashigoto.workers.dev`
 
@@ -169,7 +173,7 @@ npx wrangler deploy
 ### ダッシュボード
 
 1. [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → **Create** → **Worker**
-2. 名前: **`kimi-grok-fps`**
+2. 名前: 現行環境は **`kimi-grok-fps`**。新環境へ移行する場合の候補は **`fps-arena`**
 3. ローカルで `./scripts/prepare-cf-assets.sh && npx wrangler deploy`、または Workers Builds で同等を実行
 4. 表示された `*.workers.dev` でロビーが出ることを確認
 

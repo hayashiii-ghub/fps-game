@@ -1,0 +1,25 @@
+(function exposeMapManifest(root) {
+  'use strict';
+
+  const maps = {
+    desert: {
+      id: 'desert',
+      name: 'DESERT',
+      author: 'Kimi K3',
+      descriptionKey: 'map.desert.desc',
+      weather: 'hurricane',
+      survivalWeapon: 'sr_surv',
+    },
+    jungle: {
+      id: 'jungle',
+      name: 'JUNGLE',
+      author: 'Kimi K3',
+      descriptionKey: 'map.jungle.desc',
+      weather: 'squall',
+      survivalWeapon: 'sg_surv',
+    },
+  };
+
+  for (const def of Object.values(maps)) Object.freeze(def);
+  root.FPS_ARENA_MAPS = Object.freeze(maps);
+})(globalThis);

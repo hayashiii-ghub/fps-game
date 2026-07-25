@@ -3,24 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KIMI GROK FPS</title>
+<title>FPS ARENA</title>
 <link rel="icon" href="./favicon.svg?v=2" type="image/svg+xml">
 <link rel="icon" href="./favicon-32.png?v=2" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="./favicon-180.png?v=2">
 <meta name="theme-color" content="#0b0c09">
-<meta name="description" content="ブラウザで遊べる FPS。DESERT / JUNGLE。Survival と Team Deathmatch。">
+<meta name="description" content="AIモデルが制作したマップで遊べるブラウザFPS。SurvivalとTeam Deathmatch。">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="KIMI GROK FPS">
-<meta property="og:title" content="KIMI GROK FPS">
-<meta property="og:description" content="ブラウザで遊べる FPS。DESERT / JUNGLE。Survival と Team Deathmatch。">
+<meta property="og:site_name" content="FPS ARENA">
+<meta property="og:title" content="FPS ARENA">
+<meta property="og:description" content="AIモデルが制作したマップで遊べるブラウザFPS。">
 <meta property="og:url" content="https://kimi-grok-fps.hayashigoto.workers.dev/">
 <meta property="og:image" content="https://kimi-grok-fps.hayashigoto.workers.dev/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:type" content="image/jpeg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="KIMI GROK FPS">
-<meta name="twitter:description" content="ブラウザで遊べる FPS。DESERT / JUNGLE。Survival と Team Deathmatch。">
+<meta name="twitter:title" content="FPS ARENA">
+<meta name="twitter:description" content="AIモデルが制作したマップで遊べるブラウザFPS。">
 <meta name="twitter:image" content="https://kimi-grok-fps.hayashigoto.workers.dev/og.jpg">
 <style>
   :root { --gap: 10px; }
@@ -221,6 +221,9 @@
   .mode-card.mode-3 {
     grid-template-columns: 1fr 1fr 1fr;
   }
+  .mode-card.map-card {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
   .mode-card .mc {
     display: block; width: 100%; box-sizing: border-box;
     padding: clamp(8px, 1.2vh, 13px) 18px; border: 1px solid rgba(216,192,138,.24);
@@ -239,6 +242,10 @@
   .mode-card .mc h3 {
     font-size: clamp(11px, 1.3vh, 13px); letter-spacing: .25em; color: #efe6c4;
     margin-bottom: clamp(3px, 0.5vh, 6px); font-weight: 700;
+  }
+  .mode-card .map-author {
+    display: block; margin-bottom: clamp(3px, 0.5vh, 6px);
+    color: #d9a94f; font-size: 9px; letter-spacing: .2em;
   }
   .online-panel {
     display: flex; flex-direction: column; gap: clamp(6px, 1vh, 10px);
@@ -558,8 +565,8 @@
   <div class="letterbox top"></div>
   <div class="letterbox bottom"></div>
   <div class="cb tl"></div><div class="cb tr"></div><div class="cb bl"></div><div class="cb br"></div>
-  <h1 class="title-font">KIMI GROK <span class="accent">FPS</span></h1>
-  <div class="menu-status"><span class="blink">▮</span> BROWSER FPS ― KIMI × GROK</div>
+  <h1 class="title-font"><span class="accent">FPS</span> ARENA</h1>
+  <div class="menu-status"><span class="blink">▮</span> MAPS CREATED BY AI MODELS</div>
   <div class="menu-stack">
     <div class="sect-label mono">MAIN WEAPON</div>
     <div class="chip-row" id="mainWeaponRow">
@@ -577,16 +584,7 @@
     </div>
     <div class="sect-label mono" data-i18n="lobby.sidearm">SIDEARM ― HANDGUN（全員常備・特殊枠）</div>
     <div class="sect-label mono">MAP</div>
-    <div class="mode-card">
-      <button type="button" class="mc sel" id="mapDesertBtn">
-        <h3>DESERT</h3>
-        <span data-i18n="map.desert.desc" data-i18n-html>砂漠の拠点。開けた射線とコンテナ群。<br>遠距離の撃ち合いが主体。</span>
-      </button>
-      <button type="button" class="mc" id="mapJungleBtn">
-        <h3>JUNGLE</h3>
-        <span data-i18n="map.jungle.desc" data-i18n-html>密林。遺跡・港・採石場・岩窟。<br>茂みは弾を遮るが通り抜けられる。</span>
-      </button>
-    </div>
+    <div class="mode-card map-card" id="mapCardList"></div>
     <div class="sect-label mono">MODE</div>
     <div class="mode-card mode-3">
       <button type="button" class="mc" id="startSurvivalBtn">
@@ -671,16 +669,19 @@
 
 <script src="./three.min.js"></script>
 <script src="./i18n.js?v=play63"></script>
+<script src="./shared/map-manifest.js?v=arena1"></script>
 <script src="./tdm-respawn.js?v=play63"></script>
 <script src="./ai-steer.js?v=play63"></script>
 <script src="./audio.js?v=play63"></script>
-<script src="./world.js?v=play63"></script>
+<script src="./world.js?v=arena1"></script>
+<script src="./maps/desert.js?v=arena1"></script>
+<script src="./maps/jungle.js?v=arena1"></script>
 <script src="./grenade-physics.js?v=play67"></script>
 <script src="./effects.js?v=play70"></script>
 <script src="./player.js?v=play63"></script>
 <script src="./enemy.js?v=play65"></script>
 <script src="./net.js?v=play63"></script>
 <script src="./online.js?v=play65"></script>
-<script src="./main.js?v=play65"></script>
+<script src="./main.js?v=arena1"></script>
 </body>
 </html>

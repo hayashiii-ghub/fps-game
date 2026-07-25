@@ -545,10 +545,44 @@ function bindLatinKeys(el, { upper = false } = {}) {
 /** ロビーのマップ選択。選ぶと背景のマップも即切り替わる */
 function applyMapSelection(id) {
   game.map = (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[id]) ? id : 'desert';
-  const d = $('mapDesertBtn'), j = $('mapJungleBtn');
-  if (d) d.classList.toggle('sel', game.map === 'desert');
-  if (j) j.classList.toggle('sel', game.map === 'jungle');
+  document.querySelectorAll('#mapCardList [data-map-id]').forEach((button) => {
+    const selected = button.dataset.mapId === game.map;
+    button.classList.toggle('sel', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
   ensureMapBuilt(game.map);
+}
+
+/** MAP_DEFSからカードを生成し、マップ追加時のロビー個別配線を不要にする。 */
+function renderMapCards() {
+  const list = $('mapCardList');
+  if (!list || typeof MAP_DEFS === 'undefined') return;
+  list.textContent = '';
+
+  for (const def of Object.values(MAP_DEFS)) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mc';
+    button.dataset.mapId = def.id;
+    button.setAttribute('aria-pressed', 'false');
+
+    const title = document.createElement('h3');
+    title.textContent = def.name;
+    const author = document.createElement('span');
+    author.className = 'map-author mono';
+    author.textContent = `MAP BY ${def.author}`;
+    const description = document.createElement('span');
+    description.dataset.i18n = def.descriptionKey;
+    description.setAttribute('data-i18n-html', '');
+    description.innerHTML = t(def.descriptionKey);
+
+    button.append(title, author, description);
+    button.addEventListener('click', () => {
+      applyMapSelection(def.id);
+      uiBlip();
+    });
+    list.appendChild(button);
+  }
 }
 
 /** ロビーの武器選択（メイン/サブ・重複不可） */
@@ -805,9 +839,7 @@ function initMenus() {
       : t('net.hint'));
   });
   initOnlineLobby();
-  const mapD = $('mapDesertBtn'), mapJ = $('mapJungleBtn');
-  if (mapD) mapD.addEventListener('click', () => { applyMapSelection('desert'); uiBlip(); });
-  if (mapJ) mapJ.addEventListener('click', () => { applyMapSelection('jungle'); uiBlip(); });
+  renderMapCards();
   document.querySelectorAll('#mainWeaponRow .wchip').forEach(b =>
     b.addEventListener('click', () => { applyLoadoutSelection('main', b.dataset.w); uiBlip(); }));
   document.querySelectorAll('#subWeaponRow .wchip').forEach(b =>
@@ -1064,6 +1096,7 @@ function debugDrive() {
 /* ---------- 起動 ---------- */
 function boot() {
   if (typeof initI18n === 'function') initI18n();
+  validateMapRegistry();
   initWorld();
   buildGun();
   initTracers();

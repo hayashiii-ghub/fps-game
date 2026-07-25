@@ -2,7 +2,7 @@
  * オンライン射線用のマップ固体 OBB（植生・thicket は載せない）。
  * 座標は world.js の移動コライダ（明示 OBB / 葉登録の見た目寸法）と対応。
  */
-import { sanitizeMap } from './pose.js';
+import { MAP_IDS, sanitizeMapId } from './map-config.js';
 
 function snapYaw(yaw) {
   const q = Math.PI * 0.5;
@@ -280,8 +280,17 @@ const BY_MAP = {
   jungle: JUNGLE,
 };
 
+export const MAP_SOLID_IDS = Object.freeze(Object.keys(BY_MAP));
+const missingSolidIds = MAP_IDS.filter(id => !BY_MAP[id]);
+const unknownSolidIds = MAP_SOLID_IDS.filter(id => !MAP_IDS.includes(id));
+if (missingSolidIds.length || unknownSolidIds.length) {
+  throw new Error(
+    `Map manifest/solids mismatch: missing=${missingSolidIds.join(',')} unknown=${unknownSolidIds.join(',')}`,
+  );
+}
+
 export function solidsForMap(mapId) {
-  return BY_MAP[sanitizeMap(mapId)] || DESERT;
+  return BY_MAP[sanitizeMapId(mapId)];
 }
 
 /**
