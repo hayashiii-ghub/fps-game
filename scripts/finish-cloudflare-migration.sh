@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 
 ./scripts/prepare-cf-assets.sh
 
-echo "==> Deploy Worker + Static Assets (kimi-grok-fps)"
+echo "==> Deploy Worker + Static Assets (fps-arena)"
 if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   if ! npx --yes wrangler@4 whoami >/dev/null 2>&1; then
     echo "未ログインです。ブラウザで Authorize してください…"

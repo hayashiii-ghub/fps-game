@@ -1,9 +1,9 @@
 # Cloudflare Workers Static Assets + Durable Object (Room)
 # Deploy: ./scripts/prepare-cf-assets.sh && npx wrangler deploy
-# URL: https://kimi-grok-fps.<account-subdomain>.workers.dev
+# URL: https://fps-arena.<account-subdomain>.workers.dev
 # Local: ./scripts/prepare-cf-assets.sh && npx wrangler dev
 
-name = "kimi-grok-fps"
+name = "fps-arena"
 main = "./worker/index.js"
 compatibility_date = "2026-07-21"
 workers_dev = true

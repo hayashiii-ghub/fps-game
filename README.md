@@ -3,7 +3,7 @@
 さまざまなAIモデルが制作したマップで遊べるブラウザFPS。three.js製・ビルド不要・オフライン動作。
 現在はKimi K3制作の砂漠（DESERT）と密林（JUNGLE）を収録し、今後もモデルごとのマップを追加予定。
 
-**▶ プレイ: https://kimi-grok-fps.hayashigoto.workers.dev/**
+**▶ プレイ: https://fps-arena.hayashigoto.workers.dev/**
 
 ## 遊び方
 
@@ -150,9 +150,9 @@ URLにクエリを付けると検証用モードで起動する。
 
 公式推奨は **Workers + Static Assets**（Pages ではなくこちら）。GitHub Pages は使わない。
 
-現在の公開Workerは旧プロジェクト名のURLを継続利用しています。表示ブランドはFPS ARENAです:
+公開Workerと表示ブランドはFPS ARENAへ統一しています:
 
-`https://kimi-grok-fps.hayashigoto.workers.dev`
+`https://fps-arena.hayashigoto.workers.dev`
 
 ### CLI（推奨）
 
@@ -173,7 +173,7 @@ npx wrangler deploy
 ### ダッシュボード
 
 1. [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → **Create** → **Worker**
-2. 名前: 現行環境は **`kimi-grok-fps`**。新環境へ移行する場合の候補は **`fps-arena`**
+2. 名前: **`fps-arena`**
 3. ローカルで `./scripts/prepare-cf-assets.sh && npx wrangler deploy`、または Workers Builds で同等を実行
 4. 表示された `*.workers.dev` でロビーが出ることを確認
 
