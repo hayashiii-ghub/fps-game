@@ -442,6 +442,21 @@ class Enemy {
     return new THREE.Vector3(this.pos.x, this.pos.y + (this.crouched ? 1.25 : 1.58), this.pos.z);
   }
 
+  /** 縁を踏み外したら落ちる。段差登りは移動側で済ませている */
+  applyGravity(dt) {
+    const fellFrom = this.pos.y;
+    this.velY = (this.velY || 0) - 13.5 * dt;
+    this.pos.y += this.velY * dt;
+    const floorY = GroundSupport.landingHeight(colliders, this.pos.x, this.pos.z, 0.34, fellFrom);
+    if (this.pos.y <= floorY) {
+      this.pos.y = floorY;
+      this.velY = 0;
+      this.airborne = false;
+    } else {
+      this.airborne = true;
+    }
+  }
+
   foeTeam() {
     return this.team === 'blue' ? 'red' : 'blue';
   }
@@ -722,7 +737,12 @@ class Enemy {
     this.pos.x += vel.x * dt;
     this.pos.z += vel.z * dt;
     // プレイヤー同様、壁法線への食い込み速度を切ってスライドさせる
+    // 段差はプレイヤーと同じ STEP_UP で登る（登れる高さが同じなので経路探索が要らない）
+    if (!this.airborne) {
+      this.pos.y = GroundSupport.stepUpTo(colliders, this.pos.x, this.pos.z, 0.34, this.pos.y);
+    }
     resolveCollision(this.pos, 0.34, 1.7, vel);
+    this.applyGravity(dt);
     const dx = this.pos.x - beforeX;
     const dz = this.pos.z - beforeZ;
     const intendedDist = Math.hypot(moveX * this.speed * dt, moveZ * this.speed * dt);
@@ -990,7 +1010,10 @@ class Enemy {
 
   doRespawn() {
     const sp = pickTdmSpawn(this.team);
-    this.pos.set(sp[0], 0, sp[1]);
+    // 起伏のあるマップでも地面に立たせる
+    this.pos.set(sp[0], GroundSupport.supportHeightAt(colliders, sp[0], sp[1], 0.34, 6), sp[1]);
+    this.velY = 0;
+    this.airborne = false;
     this.g.position.copy(this.pos);
     this.g.rotation.set(0, Math.atan2(-sp[0], -sp[1]), 0);
     resetSoldierPose(this, this.crouched);

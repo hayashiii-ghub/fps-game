@@ -1172,15 +1172,28 @@ function updatePlayer(dt) {
   for (let i = 0; i < steps; i++) {
     player.pos.x += player.vel.x * sdt;
     player.pos.z += player.vel.z * sdt;
+    // 接地中だけ段差を登る。先に足元を上げると resolveCollision が
+    // その固体を「頭より下」として無視するので、押し戻されずに乗れる
+    if (player.onGround) {
+      player.pos.y = GroundSupport.stepUpTo(
+        colliders, player.pos.x, player.pos.z, player.radius, player.pos.y);
+    }
     resolveCollision(player.pos, player.radius, colH, player.vel);
   }
+  const fellFrom = player.pos.y;
   player.pos.y += player.vel.y * dt;
-  if (player.pos.y <= 0) {
+  // 落下前の足元より高い天面には乗らない（頭上の床をすり抜けない）
+  const floorY = GroundSupport.landingHeight(
+    colliders, player.pos.x, player.pos.z, player.radius, fellFrom);
+  if (player.pos.y <= floorY) {
     if (!player.onGround) {
       if (player.vel.y < -5) { AudioSys.land(); weapon.kickR += 0.05; }
       player.jumpCd = 0.28;
     }
-    player.pos.y = 0; player.vel.y = 0; player.onGround = true;
+    player.pos.y = floorY; player.vel.y = 0; player.onGround = true;
+  } else {
+    // 縁を踏み外した
+    player.onGround = false;
   }
   resolveCollision(player.pos, player.radius, colH, player.vel);
   // 中心が固体の中に残ったら、そのフレームの移動を破棄

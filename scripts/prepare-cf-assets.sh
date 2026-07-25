@@ -12,6 +12,7 @@ for f in \
   i18n.js \
   tdm-respawn.js \
   ai-steer.js \
+  ground-support.js \
   audio.js \
   grenade-physics.js \
   effects.js \

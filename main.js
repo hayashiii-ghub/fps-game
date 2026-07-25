@@ -247,7 +247,7 @@ function resetGame() {
   const spawn = game.mode === 'tdm'
     ? TDM_SPAWNS.blue[(Math.random() * TDM_SPAWNS.blue.length) | 0]
     : [0, 50];
-  player.pos.set(spawn[0], 0, spawn[1]);
+  player.pos.set(spawn[0], GroundSupport.supportHeightAt(colliders, spawn[0], spawn[1], player.radius, 6), spawn[1]);
   player.vel.set(0, 0, 0);
   player.yaw = game.mode === 'tdm' ? Math.atan2(-spawn[0], -spawn[1]) : 0;
   player.pitch = 0;
@@ -386,7 +386,7 @@ function respawnPlayer() {
     ? ((typeof Net !== 'undefined' && Net.getState().team) || 'blue')
     : 'blue';
   const sp = pickTdmSpawn(team);
-  player.pos.set(sp[0], 0, sp[1]);
+  player.pos.set(sp[0], GroundSupport.supportHeightAt(colliders, sp[0], sp[1], player.radius, 6), sp[1]);
   player.vel.set(0, 0, 0);
   // マップ中央方向を向く
   player.yaw = Math.atan2(-sp[0], -sp[1]);
