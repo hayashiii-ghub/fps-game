@@ -329,16 +329,28 @@ function snapYawOrtho(yaw) {
   return Math.round((yaw || 0) / q) * q;
 }
 
-/** 移動用 Y 回転 OBB を明示登録（建物・コンテナなど固体用） */
+/** 移動用 Y 回転 OBB を明示登録（建物・コンテナなど固体用）。登録した OBB を返す */
 function pushYawObb(cx, cy, cz, hx, hy, hz, yaw) {
-  if (![cx, cy, cz, hx, hy, hz].every(Number.isFinite)) return;
-  if (hx < 1e-4 && hz < 1e-4) return;
+  if (![cx, cy, cz, hx, hy, hz].every(Number.isFinite)) return null;
+  if (hx < 1e-4 && hz < 1e-4) return null;
   const y = yaw || 0;
   // sin を反転: resolveCollision の local 変換を Three.js Y 回転（x'=c x+s z, z'=-s x+c z）に合わせる
-  colliders.push({
+  const obb = {
     cx, cy, cz, hx, hy, hz,
     cos: Math.cos(y), sin: -Math.sin(y),
-  });
+  };
+  colliders.push(obb);
+  return obb;
+}
+
+/**
+ * オンライン射線（worker/map-solids.js）に載せない移動コライダに印を付ける。
+ * 植生など「移動は遮るが射線は遮らない」物にだけ使う。
+ * scripts/test-map-solids-parity.mjs はこの印が付いた OBB を突き合わせ対象から外す。
+ */
+function markLosExempt(obb) {
+  if (obb) obb.losExempt = true;
+  return obb;
 }
 
 /** ワールド AABB を OBB 形式（yaw=0）で登録 */
@@ -567,6 +579,116 @@ function pole(x, z) {
   return addObstacle(g);
 }
 
+/* ---------- 植生・自然物（全マップ共通。maps/*.js から使う） ---------- */
+
+/* 熱帯樹 — 移動判定は幹だけ。葉は弾・視線を遮る（隠れ場所） */
+function tree(x, z, s = 1) {
+  const g = new THREE.Group();
+  const h = rand(3.8, 5.4) * s;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * s, 0.24 * s, h, 7), MAT.bark);
+  trunk.position.y = h / 2;
+  g.add(trunk);
+  const mats = [MAT.leaf, MAT.leafDark, MAT.leafLight];
+  // 樹冠を厚く重ねる（幹同士は離しても葉は被る）
+  const n = 3 + (Math.random() < 0.55 ? 1 : 0);
+  for (let i = 0; i < n; i++) {
+    const r = rand(1.25, 2.05) * s;
+    const c = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(r, 0), mats[(Math.random() * mats.length) | 0]);
+    c.position.set(rand(-0.7, 0.7) * s, h - r * 0.5 + i * 0.55 * s, rand(-0.7, 0.7) * s);
+    c.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    g.add(c);
+  }
+  g.position.set(x, 0, z);
+  addObstacle(g, false);
+  // 幹は移動だけ遮る（射線は葉メッシュ側の判定に任せ、map-solids には載せない）
+  markLosExempt(pushYawObb(x, h / 2, z, 0.24 * s, h / 2, 0.24 * s, 0));
+  return g;
+}
+
+/* 茂み — 見た目のみ（移動・弾・視線すべて素通し）。密林感用 */
+function thicket(x, z, s = 1) {
+  const g = new THREE.Group();
+  const n = 2 + (Math.random() * 2 | 0);
+  for (let i = 0; i < n; i++) {
+    const r = rand(0.55, 0.95) * s;
+    const b = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(r, 0),
+      Math.random() < 0.5 ? MAT.leafDark : MAT.leaf);
+    b.position.set(rand(-0.5, 0.5) * s, r * 0.62, rand(-0.5, 0.5) * s);
+    b.scale.y = 0.78;
+    b.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    g.add(b);
+  }
+  g.position.set(x, 0, z);
+  mapGroup.add(g);
+  return g;
+}
+
+/* 草の束（見た目だけ。弾・移動・視線すべて素通し） */
+function grassTuft(x, z, s = 1) {
+  const g = new THREE.Group();
+  const n = 3 + (Math.random() * 3 | 0);
+  for (let i = 0; i < n; i++) {
+    const h = rand(0.35, 0.7) * s;
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.085 * s, h, 4), MAT.blade);
+    c.position.set(rand(-0.4, 0.4) * s, h * 0.42, rand(-0.4, 0.4) * s);
+    c.rotation.set(rand(-0.28, 0.28), rand(0, 3), rand(-0.28, 0.28));
+    g.add(c);
+  }
+  g.position.set(x, 0, z);
+  mapGroup.add(g);
+  return g;
+}
+
+/* 倒木 — 低い遮蔽（長軸明示 OBB。tilt AABB に落とさない） */
+function fallenLog(x, z, rotY) {
+  const len = 4.0;
+  const r = 0.33;
+  const yaw = rotY || 0;
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, len, 8), MAT.bark);
+  m.rotation.z = Math.PI / 2; // 長軸 → 親ローカル X
+  m.position.y = r;
+  g.add(m);
+  g.position.set(x, 0, z);
+  g.rotation.y = yaw;
+  addObstacle(g, false);
+  pushYawObb(x, r, z, len * 0.5, r, r, yaw);
+  return g;
+}
+
+/* 大岩（苔むした岩盤）— 見た目一致の明示 OBB（Dodeca 自動 AABB は外側に膨らむ） */
+function bigRock(x, z, s, rotY) {
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), MAT.mossRock);
+  m.scale.y = 0.7;
+  const cy = s * 0.38;
+  m.position.set(x, cy, z);
+  const yaw = rotY || 0;
+  m.rotation.y = yaw;
+  addObstacle(m, false);
+  // 塊の見た目に近い直方体（幾何 AABB よりタイト）
+  pushYawObb(x, cy, z, s * 0.72, s * 0.7, s * 0.72, yaw);
+  return m;
+}
+
+/* 散らばり配置ユーティリティ（固定障害物・スポーンを避ける） */
+function scatter(count, rMin, rMax, keepOut, place) {
+  let placed = 0, tries = 0;
+  while (placed < count && tries < count * 40) {
+    tries++;
+    const x = rand(-rMax, rMax), z = rand(-rMax, rMax);
+    if (Math.abs(x) < rMin && Math.abs(z) < rMin) continue;
+    let ok = true;
+    for (const k of keepOut) {
+      if (Math.hypot(x - k[0], z - k[1]) < k[2]) { ok = false; break; }
+    }
+    if (!ok) continue;
+    place(x, z);
+    placed++;
+  }
+}
+
 /* 岩・枯れ木（装飾・衝突なし小物） */
 function decor() {
   for (let i = 0; i < 40; i++) {
@@ -619,7 +741,7 @@ function initWorld() {
   buildMaterials();
 
   // デフォルトマップを構築（ロビー背景にも使われる）
-  buildMap('desert');
+  buildMap(FPS_ARENA_DEFAULT_MAP_ID);
 }
 
 /* ============================================================
@@ -633,7 +755,8 @@ function registerMap(def) {
   if (!meta) throw new Error(`Unknown map id: ${def && def.id}`);
   if (typeof def.build !== 'function') throw new Error(`Map build function missing: ${def.id}`);
   if (MAP_DEFS[def.id]) throw new Error(`Duplicate map id: ${def.id}`);
-  MAP_DEFS[def.id] = Object.freeze({ ...meta, ...def });
+  // meta を後勝ちにして、マップ側が name / author 等のマニフェスト値を上書きできないようにする
+  MAP_DEFS[def.id] = Object.freeze({ ...def, ...meta });
 }
 
 function validateMapRegistry() {
@@ -643,7 +766,7 @@ function validateMapRegistry() {
 
 /** マップを構築し直す（敵・ドロップ・補給箱は呼び出し側で掃除済みのこと） */
 function buildMap(id) {
-  const def = MAP_DEFS[id] || MAP_DEFS.desert;
+  const def = MAP_DEFS[id] || MAP_DEFS[FPS_ARENA_DEFAULT_MAP_ID];
   if (typeof removeSupplyCrate === 'function') removeSupplyCrate();
   if (mapGroup) scene.remove(mapGroup);
   mapGroup = new THREE.Group();

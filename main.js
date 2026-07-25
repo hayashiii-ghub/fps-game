@@ -15,7 +15,7 @@ const game = {
   state: 'menu',      // menu | playing | paused | dead | result
   mode: 'survival',   // survival | tdm
   online: false,      // ルーム同期 TDM
-  map: 'desert',      // desert | jungle
+  map: FPS_ARENA_DEFAULT_MAP_ID,   // shared/map-manifest.js の登録ID
   loadoutMain: 'assault',  // assault | smg | shotgun | sniper
   loadoutSub: 'smg',       // 同上（メインと重複不可）
   time: 0,
@@ -544,7 +544,7 @@ function bindLatinKeys(el, { upper = false } = {}) {
 
 /** ロビーのマップ選択。選ぶと背景のマップも即切り替わる */
 function applyMapSelection(id) {
-  game.map = (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[id]) ? id : 'desert';
+  game.map = (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[id]) ? id : FPS_ARENA_DEFAULT_MAP_ID;
   document.querySelectorAll('#mapCardList [data-map-id]').forEach((button) => {
     const selected = button.dataset.mapId === game.map;
     button.classList.toggle('sel', selected);
@@ -812,10 +812,10 @@ function initOnlineLobby() {
       return;
     }
     if (typeof Online !== 'undefined') Online.ensureHook();
-    if (!Net.sendMatchStart(game.map || 'desert')) {
+    if (!Net.sendMatchStart(game.map || FPS_ARENA_DEFAULT_MAP_ID)) {
       setOnlineStatus(t('net.sendFail'));
     } else {
-      setOnlineStatus(t('net.startReq', { map: (game.map || 'desert').toUpperCase() }));
+      setOnlineStatus(t('net.startReq', { map: (game.map || FPS_ARENA_DEFAULT_MAP_ID).toUpperCase() }));
     }
   });
 }
@@ -887,7 +887,7 @@ function initMenus() {
     $('result').style.display = 'none';
     if (game.online && typeof Net !== 'undefined' && Net.getState().connected) {
       if (typeof Online !== 'undefined') Online.ensureHook();
-      Net.sendMatchStart(game.map || 'desert');
+      Net.sendMatchStart(game.map || FPS_ARENA_DEFAULT_MAP_ID);
       return;
     }
     startGame(game.mode, false);

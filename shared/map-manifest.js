@@ -20,6 +20,10 @@
     },
   };
 
+  const defaultMapId = 'desert';
+  if (!maps[defaultMapId]) throw new Error(`Unknown default map id: ${defaultMapId}`);
+
   for (const def of Object.values(maps)) Object.freeze(def);
   root.FPS_ARENA_MAPS = Object.freeze(maps);
+  root.FPS_ARENA_DEFAULT_MAP_ID = defaultMapId;
 })(globalThis);

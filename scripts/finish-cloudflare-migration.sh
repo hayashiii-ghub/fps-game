@@ -36,19 +36,21 @@ curl -fsS -o /dev/null -w "og.jpg %{http_code}\n" "${URL}/og.jpg"
 
 echo "==> Patch OGP / README → ${URL}"
 python3 - <<PY
+import re
 from pathlib import Path
 url = "${URL}"
-replacements = [
-    ("https://kimi-grok-fps.hayashigoto.workers.dev", url),
-    ("https://kimi-grok-fps.pages.dev", url),
-    ("https://hayashiii-ghub.github.io/fps-game", url),
+# 旧URLを列挙せず、埋まっている workers.dev / 旧 Pages URL を実デプロイ先へ寄せる
+patterns = [
+    re.compile(r"https://[A-Za-z0-9.-]+\.workers\.dev"),
+    re.compile(r"https://[A-Za-z0-9.-]+\.pages\.dev"),
+    re.compile(r"https://hayashiii-ghub\.github\.io/fps-game"),
 ]
 for rel in ("index.html", "README.md", "AGENTS.md"):
     p = Path(rel)
     text = p.read_text()
     orig = text
-    for old, new in replacements:
-        text = text.replace(old, new)
+    for pat in patterns:
+        text = pat.sub(url, text)
     if "workers.dev" not in text and rel == "README.md":
         text = text.replace(
             "**▶ プレイ:** Cloudflare Workers（`npx wrangler deploy` 後の `*.workers.dev` URL）",

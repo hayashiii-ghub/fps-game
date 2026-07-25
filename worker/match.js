@@ -1,7 +1,7 @@
 /**
  * オンライン試合フェーズ・タイマー・参加ロールの純ロジック
  */
-import { sanitizeMap } from './pose.js';
+import { DEFAULT_MAP_ID, sanitizeMapId } from './map-config.js';
 
 /** TDM 試合時間（秒）— クライアント TDM_MATCH_SEC と揃える */
 export const MATCH_SEC = 300;
@@ -12,7 +12,7 @@ export const RESERVE_TTL_MS = 10 * 60 * 1000;
 export function createMatchState() {
   return {
     phase: 'lobby', // lobby | live | ended
-    map: 'desert',
+    map: DEFAULT_MAP_ID,
     score: { blue: 0, red: 0 },
     endsAt: 0,
     startedAt: 0,
@@ -35,7 +35,7 @@ export function startMatch(state, mapId, now) {
   if (!gate.ok) return gate;
   const t = Number(now) || Date.now();
   state.phase = 'live';
-  state.map = sanitizeMap(mapId);
+  state.map = sanitizeMapId(mapId);
   state.score = { blue: 0, red: 0 };
   state.startedAt = t;
   state.endsAt = t + MATCH_SEC * 1000;
@@ -72,7 +72,7 @@ export function matchPublic(state, now) {
   const t = Number(now) || Date.now();
   return {
     phase: state.phase || 'lobby',
-    map: state.map || 'desert',
+    map: state.map || DEFAULT_MAP_ID,
     match: state.phase === 'live',
     timeLeft: timeLeftSec(state, t),
     endsAt: state.endsAt || 0,
@@ -116,7 +116,7 @@ export function pruneReservations(byToken, now, ttlMs = RESERVE_TTL_MS) {
 export function serializeMatch(state) {
   return {
     phase: state.phase || 'lobby',
-    map: state.map || 'desert',
+    map: state.map || DEFAULT_MAP_ID,
     score: {
       blue: state.score ? state.score.blue : 0,
       red: state.score ? state.score.red : 0,
@@ -133,7 +133,7 @@ export function restoreMatch(raw) {
   const state = createMatchState();
   const phase = String(src.phase || 'lobby');
   state.phase = phase === 'live' || phase === 'ended' ? phase : 'lobby';
-  state.map = sanitizeMap(src.map);
+  state.map = sanitizeMapId(src.map);
   state.score = {
     blue: Number(src.score && src.score.blue) || 0,
     red: Number(src.score && src.score.red) || 0,

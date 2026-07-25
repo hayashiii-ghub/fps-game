@@ -89,10 +89,23 @@ function barrel(x, z) {
   return solid(x, 0.48, z, 0.32, 0.475, 0.32, 0);
 }
 
+/** world.js watchtower — 脚4本は独立（塔の下は射線が通る）＋床・小屋・屋根 */
 function watchtower(x, z) {
+  const legs = [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]
+    .map(([dx, dz]) => solid(x + dx, 2.2, z + dz, 0.09, 2.2, 0.09, 0));
   return [
-    solid(x, 2.2, z, 1.05, 2.2, 1.05, 0),
+    ...legs,
+    solid(x, 4.32, z, 1.2, 0.06, 1.2, 0),
     solid(x, 5.1, z, 1.3, 0.75, 1.3, 0),
+    solid(x, 5.95, z, 1.55, 0.07, 1.55, 0),
+  ];
+}
+
+/** world.js pole — 電柱＋腕木 */
+function pole(x, z) {
+  return [
+    solid(x, 3.6, z, 0.14, 3.6, 0.14, 0),
+    solid(x, 6.6, z, 0.8, 0.05, 0.05, 0),
   ];
 }
 
@@ -205,6 +218,11 @@ const DESERT = [
   ...watchtower(-38, -12),
   ...watchtower(42, 34),
   ...watchtower(18, -42),
+  // poles
+  ...pole(-20, -40),
+  ...pole(24, 40),
+  ...pole(52, 0),
+  ...pole(-52, -20),
 ];
 
 const JUNGLE = [
@@ -248,8 +266,13 @@ const JUNGLE = [
   container(-7, -37.5, 1.58),
   ...grotto(30, 40, 0.5),
   ...BERMS,
+  // 遺跡の瓦礫（maps/jungle.js の box）
+  solid(-4.6, 0.3, 5.4, 0.55, 0.3, 0.45, 0.7),
+  solid(4.2, 0.22, -3.6, 0.4, 0.225, 0.35, 0.3),
   // cover props
   ...watchtower(44, -6),
+  ...pole(12, -46),
+  ...pole(-12, 36),
   sandbags(33, -2, 0.3),
   sandbags(-38, 8, 1.2),
   sandbags(14, 14, 1.0),

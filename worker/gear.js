@@ -2,7 +2,7 @@
  * オンライン勝負ギア（グレ・回復・ルート）の純ロジック
  */
 import { clamp, sanitizeWeapon } from './pose.js';
-import { getMapConfig } from './map-config.js';
+import { DEFAULT_MAP_ID, getMapConfig } from './map-config.js';
 
 export { sanitizeWeapon };
 
@@ -223,7 +223,7 @@ export function pickDeathDrop(rng = Math.random) {
 }
 
 /** 中央補給バンドル（内容×2 + たまに防具／拡張マガ／マップ限定強武器） */
-export function pickSupplyBundle(rng = Math.random, mapId = 'desert') {
+export function pickSupplyBundle(rng = Math.random, mapId = DEFAULT_MAP_ID) {
   const types = ['ammo', 'ammo', 'med', 'med', 'nade', 'nade'];
   if (rng() < 0.22) types.push('armor');
   if (rng() < 0.28) types.push('extmag');

@@ -1347,7 +1347,7 @@ const STAGE_DEFS = {
 };
 
 function getMapGameplayDef(mapId) {
-  return (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[mapId]) || MAP_DEFS.desert;
+  return (typeof MAP_DEFS !== 'undefined' && MAP_DEFS[mapId]) || MAP_DEFS[FPS_ARENA_DEFAULT_MAP_ID];
 }
 
 /** マップ定義に紐づいた天候種別 */

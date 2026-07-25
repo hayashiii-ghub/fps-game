@@ -270,7 +270,7 @@ const Net = (() => {
   }
 
   function sendMatchStart(map) {
-    return send({ t: 'match_start', map: map || 'desert' });
+    return send({ t: 'match_start', map: map || FPS_ARENA_DEFAULT_MAP_ID });
   }
 
   function sendName(name) {

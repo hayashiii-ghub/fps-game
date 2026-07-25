@@ -878,7 +878,7 @@ const Online = (() => {
   function requestMatchStart() {
     ensureHook();
     if (typeof Net === 'undefined' || !Net.getState().connected) return false;
-    const map = (typeof game !== 'undefined' && game.map) || 'desert';
+    const map = (typeof game !== 'undefined' && game.map) || FPS_ARENA_DEFAULT_MAP_ID;
     return Net.sendMatchStart(map);
   }
 

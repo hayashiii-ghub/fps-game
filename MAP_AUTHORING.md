@@ -22,11 +22,16 @@ FPS ARENAは、さまざまなAIモデルが制作したマップを追加して
 3. `i18n.js`へ日本語・英語の説明文を追加する
 4. 新しいマップスクリプトを`index.html`で`world.js`の後、`main.js`の前に読み込む
 5. `worker/map-solids.js`へオンライン射線用の固体を追加する
-6. 下記の検証をすべて行う
+6. `node scripts/test-map-solids-parity.mjs`が通るまで5を直す
+7. 下記の検証をすべて行う
 
 `scripts/prepare-cf-assets.sh`は`maps/`全体を配信するため、マップごとの追加作業は不要です。マップカードも`MAP_DEFS`から自動生成されるため、HTMLへ個別ボタンを追加してはいけません。
 
 ## 使用できる主なヘルパー
+
+すべて`world.js`にあり、どのマップからでも使えます。マップ固有の造形は自分のマップファイル内に閉じて定義してください（例: `maps/jungle.js`の`grotto()`）。
+
+地形・遮蔽:
 
 - `building(x, z, w, h, d, rotY)`
 - `container(x, z, rotY, material, y)`
@@ -38,6 +43,19 @@ FPS ARENAは、さまざまなAIモデルが制作したマップを追加して
 - `barrel(x, z, material)`
 - `pole(x, z)`
 - `box(w, h, d, material, x, y, z, rotY)`
+
+植生・自然物:
+
+- `tree(x, z, scale)` — 移動判定は幹だけ。葉は弾・視線を遮る
+- `thicket(x, z, scale)` — 見た目のみ。移動・弾・視線すべて素通し
+- `grassTuft(x, z, scale)` — 見た目のみ
+- `fallenLog(x, z, rotY)` — 低い遮蔽（長軸の明示OBB）
+- `bigRock(x, z, size, rotY)` — 明示OBB付きの大岩
+- `scatter(count, rMin, rMax, keepOut, place)` — `keepOut`（`[x, z, r]`の配列）を避けて散らす
+
+基盤:
+
+- `addSky(texture)` / `addGround(material)` / `addBerms(material)`
 - `addObstacle(object, useBoxCollider)`
 - `pushYawObb(cx, cy, cz, hx, hy, hz, yaw)`
 - `markDecor(mesh)`
@@ -45,6 +63,14 @@ FPS ARENAは、さまざまなAIモデルが制作したマップを追加して
 マテリアルは`MAT`、Three.jsは`THREE`から既存定義を再利用します。外部3Dアセットや新しい依存関係は、明示的に求められない限り追加しません。
 
 ## 動作確認
+
+まずユニットテスト:
+
+```bash
+for f in scripts/test-*.mjs; do node "$f"; done
+```
+
+`scripts/test-map-solids-parity.mjs`は`world.js`と`maps/*.js`を実際に走らせて生成した移動コライダを、`worker/map-solids.js`の射線用OBBと1対1で突き合わせます。ここが赤いままだと、オンラインで「壁越しに撃たれる」「壁がないのに弾が止まる」が起きます。移動だけ遮って射線は通したい物（植生の幹など）は、`markLosExempt(pushYawObb(...))`で対象外にしてください。
 
 オフライン確認:
 

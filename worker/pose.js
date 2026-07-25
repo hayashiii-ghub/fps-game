@@ -1,8 +1,6 @@
 /**
  * オンライン用ポーズの検証・正規化
  */
-import { sanitizeMapId } from './map-config.js';
-
 const WEAPONS = new Set(['assault', 'smg', 'shotgun', 'pistol', 'sniper', 'sr_surv', 'sg_surv']);
 
 export function clamp(n, lo, hi) {
@@ -12,10 +10,6 @@ export function clamp(n, lo, hi) {
 export function sanitizeWeapon(id) {
   const w = String(id || 'assault');
   return WEAPONS.has(w) ? w : 'assault';
-}
-
-export function sanitizeMap(id) {
-  return sanitizeMapId(id);
 }
 
 export function sanitizePose(raw) {

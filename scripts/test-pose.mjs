@@ -1,8 +1,8 @@
 /**
- * slice: sanitizePose は座標をマップ内に収め、sanitizeMap は desert/jungle のみ
+ * slice: sanitizePose は座標をマップ内に収める
  */
 import assert from 'node:assert/strict';
-import { sanitizePose, sanitizeMap, lerpYaw } from '../worker/pose.js';
+import { sanitizePose, lerpYaw } from '../worker/pose.js';
 
 const p = sanitizePose({ x: 999, z: -999, y: 99, yaw: 1.2, pitch: 9, crouch: 1, seq: 3, weapon: 'smg' });
 assert.equal(p.x, 59);
@@ -12,10 +12,6 @@ assert.equal(p.pitch, 1.4);
 assert.equal(p.crouch, true);
 assert.equal(p.seq, 3);
 assert.equal(p.weapon, 'smg');
-
-assert.equal(sanitizeMap('jungle'), 'jungle');
-assert.equal(sanitizeMap('DESERT'), 'desert');
-assert.equal(sanitizeMap('void'), 'desert');
 
 assert.ok(Math.abs(lerpYaw(0, 1, 0.5) - 0.5) < 1e-9);
 
