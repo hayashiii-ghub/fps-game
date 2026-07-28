@@ -999,6 +999,52 @@ function updateMinimap() {
   ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
 }
 
+/* ---------- 方位帯（視線方向が中央。0=北・時計回りで東） ---------- */
+const COMPASS_CARDS = [
+  { a: 0, label: 'N', major: true },
+  { a: Math.PI * 0.25, label: 'NE' },
+  { a: Math.PI * 0.5, label: 'E', major: true },
+  { a: Math.PI * 0.75, label: 'SE' },
+  { a: Math.PI, label: 'S', major: true },
+  { a: Math.PI * 1.25, label: 'SW' },
+  { a: Math.PI * 1.5, label: 'W', major: true },
+  { a: Math.PI * 1.75, label: 'NW' },
+];
+const COMPASS_PX_PER_RAD = 92;
+let compassReady = false;
+
+function initCompass() {
+  const track = $('compasstrack');
+  if (!track || compassReady) return;
+  track.innerHTML = '';
+  for (const c of COMPASS_CARDS) {
+    const el = document.createElement('span');
+    el.className = 'card' + (c.major ? ' major' : ' minor');
+    el.textContent = c.label;
+    el.dataset.ang = String(c.a);
+    track.appendChild(el);
+  }
+  compassReady = true;
+}
+
+function updateCompass() {
+  const root = $('compass');
+  const track = $('compasstrack');
+  if (!root || !track) return;
+  if (!compassReady) initCompass();
+  // yaw=0 は -Z（南）。atan2(東, 北) で 0=北
+  const facing = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw));
+  const mid = root.clientWidth * 0.5;
+  for (const el of track.children) {
+    const ang = Number(el.dataset.ang);
+    let d = ang - facing;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    el.style.left = (mid + d * COMPASS_PX_PER_RAD).toFixed(1) + 'px';
+  }
+  root.classList.toggle('ads', !!(typeof weapon !== 'undefined' && weapon.ads));
+}
+
 function tick(dt) {
   game.time += dt;
 
@@ -1018,6 +1064,7 @@ function tick(dt) {
     updateLoot(dt);
     if (typeof updateSupply === 'function') updateSupply(dt);
     updateMinimap();
+    updateCompass();
     debugLogTick();
   } else if (game.state === 'menu') {
     // ロビー背景：低空をゆっくり滑るシネマティックドリー
@@ -1034,10 +1081,12 @@ function tick(dt) {
     updateDeathCam(dt);
     updateEnemies(dt);
     updateMinimap();
+    updateCompass();
   } else if (game.state === 'result') {
     // 静止
   } else if (game.state === 'paused') {
     updateMinimap();
+    updateCompass();
   }
 
   game.hurtFlash = Math.max(0, game.hurtFlash - dt * 1.4);

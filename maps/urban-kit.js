@@ -978,7 +978,7 @@ function skyTree(x, z) {
 }
 
 /**
- * 東京タワー風シルエット（錦糸町視点の南西・遠景）。
+ * 東京タワー風シルエット（錦糸町視点の南西〜西南西・遠景）。
  * 当たり判定なし。小さく遠く、尖端だけ霧抜け。
  */
 function tokyoTower(x, z) {
@@ -986,33 +986,35 @@ function tokyoTower(x, z) {
   const white = landmarkMat(0xb8b4c2);
   const steel = landmarkMat(0x6a6578);
   const tip = landmarkMat(0xff4444, { fog: false });
-  // 総高 ~38。南西遠景想定
-  landmarkBox(red, 6.2, 1.0, 1.4, x, 0.5, z);
-  landmarkBox(red, 1.4, 1.0, 6.2, x, 0.5, z);
-  landmarkBox(red, 4.6, 4.2, 1.2, x, 3.1, z);
-  landmarkBox(red, 1.2, 4.2, 4.6, x, 3.1, z);
+  const tipBand = landmarkMat(0xc05050, { fog: false });
+  // 総高 ~48。通り軸から頭出しできる程度
+  landmarkBox(red, 7.0, 1.1, 1.5, x, 0.55, z);
+  landmarkBox(red, 1.5, 1.1, 7.0, x, 0.55, z);
+  landmarkBox(red, 5.2, 4.8, 1.3, x, 3.5, z);
+  landmarkBox(red, 1.3, 4.8, 5.2, x, 3.5, z);
   const bands = [
-    [red, 3.8, 3.8, 7.7],
-    [white, 3.2, 3.2, 11.2],
-    [red, 2.7, 3.2, 14.4],
-    [white, 2.3, 2.8, 17.4],
-    [red, 1.9, 2.6, 20.1],
-    [white, 1.6, 2.4, 22.6],
-    [red, 1.35, 2.2, 24.9],
+    [red, 4.3, 4.2, 8.6],
+    [white, 3.6, 3.6, 12.5],
+    [red, 3.0, 3.6, 16.1],
+    [white, 2.55, 3.2, 19.5],
+    [red, 2.15, 3.0, 22.6],
+    [white, 1.8, 2.8, 25.5],
+    [tipBand, 1.5, 2.6, 28.2],
   ];
   for (const [mat, w, h, cy] of bands) landmarkBox(mat, w, h, w, x, cy, z);
-  landmarkBox(white, 2.8, 1.8, 2.8, x, 26.9, z);
-  landmarkBox(red, 1.9, 1.2, 1.9, x, 28.4, z);
-  landmarkBox(steel, 0.75, 5, 0.75, x, 31.5, z);
-  landmarkBox(steel, 0.4, 4, 0.4, x, 36, z);
-  landmarkBox(tip, 0.8, 0.8, 0.8, x, 38.4, z);
+  landmarkBox(white, 3.2, 2.0, 3.2, x, 30.5, z);
+  landmarkBox(tipBand, 2.2, 1.4, 2.2, x, 32.2, z);
+  landmarkBox(steel, 0.85, 6.5, 0.85, x, 36.15, z);
+  landmarkBox(steel, 0.45, 5.5, 0.45, x, 42.15, z);
+  landmarkBox(tip, 0.95, 0.95, 0.95, x, 45.4, z);
 }
 
 /** 場外のオフィス群（夕靄に沈むシルエット。当たり判定なし） */
 function skyline() {
-  // 錦糸町視点: スカイツリー=北〜北西（近め）、東京タワー=南西（遠め）
+  // 錦糸町視点: スカイツリー=北〜北西、東京タワー=西〜西南西（東西通りの先）
   const SKYTREE_A = Math.PI * 0.58;
-  const TOWER_A = Math.PI * 1.28;
+  // 真西に近いほど中央東西通りの見通しに乗る（南に振りすぎると街区に隠れる）
+  const TOWER_A = Math.PI * 1.04;
   const angDist = (a, b) => {
     let d = Math.abs(a - b) % (Math.PI * 2);
     if (d > Math.PI) d = Math.PI * 2 - d;
@@ -1030,20 +1032,21 @@ function skyline() {
       mapGroup.add(l);
     }
   };
-  for (let i = 0; i < 42; i++) {
-    const a = (i / 42) * Math.PI * 2 + rand(-0.04, 0.04);
+  // 間引き気味の遠景リング（密すぎるとランドマークが埋もれる）
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2 + rand(-0.05, 0.05);
     if (angDist(a, SKYTREE_A) < 0.18) continue;
-    if (angDist(a, TOWER_A) < 0.14) continue;
-    const r = rand(80, 155);
+    if (angDist(a, TOWER_A) < 0.30) continue;
+    const r = rand(90, 160);
     put(Math.cos(a) * r, Math.sin(a) * r);
   }
-  put(30, -105); put(48, -96); put(10, -112);
-  put(42, 130, 36); put(-48, 135, 32);
-  put(-120, -70, 40); put(-100, -115, 34);
+  // 方角ごとの軽いアクセント（少数）
+  put(30, -110); put(10, -118);
+  put(42, 135, 34); put(-48, 138, 30);
+  put(-135, 35, 26); put(-130, -48, 24);
 
-  // 地理寄り: ツリーは頭出し、タワーは南西遠景（尖端だけ霧抜け）
   skyTree(Math.cos(SKYTREE_A) * 148, Math.sin(SKYTREE_A) * 148);
-  tokyoTower(Math.cos(TOWER_A) * 195, Math.sin(TOWER_A) * 195);
+  tokyoTower(Math.cos(TOWER_A) * 180, Math.sin(TOWER_A) * 180);
 }
 
 /* ============================================================
