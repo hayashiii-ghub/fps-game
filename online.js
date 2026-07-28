@@ -522,7 +522,7 @@ const Online = (() => {
       if (typeof spawnFloater === 'function') spawnFloater(t('floater.armorGot'), true);
     } else if (data.type === 'extmag') {
       if (!player.extMag && typeof grantExtMag === 'function') grantExtMag();
-    } else if (data.type === 'sr_surv' || data.type === 'sg_surv') {
+    } else if (data.type === 'sr_surv' || data.type === 'sg_surv' || data.type === 'smg_surv') {
       if (typeof grantSurvMapDrop === 'function') grantSurvMapDrop(data.type);
     }
     if (typeof AudioSys !== 'undefined') AudioSys.pickup();

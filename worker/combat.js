@@ -8,6 +8,7 @@ import { lineOfSightClear, poseEyeY } from './map-solids.js';
 export const WEAPON_DMG = {
   assault: { head: 70, torso: 34, limb: 24 },
   smg: { head: 50, torso: 26, limb: 18 },
+  smg_surv: { head: 50, torso: 26, limb: 18 },
   // 近距離胴全弾 (15×8=120) で一撃。頭 20×8 / 肢 10×8
   shotgun: { head: 20, torso: 15, limb: 10 },
   sg_surv: { head: 20, torso: 15, limb: 10 },
@@ -28,6 +29,7 @@ export const WEAPON_FALLOFF = {
 export const WEAPON_FIRE_MS = {
   assault: 80,
   smg: 70,
+  smg_surv: 70,
   shotgun: 850,
   sg_surv: 850,
   pistol: 180,

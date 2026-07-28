@@ -148,6 +148,7 @@ export function sanitizeLoadout(mainId, subId) {
     sniper: false,
     sr_surv: false,
     sg_surv: false,
+    smg_surv: false,
     pistol: true,
   };
   owned[main] = true;
@@ -237,6 +238,7 @@ function ensureOwned(inv) {
   }
   if (inv.owned.sr_surv === undefined) inv.owned.sr_surv = false;
   if (inv.owned.sg_surv === undefined) inv.owned.sg_surv = false;
+  if (inv.owned.smg_surv === undefined) inv.owned.smg_surv = false;
   return inv.owned;
 }
 
@@ -288,6 +290,17 @@ export function tryGrantLoot(inv, type) {
     }
     owned.shotgun = true;
     return { ok: true, granted: { type: 'shotgun' } };
+  }
+  if (type === 'smg_surv') {
+    const owned = ensureOwned(inv);
+    if (owned.smg_surv) return { ok: true, granted: { type: 'smg_surv', ammo: true } };
+    if (owned.smg) {
+      owned.smg = false;
+      owned.smg_surv = true;
+      return { ok: true, granted: { type: 'smg_surv', upgraded: true } };
+    }
+    owned.smg = true;
+    return { ok: true, granted: { type: 'smg' } };
   }
   if (type === 'ammo') {
     return { ok: true, granted: { ammo: 45 } };

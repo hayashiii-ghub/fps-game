@@ -113,6 +113,79 @@ function pillar(x, z, h) {
   return solid(x, h / 2, z, 0.4, h / 2, 0.4, 0);
 }
 
+/* ============================================================
+   maps/urban-kit.js + maps/tokyo.js
+   キットの固体は URBAN.solid() 1 種類なので、こちらも slab() に集約する。
+   街路樹（URBAN.streetTree）の幹は markLosExempt 済みなので載せない。
+   ============================================================ */
+
+function slab(x, z, w, h, d, yaw = 0, y0 = 0) {
+  return solid(x, y0 + h * 0.5, z, w * 0.5, h * 0.5, d * 0.5, yaw);
+}
+
+/** maps/tokyo.js の zPair と同じ並び（z 対称） */
+function zPair(fn, x, z, ...rest) {
+  return [fn(x, z, ...rest), fn(x, -z, ...rest)];
+}
+
+/** URBAN.pilotis — 柱 0.7角×8（1階高 3.2m）＋中央コア 3.4角（全高） */
+function uPilotis(x, z, w, h, d) {
+  const y0 = 3.2;
+  const g = 5.35;
+  const out = [];
+  for (const [lx, lz] of [[-g, -g], [g, -g], [-g, g], [g, g],
+                          [-g, 0], [g, 0], [0, -g], [0, g]]) {
+    out.push(slab(x + lx, z + lz, 0.7, y0, 0.7, 0));
+  }
+  out.push(slab(x, z, 3.4, h, 3.4, 0));
+  return out;
+}
+
+/** URBAN.planter — 天面 0.5m は登れる段 */
+function uPlanter(x, z, w, d) {
+  return slab(x, z, w, 0.5, d, 0);
+}
+
+/** URBAN.hedge — 0.55m の生け垣 */
+function uHedge(x, z, w, d) {
+  return slab(x, z, w, 0.55, d, 0);
+}
+
+function uBench(x, z, yaw) {
+  return slab(x, z, 1.8, 0.45, 0.5, yaw);
+}
+
+function uLight(x, z) {
+  return slab(x, z, 0.16, 5.2, 0.16, 0);
+}
+
+function uSignal(x, z) {
+  return slab(x, z, 0.2, 4.8, 0.2, 0);
+}
+
+function uSubway(x, z, yaw) {
+  return slab(x, z, 2.6, 2.2, 2.0, yaw);
+}
+
+/** URBAN.busStop — ポール＋脇のベンチ */
+function uBusStop(x, z, yaw) {
+  return [
+    slab(x, z, 0.14, 2.8, 0.14, 0),
+    uBench(x + Math.cos(yaw) * 1.5, z - Math.sin(yaw) * 1.5, yaw),
+  ];
+}
+
+const U_CAR_SIZE = {
+  taxi: [4.4, 1.45, 1.85],
+  sedan: [4.5, 1.4, 1.8],
+  van: [4.8, 2.2, 1.9],
+};
+
+function uCar(x, z, yaw, kind) {
+  const [w, h, d] = U_CAR_SIZE[kind];
+  return slab(x, z, w, h, d, yaw);
+}
+
 const BERMS = [
   berm(0, -62, 128, 6),
   berm(0, 62, 128, 6),
@@ -298,9 +371,89 @@ const JUNGLE = [
   barrel(0.5, -36.2), barrel(1.4, -35.6), barrel(-27, -9),
 ];
 
+/**
+ * maps/tokyo.js と同じ順・同じ引数で並べる（差分を目で追えるようにするため）。
+ * HALF は Math.PI / 2。
+ */
+const HALF = Math.PI / 2;
+
+const TOKYO = [
+  // ---- 建物（内側ピロティ×4・中環・環内・角・外れ） ----
+  zPair(uPilotis, 16, 16, 16, 15, 16),
+  zPair(uPilotis, -16, 16, 16, 13, 16),
+  zPair(slab, 35.5, 16, 7, 9, 8, 0),
+  zPair(slab, -35.5, 16, 7, 9, 8, 0),
+  zPair(slab, -16, 38, 14, 10, 8, 0),
+  zPair(slab, 38, 37, 11, 8, 8, 0),
+  zPair(slab, -38, 37, 11, 8, 8, 0),
+  zPair(slab, 56, 38.5, 6, 6.5, 8, 0),
+  zPair(slab, -56, 38.5, 6, 6, 8, 0),
+  zPair(slab, 55.5, 55.5, 6.5, 7, 6.5, 0),
+  zPair(slab, -55.5, 55.5, 6.5, 6.5, 6.5, 0),
+
+  // ---- 中央広場 ----
+  [[-10.5, -10.5], [-10.5, 10.5], [10.5, -10.5], [10.5, 10.5]]
+    .map(([x, z]) => uPlanter(x, z, 2.6, 2.6)),
+  uBench(4.5, 4.5, Math.PI * 0.75),
+  uBench(4.5, -4.5, Math.PI * 0.25),
+  uBench(-4.5, 4.5, -Math.PI * 0.25),
+  uBench(-4.5, -4.5, -Math.PI * 0.75),
+  [[9.4, 9.4], [-9.4, 9.4], [9.4, -9.4], [-9.4, -9.4]]
+    .map(([x, z]) => uSignal(x, z)),
+  zPair(uLight, 9.2, 2.8),
+  zPair(uLight, -9.2, 2.8),
+  zPair(uSubway, 13.6, 9.4, Math.PI),
+  zPair(uSubway, -13.6, 9.4, Math.PI),
+
+  // ---- 大通り（中央分離帯・駐車車両・街灯） ----
+  zPair(uPlanter, 0, 13, 2.2, 6),
+  zPair(uPlanter, 0, 20, 2.2, 6),
+  zPair(uPlanter, 0, 34, 2.2, 6),
+  zPair(uCar, 14, 4.9, 0, 'taxi'),
+  zPair(uCar, 19, 4.9, 0, 'taxi'),
+  zPair(uCar, 4.9, 16, HALF, 'sedan'),
+  zPair(uCar, -4.9, 20, HALF, 'sedan'),
+  zPair(uCar, 4.9, 36, HALF, 'sedan'),
+  zPair(uCar, -4.9, 40, HALF, 'sedan'),
+  zPair(uCar, 30, -4.9, 0, 'sedan'),
+  zPair(uCar, 36, 4.9, 0, 'sedan'),
+  zPair(uCar, -30, 4.9, 0, 'sedan'),
+  zPair(uCar, -36, -4.9, 0, 'sedan'),
+  zPair(uCar, 28, 20, HALF, 'van'),
+  zPair(uCar, -28, 20, HALF, 'van'),
+  zPair(uLight, 7.6, 17),
+  zPair(uLight, -7.6, 17),
+  zPair(uLight, 7.6, 47),
+  zPair(uLight, -7.6, 47),
+  zPair(uLight, 17, 7.6),
+  zPair(uLight, -17, 7.6),
+  zPair(uLight, 47, 7.6),
+  zPair(uLight, -47, 7.6),
+  zPair(uBusStop, 30, 6.6, Math.PI),
+  zPair(uBusStop, -30, 6.6, Math.PI),
+
+  // ---- 東の環内街区: ポケットパーク ----
+  zPair(uHedge, 11.5, 32.8, 5, 0.5),
+  zPair(uHedge, 20.5, 32.8, 5, 0.5),
+  zPair(uHedge, 11.5, 43.2, 5, 0.5),
+  zPair(uHedge, 20.5, 43.2, 5, 0.5),
+  zPair(uHedge, 8.3, 35.5, 0.5, 3.5),
+  zPair(uHedge, 8.3, 41, 0.5, 3.5),
+  zPair(uHedge, 23.7, 35.5, 0.5, 3.5),
+  zPair(uHedge, 23.7, 41, 0.5, 3.5),
+  zPair(uPlanter, 12, 38.5, 2.4, 2.4),
+  zPair(uPlanter, 20, 38.5, 2.4, 2.4),
+  zPair(uBench, 14.5, 38.5, 0),
+  zPair(uBench, 18.5, 38.5, Math.PI),
+  zPair(uLight, 16, 35),
+
+  ...BERMS,
+].flat(Infinity);
+
 const BY_MAP = {
   desert: DESERT,
   jungle: JUNGLE,
+  tokyo: TOKYO,
 };
 
 export const MAP_SOLID_IDS = Object.freeze(Object.keys(BY_MAP));

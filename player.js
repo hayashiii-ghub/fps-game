@@ -35,8 +35,8 @@ const player = {
   spawnProtT: 0,
 };
 
-/** @type {'assault'|'smg'|'shotgun'|'sniper'|'sr_surv'|'sg_surv'|'pistol'} */
-const WEAPON_ORDER = ['assault', 'smg', 'shotgun', 'sniper', 'sr_surv', 'sg_surv', 'pistol'];
+/** @type {'assault'|'smg'|'shotgun'|'sniper'|'sr_surv'|'sg_surv'|'smg_surv'|'pistol'} */
+const WEAPON_ORDER = ['assault', 'smg', 'shotgun', 'sniper', 'sr_surv', 'sg_surv', 'smg_surv', 'pistol'];
 /** メイン/サブのロードアウト選択肢（ハンドガンは常備の特殊枠。Survival 限定は含めない） */
 const LOADOUT_POOL = ['assault', 'smg', 'shotgun', 'sniper'];
 
@@ -146,6 +146,23 @@ const WEAPON_DEFS = {
     ads: { x: 0, y: -0.1, z: -0.52, rx: 0, ry: 0 },
     dmg: { head: 200, torso: 100, limb: 55 },
   },
+  // Survival Tokyo 2 限定：距離減衰なし・拡張弾倉SMG（通常SMGの遠距離の弱さを消した強化版）
+  smg_surv: {
+    id: 'smg_surv', label: '強襲SMG', mode: 'AUTO',
+    magSize: 32, startReserve: 128, tdmReserve: 96, maxReserve: 320,
+    fireInterval: 60 / 850, reloadDur: 1.7, auto: true,
+    moveMul: 1.06,         // SMG 並みの軽快さ
+    adsMoveMul: 0.6,
+    spreadHip: 0.016, spreadAds: 0.007,
+    bloomAdd: 0.0028, bloomMax: 0.03, bloomDecay: 0.032,
+    recoilP: [0.0038, 0.0058], recoilY: 0.003,
+    kickZ: 0.035, kickR: 0.06, adsRecoil: 0.6,
+    adsFov: 50, adsSens: 0.68, scale: 0.84,
+    hip: { x: 0.2, y: -0.18, z: -0.38, rx: 0, ry: 0.07 },
+    ads: { x: 0, y: -0.066, z: -0.44, rx: 0, ry: 0 },
+    dmg: { head: 50, torso: 26, limb: 18 },
+    // dmgFalloff なし（どの距離でもフルダメージ）
+  },
   // Survival Jungle 限定：腰撃ち集弾＝通常構え相当
   sg_surv: {
     id: 'sg_surv', label: '強襲ショットガン', mode: 'PUMP',
@@ -168,7 +185,7 @@ const WEAPON_DEFS = {
 };
 
 const arsenal = {
-  owned: { assault: true, smg: true, shotgun: false, sniper: false, sr_surv: false, sg_surv: false, pistol: true },
+  owned: { assault: true, smg: true, shotgun: false, sniper: false, sr_surv: false, sg_surv: false, smg_surv: false, pistol: true },
   slots: {
     assault: { mag: 30, reserve: 120 },
     smg: { mag: 25, reserve: 100 },
@@ -176,6 +193,7 @@ const arsenal = {
     sniper: { mag: 5, reserve: 15 },
     sr_surv: { mag: 5, reserve: 12 },
     sg_surv: { mag: 6, reserve: 20 },
+    smg_surv: { mag: 32, reserve: 128 },
     pistol: { mag: 12, reserve: 60 },
   },
   activeId: 'assault',
@@ -308,7 +326,7 @@ function makeTdmAmmoSlots() {
 function ownedFromLoadout() {
   const owned = {
     assault: false, smg: false, shotgun: false, sniper: false,
-    sr_surv: false, sg_surv: false, pistol: true,
+    sr_surv: false, sg_surv: false, smg_surv: false, pistol: true,
   };
   const main = LOADOUT_POOL.includes(game.loadoutMain) ? game.loadoutMain : 'assault';
   const sub = LOADOUT_POOL.includes(game.loadoutSub) ? game.loadoutSub : 'smg';
@@ -539,7 +557,21 @@ function grantSurvMapDrop(survId) {
     if (arsenal.owned.shotgun) return grantSurvWeapon('sg_surv', 'shotgun');
     return grantShotgun();
   }
+  if (survId === 'smg_surv') {
+    if (arsenal.owned.smg_surv) return grantSurvWeapon('smg_surv');
+    if (arsenal.owned.smg) return grantSurvWeapon('smg_surv', 'smg');
+    return grantSmg();
+  }
   return false;
+}
+
+function grantSmg() {
+  arsenal.owned.smg = true;
+  arsenal.slots.smg = { mag: magCapacity(WEAPON_DEFS.smg), reserve: WEAPON_DEFS.smg.startReserve };
+  saveActiveAmmo();
+  applyWeaponStats('smg');
+  spawnFloater(t('floater.wepGot', { name: weaponLabel('smg') }), true);
+  return true;
 }
 
 function grantShotgun() {
@@ -862,6 +894,7 @@ function buildGun() {
   arsenal.models.sniper = buildSniperModel();
   arsenal.models.sr_surv = buildSniperModel();
   arsenal.models.sg_surv = buildShotgunModel();
+  arsenal.models.smg_surv = buildSmgModel();
   for (const id of WEAPON_ORDER) {
     const m = arsenal.models[id];
     camera.add(m.group);

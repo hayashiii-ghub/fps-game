@@ -18,6 +18,14 @@
       weather: 'squall',
       survivalWeapon: 'sg_surv',
     },
+    tokyo: {
+      id: 'tokyo',
+      name: 'TOKYO',
+      author: 'Kimi K3',
+      descriptionKey: 'map.tokyo.desc',
+      weather: 'night',
+      survivalWeapon: 'smg_surv',
+    },
   };
 
   const defaultMapId = 'desert';

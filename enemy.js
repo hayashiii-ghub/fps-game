@@ -1219,6 +1219,10 @@ function spawnLootAt(pos, type, opts) {
     geo = new THREE.BoxGeometry(0.55, 0.16, 0.2);
     mat = sniperMat;
     y = 0.18;
+  } else if (type === 'smg_surv') {
+    geo = new THREE.BoxGeometry(0.5, 0.16, 0.14);
+    mat = sniperMat;
+    y = 0.18;
   } else if (type === 'extmag') {
     geo = new THREE.BoxGeometry(0.28, 0.22, 0.4);
     mat = ammoMat;
@@ -1290,7 +1294,7 @@ function updateLoot(dt) {
       } else if (l.type === 'sniper') {
         grantSniper();
         picked = true;
-      } else if (l.type === 'sr_surv' || l.type === 'sg_surv') {
+      } else if (l.type === 'sr_surv' || l.type === 'sg_surv' || l.type === 'smg_surv') {
         grantSurvMapDrop(l.type);
         picked = true;
       } else if (l.type === 'extmag') {
@@ -1378,27 +1382,44 @@ function getMapWeatherKind(mapId) {
   return getMapGameplayDef(mapId).weather;
 }
 
+/**
+ * 天候定義。マップの weather 種別で引く。
+ * 文言は i18n の `weather.<kind>` / `stage.4.*.<kind>` と対で追加する。
+ * boom: 遠雷の間隔[秒]。null なら鳴らさない。lightning: 稲光を出すか。
+ */
+const WEATHER_DEFS = {
+  squall:    { fog: 0.016, dim: true, fogColor: 0x2a3a30, boom: [6, 16], lightning: true },
+  hurricane: { fog: 0.018, dim: true, fogColor: 0xbfb193, boom: [14, 38], lightning: false },
+  // ネオン: 光量が落ちて霧が紫紺に沈み、自己発光の看板だけが残る（雷は鳴らない）
+  neon:      { fog: 0.015, dim: true, fogColor: 0x2a2438, boom: null, lightning: false },
+  // 夜: 霧が藍黒に沈み、街灯・看板・自販機の灯りだけが残る（雷は鳴らない）
+  night:     { fog: 0.0135, dim: true, fogColor: 0x11182b, boom: null, lightning: false },
+};
+
+/** 天候のない Survival で鳴らす遠雷の間隔[秒] */
+const AMBIENT_BOOM = [14, 38];
+
 /** 天候の霧・減光パラメータ。null なら晴天 */
 function weatherAtmosphere(kind) {
-  if (kind === 'squall') {
-    return { weather: 'squall', fog: 0.016, dim: true, fogColor: 0x2a3a30 };
-  }
-  if (kind === 'hurricane') {
-    return { weather: 'hurricane', fog: 0.018, dim: true, fogColor: 0xbfb193 };
-  }
-  return null;
+  const def = WEATHER_DEFS[kind];
+  if (!def) return null;
+  return { weather: kind, fog: def.fog, dim: def.dim, fogColor: def.fogColor };
 }
 
 function weatherBannerSub(kind) {
-  if (kind === 'squall') return t('weather.squall');
-  if (kind === 'hurricane') return t('weather.hurricane');
-  return null;
+  return WEATHER_DEFS[kind] ? t(`weather.${kind}`) : null;
+}
+
+/** その天候の遠雷間隔。天候なし＝環境音、null＝無音 */
+function boomInterval(kind) {
+  const def = WEATHER_DEFS[kind];
+  return def ? def.boom : AMBIENT_BOOM;
 }
 
 function stageTheme(n) {
   if (n === 4) {
     const kind = getMapWeatherKind(game.map);
-    return kind === 'squall' ? t('stage.4.theme.squall') : t('stage.4.theme.hurricane');
+    if (WEATHER_DEFS[kind]) return t(`stage.4.theme.${kind}`);
   }
   return t(`stage.${n}.theme`);
 }
@@ -1437,14 +1458,9 @@ function getStageDef(n) {
   if (n >= 4) {
     const kind = getMapWeatherKind(game.map);
     const atm = weatherAtmosphere(kind);
-    if (n === 4) {
-      if (kind === 'squall') {
-        base.title = t('stage.4.title.squall');
-        base.sub = t('stage.4.sub.squall');
-      } else {
-        base.title = t('stage.4.title.hurricane');
-        base.sub = t('stage.4.sub.hurricane');
-      }
+    if (n === 4 && atm) {
+      base.title = t(`stage.4.title.${kind}`);
+      base.sub = t(`stage.4.sub.${kind}`);
     }
     base.fog = atm.fog;
     base.dim = atm.dim;
@@ -1503,29 +1519,32 @@ function updateWaves(dt) {
     }
   }
 
-  // Survival は常時遠雷。天候時は頻度アップ
+  // Survival は常時遠雷。天候時は頻度アップ（雷を伴わない天候は環境音のまま）
+  const boom = boomInterval(game.weather) || AMBIENT_BOOM;
   game.boomT -= dt;
   if (game.boomT <= 0) {
     AudioSys.boom();
-    game.boomT = game.weather === 'squall' ? rand(6, 16) : rand(14, 38);
+    game.boomT = rand(boom[0], boom[1]);
   }
   updateWeatherFx(dt);
 }
 
 /** 天候演出（稲光・TDM 時の遠雷）。Survival の遠雷は updateWaves 側 */
 function updateWeatherFx(dt) {
-  if (game.mode === 'tdm' && game.weather) {
+  const boom = game.weather ? boomInterval(game.weather) : null;
+  if (game.mode === 'tdm' && boom) {
     game.boomT -= dt;
     if (game.boomT <= 0) {
       AudioSys.boom();
-      game.boomT = game.weather === 'squall' ? rand(6, 16) : rand(14, 38);
+      game.boomT = rand(boom[0], boom[1]);
     }
   }
-  // スコールの短い稲光（dt 駆動。setTimeout は使わない）
+  // 短い稲光（dt 駆動。setTimeout は使わない）
+  const lightning = !!(WEATHER_DEFS[game.weather] || {}).lightning;
   if (game.lightningT > 0) {
     game.lightningT -= dt;
-    if (game.lightningT <= 0 && worldSun && game.weather === 'squall') worldSun.intensity = 0.5;
-  } else if (game.weather === 'squall' && worldSun && Math.random() < dt * 0.12) {
+    if (game.lightningT <= 0 && worldSun && lightning) worldSun.intensity = 0.5;
+  } else if (lightning && worldSun && Math.random() < dt * 0.12) {
     worldSun.intensity = 1.35;
     game.lightningT = 0.08;
   }

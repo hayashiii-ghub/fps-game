@@ -76,6 +76,22 @@ const bareInv = {
 assert.equal(tryGrantLoot(bareInv, 'sr_surv').granted.type, 'sniper');
 assert.equal(bareInv.owned.sniper, true);
 
+// smg_surv: SMG 所持なら強化版に置換、未所持なら通常 SMG、強化版所持済みなら弾
+const smgUp = {
+  main: 'assault', sub: 'smg',
+  owned: { assault: true, smg: true, shotgun: false, sniper: false, sr_surv: false, sg_surv: false, smg_surv: false, pistol: true },
+};
+assert.equal(tryGrantLoot(smgUp, 'smg_surv').granted.upgraded, true);
+assert.equal(smgUp.owned.smg, false);
+assert.equal(smgUp.owned.smg_surv, true);
+assert.equal(tryGrantLoot(smgUp, 'smg_surv').granted.ammo, true);
+const smgBare = {
+  main: 'assault', sub: 'sniper',
+  owned: { assault: true, smg: false, shotgun: false, sniper: true, sr_surv: false, sg_surv: false, smg_surv: false, pistol: true },
+};
+assert.equal(tryGrantLoot(smgBare, 'smg_surv').granted.type, 'smg');
+assert.equal(smgBare.owned.smg, true);
+
 const jungleBundle = pickSupplyBundle(() => 0.99, 'jungle');
 assert.ok(jungleBundle.includes('ammo'));
 assert.ok(!jungleBundle.includes('armor'));
@@ -87,10 +103,13 @@ assert.ok(alwaysBundle.includes('extmag'));
 assert.ok(alwaysBundle.includes('armor'));
 const desertBundle = pickSupplyBundle(() => 0.1, 'desert');
 assert.ok(desertBundle.includes('sr_surv'));
+const tokyoBundle = pickSupplyBundle(() => 0.1, 'tokyo');
+assert.ok(tokyoBundle.includes('smg_surv'));
 
 assert.equal(sanitizeWeapon('smg'), 'smg');
 assert.equal(sanitizeWeapon('sr_surv'), 'sr_surv');
 assert.equal(sanitizeWeapon('sg_surv'), 'sg_surv');
+assert.equal(sanitizeWeapon('smg_surv'), 'smg_surv');
 
 const lo = sanitizeLoadout('shotgun', 'sniper');
 const att = buildSessionAttachment({

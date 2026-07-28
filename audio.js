@@ -14,6 +14,7 @@ const AudioSys = {
     sniper: { crack: 3000, crackG: 0.55, bodyF: 1900, bodyEnd: 120, bodyDur: 0.3, bodyG: 1.0, thumpF: 84, thumpG: 0.6, tailG: 0.55, tailDur: 0.8 },
     sr_surv: { crack: 2900, crackG: 0.58, bodyF: 1800, bodyEnd: 100, bodyDur: 0.32, bodyG: 1.05, thumpF: 78, thumpG: 0.65, tailG: 0.6, tailDur: 0.85 },
     sg_surv: { crack: 2400, crackG: 0.4, bodyF: 1500, bodyEnd: 140, bodyDur: 0.26, bodyG: 1.0, thumpF: 86, thumpG: 0.65, tailG: 0.5, tailDur: 0.6 },
+    smg_surv: { crack: 4400, crackG: 0.46, bodyF: 2700, bodyEnd: 400, bodyDur: 0.11, bodyG: 0.7, thumpF: 130, thumpG: 0.38, tailG: 0.24, tailDur: 0.28 },
   },
 
   init() {
