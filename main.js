@@ -314,6 +314,11 @@ function formatLongestKill() {
   const d = game.longestKill || 0;
   return d > 0 ? `${Math.round(d)}m` : '—';
 }
+function formatKdr() {
+  const k = game.kills || 0;
+  const d = game.deaths || 0;
+  return (d > 0 ? k / d : k).toFixed(2);
+}
 
 function gameOver() {
   game.state = 'dead';
@@ -434,6 +439,7 @@ function endTdmMatch() {
     'BLUE': String(b),
     'RED': String(r),
     [t('stat.yourKd')]: `${game.kills || 0} / ${game.deaths || 0}`,
+    [t('stat.kdr')]: formatKdr(),
     [t('stat.hs')]: String(game.headshots),
     [t('stat.hsRate')]: formatHsRate(),
     [t('stat.long')]: formatLongestKill(),

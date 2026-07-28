@@ -297,19 +297,32 @@ function applyWeaponStats(id) {
   updateAmmoHUD();
 }
 
-function cycleWeapon(dir) {
+function switchToWeapon(id) {
   if (!player.alive || game.state !== 'playing') return;
   if (weapon.switchLock > 0) return;
+  if (!id || !arsenal.owned[id]) return;
+  if (id === arsenal.activeId) return;
+  saveActiveAmmo();
+  applyWeaponStats(id);
+  // ハンドガンへの切替は速め（近接応戦用）
+  weapon.switchLock = id === 'pistol' ? 0.14 : 0.28;
+  spawnFloater(WEAPON_DEFS[id] ? weaponLabel(id) : id, false);
+}
+
+function cycleWeapon(dir) {
   const ids = ownedIds();
   if (ids.length < 2) return;
-  saveActiveAmmo();
   const i = ids.indexOf(arsenal.activeId);
   const next = ids[(i + dir + ids.length) % ids.length];
-  if (next === arsenal.activeId) return;
-  applyWeaponStats(next);
-  // ハンドガンへの切替は速め（近接応戦用）
-  weapon.switchLock = next === 'pistol' ? 0.14 : 0.28;
-  spawnFloater(WEAPON_DEFS[next] ? weaponLabel(next) : next, false);
+  switchToWeapon(next);
+}
+
+/** 所持武器を Q/E と同じ並びで直指定（0 = 先頭） */
+function selectOwnedSlot(slotIndex) {
+  const ids = ownedIds();
+  const id = ids[slotIndex];
+  if (!id) return;
+  switchToWeapon(id);
 }
 
 function makeTdmAmmoSlots() {
@@ -1385,6 +1398,10 @@ function initInput() {
     if (e.code === 'KeyE') { if (!player.nadeAim) cycleWeapon(-1); }
     if (e.code === 'KeyG') toggleNadeAim();
     if (e.code === 'KeyF') startHeal();
+    {
+      const dig = /^Digit([1-9])$/.exec(e.code) || /^Numpad([1-9])$/.exec(e.code);
+      if (dig && !player.nadeAim) selectOwnedSlot(Number(dig[1]) - 1);
+    }
     if (e.code === 'Space') e.preventDefault();
   });
   document.addEventListener('keyup', e => {
