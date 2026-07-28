@@ -2,10 +2,10 @@
   "version": 1,
   "transcripts": {
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/2404aea8-33f3-4072-ae52-5b811cabddbe/2404aea8-33f3-4072-ae52-5b811cabddbe.jsonl": {
-      "mtimeMs": 1785215111301.1553
+      "mtimeMs": 1785222382422.473
     },
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/2404aea8-33f3-4072-ae52-5b811cabddbe/subagents/ca8b7307-c26a-493c-8059-ccc29daf9daa.jsonl": {
-      "mtimeMs": 1785215126275.206
+      "mtimeMs": 1785215190974.167
     },
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55/33a9cb8a-ad41-4978-aeef-4ee75b2c6b55.jsonl": {
       "mtimeMs": 1784592739199.0483
@@ -141,6 +141,9 @@
     },
     "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/d7bf29bf-a215-4884-b54d-91c3aa37d4bb/d7bf29bf-a215-4884-b54d-91c3aa37d4bb.jsonl": {
       "mtimeMs": 1784601500867.3362
+    },
+    "/Users/hayashi/.cursor/projects/Users-hayashi-work-projects-karakin/agent-transcripts/2404aea8-33f3-4072-ae52-5b811cabddbe/subagents/5bc32530-02c6-4b05-a4ff-e0e595af89ca.jsonl": {
+      "mtimeMs": 1785222403872.433
     }
   }
 }
