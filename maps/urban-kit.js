@@ -16,6 +16,7 @@
                   バス停・地下鉄入口・ボラード・自転車ラック
      車両       … タクシー・セダン・配送バン（実在色のみ）
      舗装       … 歩道・広場・横断歩道・黄色センターライン
+     遠景       … 場外スカイライン＋スカイツリー／東京タワー
 
    固体の纪律（重要）:
      移動コライダは URBAN.solid() 1 関数（world.js box の葉登録）
@@ -921,12 +922,106 @@ function centerDashes(x0, z0, x1, z1, step) {
    遠景
    ============================================================ */
 
+/** 夕霧を抜けてシルエットが残る遠景用マテリアル */
+const landmarkMatCache = new Map();
+function landmarkMat(hex, opts) {
+  const noFog = !!(opts && opts.fog === false);
+  const key = `${hex}:${noFog ? 'nf' : 'f'}`;
+  if (!landmarkMatCache.has(key)) {
+    const m = new THREE.MeshBasicMaterial({ color: hex, fog: !noFog });
+    m.color.convertSRGBToLinear();
+    landmarkMatCache.set(key, m);
+  }
+  return landmarkMatCache.get(key);
+}
+
+/** 見た目のみの箱を mapGroup に置く（ランドマーク用。solid にしない） */
+function landmarkBox(mat, w, h, d, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  mapGroup.add(m);
+  return m;
+}
+
+/**
+ * 東京スカイツリー風シルエット（錦糸町視点の北〜北西）。
+ * 当たり判定なし。地理寄りスケール＋遠景用の軽い誇張。
+ */
+function skyTree(x, z) {
+  const steel = landmarkMat(0x6a6578);
+  const shaft = landmarkMat(0x7e788c);
+  const deck = landmarkMat(0xb8b4c2);
+  const blue = landmarkMat(0x4a8fb0, { fog: false });
+  const tip = landmarkMat(0xff5555, { fog: false });
+  // 第1展望台より下: 下へ向かって段々太くなる円錐（直下の最細=4）
+  const cone = [
+    [7.0, 4.5, 2.25],
+    [6.2, 4.5, 6.75],
+    [5.5, 4.5, 11.25],
+    [4.9, 4.5, 15.75],
+    [4.4, 4.5, 20.25],
+    [4.0, 4.0, 24.5],
+  ];
+  for (const [w, h, cy] of cone) landmarkBox(steel, w, h, w, x, cy, z);
+  // 第1展望台
+  landmarkBox(deck, 7.2, 2.2, 7.2, x, 27.6, z);
+  landmarkBox(blue, 6.6, 1.1, 6.6, x, 29.25, z);
+  landmarkBox(steel, 5.2, 3.5, 5.2, x, 31.55, z);
+  landmarkBox(deck, 6.0, 1.6, 6.0, x, 34.1, z);
+  // 中間〜第2展望台〜アンテナ（総高 ~74）
+  landmarkBox(shaft, 2.1, 15, 2.1, x, 42.4, z);
+  landmarkBox(deck, 4.4, 1.8, 4.4, x, 51.3, z);
+  landmarkBox(blue, 4.0, 0.9, 4.0, x, 52.65, z);
+  landmarkBox(shaft, 1.2, 11, 1.2, x, 59.1, z);
+  landmarkBox(shaft, 0.6, 9, 0.6, x, 69.1, z);
+  landmarkBox(tip, 1.1, 1.1, 1.1, x, 74.1, z);
+}
+
+/**
+ * 東京タワー風シルエット（錦糸町視点の南西・遠景）。
+ * 当たり判定なし。小さく遠く、尖端だけ霧抜け。
+ */
+function tokyoTower(x, z) {
+  const red = landmarkMat(0x9a4040);
+  const white = landmarkMat(0xb8b4c2);
+  const steel = landmarkMat(0x6a6578);
+  const tip = landmarkMat(0xff4444, { fog: false });
+  // 総高 ~38。南西遠景想定
+  landmarkBox(red, 6.2, 1.0, 1.4, x, 0.5, z);
+  landmarkBox(red, 1.4, 1.0, 6.2, x, 0.5, z);
+  landmarkBox(red, 4.6, 4.2, 1.2, x, 3.1, z);
+  landmarkBox(red, 1.2, 4.2, 4.6, x, 3.1, z);
+  const bands = [
+    [red, 3.8, 3.8, 7.7],
+    [white, 3.2, 3.2, 11.2],
+    [red, 2.7, 3.2, 14.4],
+    [white, 2.3, 2.8, 17.4],
+    [red, 1.9, 2.6, 20.1],
+    [white, 1.6, 2.4, 22.6],
+    [red, 1.35, 2.2, 24.9],
+  ];
+  for (const [mat, w, h, cy] of bands) landmarkBox(mat, w, h, w, x, cy, z);
+  landmarkBox(white, 2.8, 1.8, 2.8, x, 26.9, z);
+  landmarkBox(red, 1.9, 1.2, 1.9, x, 28.4, z);
+  landmarkBox(steel, 0.75, 5, 0.75, x, 31.5, z);
+  landmarkBox(steel, 0.4, 4, 0.4, x, 36, z);
+  landmarkBox(tip, 0.8, 0.8, 0.8, x, 38.4, z);
+}
+
 /** 場外のオフィス群（夕靄に沈むシルエット。当たり判定なし） */
 function skyline() {
-  const put = (x, z) => {
-    const h = rand(15, 58);
+  // 錦糸町視点: スカイツリー=北〜北西（近め）、東京タワー=南西（遠め）
+  const SKYTREE_A = Math.PI * 0.58;
+  const TOWER_A = Math.PI * 1.28;
+  const angDist = (a, b) => {
+    let d = Math.abs(a - b) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    return d;
+  };
+  const put = (x, z, hBias) => {
+    const h = hBias || rand(15, 58);
     const w = rand(9, 20);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, rand(9, 20)), M.skyline);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, rand(9, 20)), materials().skyline);
     m.position.set(x, h / 2, z);
     mapGroup.add(m);
     if (h > 34) {
@@ -937,11 +1032,18 @@ function skyline() {
   };
   for (let i = 0; i < 42; i++) {
     const a = (i / 42) * Math.PI * 2 + rand(-0.04, 0.04);
+    if (angDist(a, SKYTREE_A) < 0.18) continue;
+    if (angDist(a, TOWER_A) < 0.14) continue;
     const r = rand(80, 155);
     put(Math.cos(a) * r, Math.sin(a) * r);
   }
-  // 北の高層クラスタ
   put(30, -105); put(48, -96); put(10, -112);
+  put(42, 130, 36); put(-48, 135, 32);
+  put(-120, -70, 40); put(-100, -115, 34);
+
+  // 地理寄り: ツリーは頭出し、タワーは南西遠景（尖端だけ霧抜け）
+  skyTree(Math.cos(SKYTREE_A) * 148, Math.sin(SKYTREE_A) * 148);
+  tokyoTower(Math.cos(TOWER_A) * 195, Math.sin(TOWER_A) * 195);
 }
 
 /* ============================================================
@@ -959,7 +1061,7 @@ globalThis.URBAN = {
   busStop, subwayEntrance, bikeRack, manhole,
   taxi, sedan, van, bus,
   sidewalk, plazaFloor, crosswalk, centerDashes,
-  skyline,
+  skyline, skyTree, tokyoTower,
   HALF,
 };
 
