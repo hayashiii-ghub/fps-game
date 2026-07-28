@@ -128,6 +128,12 @@ function zPair(fn, x, z, ...rest) {
   return [fn(x, z, ...rest), fn(x, -z, ...rest)];
 }
 
+/** maps/tokyo.js の zPairLhtEw と同じ（東西通り・左側通行で南は yaw+π） */
+function zPairLhtEw(fn, x, z, yaw, ...rest) {
+  const nz = Math.abs(z);
+  return [fn(x, nz, yaw, ...rest), fn(x, -nz, yaw + Math.PI, ...rest)];
+}
+
 /** URBAN.pilotis — 柱 0.7角×8（1階高 3.2m）＋中央コア 3.4角（全高） */
 function uPilotis(x, z, w, h, d) {
   const y0 = 3.2;
@@ -434,17 +440,17 @@ const TOKYO = [
   zPair(uPlanter, 0, 13, 2.2, 6),
   zPair(uPlanter, 0, 20, 2.2, 6),
   zPair(uPlanter, 0, 34, 2.2, 6),
-  zPair(uCar, 14, 4.9, 0, 'taxi'),
-  zPair(uCar, 27.5, 4.9, 0, 'bus'),
-  zPair(uCar, 4.9, 16, HALF, 'sedan'),
+  zPairLhtEw(uCar, 14, 4.9, Math.PI, 'taxi'),
+  zPairLhtEw(uCar, 27.5, 4.9, Math.PI, 'bus'),
+  zPair(uCar, 4.9, 16, -HALF, 'sedan'),
   zPair(uCar, -4.9, 20, HALF, 'sedan'),
-  zPair(uCar, 4.9, 36, HALF, 'sedan'),
+  zPair(uCar, 4.9, 36, -HALF, 'sedan'),
   zPair(uCar, -4.9, 40, HALF, 'sedan'),
-  zPair(uCar, 30, -4.9, 0, 'sedan'),
-  zPair(uCar, 36, 4.9, 0, 'sedan'),
-  zPair(uCar, -30, 4.9, 0, 'sedan'),
-  zPair(uCar, -36, -4.9, 0, 'sedan'),
-  zPair(uCar, 28, 20, HALF, 'van'),
+  zPairLhtEw(uCar, 30, 4.9, Math.PI, 'sedan'),
+  zPairLhtEw(uCar, 36, 4.9, Math.PI, 'sedan'),
+  zPairLhtEw(uCar, -30, 4.9, Math.PI, 'sedan'),
+  zPairLhtEw(uCar, -36, 4.9, Math.PI, 'sedan'),
+  zPair(uCar, 28, 20, -HALF, 'van'),
   zPair(uCar, -28, 20, HALF, 'van'),
   zPair(uLight, 7.6, 17),
   zPair(uLight, -7.6, 17),

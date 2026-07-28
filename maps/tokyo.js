@@ -30,6 +30,13 @@ function zPair(fn, x, z, ...rest) {
   fn(x, -z, ...rest);
 }
 
+/** 東西通りの路肩（左側通行）: +z（北）はその yaw、−z（南）は対向なので +π */
+function zPairLhtEw(fn, x, z, yaw, ...rest) {
+  const nz = Math.abs(z);
+  fn(x, nz, yaw, ...rest);
+  fn(x, -nz, yaw + Math.PI, ...rest);
+}
+
 /* ============================================================
    建物
    ============================================================ */
@@ -96,22 +103,21 @@ function avenues() {
   zPair(URBAN.planter, 0, 20, 2.2, 6);
   zPair(URBAN.planter, 0, 34, 2.2, 6);
 
-  // タクシー乗り場（広場の東・西縁に停車中）とバス停の市バス
-  zPair(URBAN.taxi, 14, 4.9, 0);
-  zPair(URBAN.bus, 27.5, 4.9, 0);
+  // タクシー／市バス・路側駐車（左側通行）
+  // ヘッドライト基準で対向路肩を逆向きにする（東/北の基準 yaw に対し西/南は +π）
+  zPairLhtEw(URBAN.taxi, 14, 4.9, Math.PI);
+  zPairLhtEw(URBAN.bus, 27.5, 4.9, Math.PI);
 
-  // 路側駐車（実在色のセダン）
-  zPair(URBAN.sedan, 4.9, 16, HALF, URBAN.M.sedanWhite);
+  zPair(URBAN.sedan, 4.9, 16, -HALF, URBAN.M.sedanWhite);
   zPair(URBAN.sedan, -4.9, 20, HALF, URBAN.M.sedanBlack);
-  zPair(URBAN.sedan, 4.9, 36, HALF, URBAN.M.sedanGrey);
+  zPair(URBAN.sedan, 4.9, 36, -HALF, URBAN.M.sedanGrey);
   zPair(URBAN.sedan, -4.9, 40, HALF, URBAN.M.sedanWhite);
-  zPair(URBAN.sedan, 30, -4.9, 0, URBAN.M.sedanGrey);
-  zPair(URBAN.sedan, 36, 4.9, 0, URBAN.M.sedanBlack);
-  zPair(URBAN.sedan, -30, 4.9, 0, URBAN.M.sedanWhite);
-  zPair(URBAN.sedan, -36, -4.9, 0, URBAN.M.sedanGrey);
+  zPairLhtEw(URBAN.sedan, 30, 4.9, Math.PI, URBAN.M.sedanGrey);
+  zPairLhtEw(URBAN.sedan, 36, 4.9, Math.PI, URBAN.M.sedanBlack);
+  zPairLhtEw(URBAN.sedan, -30, 4.9, Math.PI, URBAN.M.sedanWhite);
+  zPairLhtEw(URBAN.sedan, -36, 4.9, Math.PI, URBAN.M.sedanGrey);
 
-  // 配送バン（環状通り）
-  zPair(URBAN.van, 28, 20, HALF);
+  zPair(URBAN.van, 28, 20, -HALF);
   zPair(URBAN.van, -28, 20, HALF);
 
   // 街灯
