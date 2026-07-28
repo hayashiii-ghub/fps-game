@@ -163,8 +163,24 @@ function uSignal(x, z) {
   return slab(x, z, 0.2, 4.8, 0.2, 0);
 }
 
+/** URBAN.subwayEntrance — 縁石3枚＋欄干＋標識柱（屋根・階段は載せない） */
 function uSubway(x, z, yaw) {
-  return slab(x, z, 2.6, 2.2, 2.0, yaw);
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const toWorld = (lx, lz) => ({
+    cx: x + lx * cos + lz * sin,
+    cz: z - lx * sin + lz * cos,
+  });
+  const put = (lx, lz, w, h, d) => {
+    const p = toWorld(lx, lz);
+    return slab(p.cx, p.cz, w, h, d, yaw);
+  };
+  return [
+    put(0, 1.475, 3.2, 0.45, 0.25),
+    put(-1.475, 0, 0.25, 0.45, 2.7),
+    put(1.475, 0, 0.25, 0.45, 2.7),
+    put(0, -1.35, 2.7, 0.9, 0.12),
+    put(1.9, -1.2, 0.14, 1.9, 0.14),
+  ];
 }
 
 /** URBAN.busStop — ポール＋脇のベンチ */
@@ -175,15 +191,24 @@ function uBusStop(x, z, yaw) {
   ];
 }
 
+/** maps/urban-kit.js の CAR_DIMS と同じ寸法（ボディ＋キャビンの2箱。バン・バスは1箱） */
 const U_CAR_SIZE = {
-  taxi: [4.4, 1.45, 1.85],
-  sedan: [4.5, 1.4, 1.8],
-  van: [4.8, 2.2, 1.9],
+  taxi: { body: [4.4, 0.72, 1.85], bodyY0: 0.28, cab: [2.1, 0.55, 1.66], cabX: -0.1 },
+  sedan: { body: [4.5, 0.72, 1.8], bodyY0: 0.28, cab: [2.2, 0.55, 1.62], cabX: -0.15 },
+  van: { body: [4.8, 1.9, 1.9], bodyY0: 0.3 },
+  bus: { body: [9.0, 2.7, 2.3], bodyY0: 0.3 },
 };
 
 function uCar(x, z, yaw, kind) {
-  const [w, h, d] = U_CAR_SIZE[kind];
-  return slab(x, z, w, h, d, yaw);
+  const K = U_CAR_SIZE[kind];
+  const y0 = K.bodyY0 || 0;
+  const out = [slab(x, z, K.body[0], K.body[1], K.body[2], yaw, y0)];
+  if (K.cab) {
+    const cos = Math.cos(yaw), sin = Math.sin(yaw);
+    out.push(slab(x + K.cabX * cos, z - K.cabX * sin,
+      K.cab[0], K.cab[1], K.cab[2], yaw, y0 + K.body[1]));
+  }
+  return out;
 }
 
 const BERMS = [
@@ -402,15 +427,15 @@ const TOKYO = [
     .map(([x, z]) => uSignal(x, z)),
   zPair(uLight, 9.2, 2.8),
   zPair(uLight, -9.2, 2.8),
-  zPair(uSubway, 13.6, 9.4, Math.PI),
-  zPair(uSubway, -13.6, 9.4, Math.PI),
+  zPair(uSubway, 13.6, 9.7, 0),
+  zPair(uSubway, -13.6, 9.7, 0),
 
   // ---- 大通り（中央分離帯・駐車車両・街灯） ----
   zPair(uPlanter, 0, 13, 2.2, 6),
   zPair(uPlanter, 0, 20, 2.2, 6),
   zPair(uPlanter, 0, 34, 2.2, 6),
   zPair(uCar, 14, 4.9, 0, 'taxi'),
-  zPair(uCar, 19, 4.9, 0, 'taxi'),
+  zPair(uCar, 27.5, 4.9, 0, 'bus'),
   zPair(uCar, 4.9, 16, HALF, 'sedan'),
   zPair(uCar, -4.9, 20, HALF, 'sedan'),
   zPair(uCar, 4.9, 36, HALF, 'sedan'),

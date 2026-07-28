@@ -74,8 +74,8 @@ function plaza() {
   }
   zPair(URBAN.streetLight, 9.2, 2.8, Math.PI);
   zPair(URBAN.streetLight, -9.2, 2.8, 0);
-  zPair(URBAN.subwayEntrance, 13.6, 9.4, Math.PI);
-  zPair(URBAN.subwayEntrance, -13.6, 9.4, Math.PI);
+  zPair(URBAN.subwayEntrance, 13.6, 9.7, 0);
+  zPair(URBAN.subwayEntrance, -13.6, 9.7, 0);
   // ボラード（見た目のみ）
   URBAN.bollardRow(8.6, 8.6, -Math.PI / 4, 3);
   URBAN.bollardRow(-8.6, 8.6, Math.PI / 4, 3);
@@ -96,9 +96,9 @@ function avenues() {
   zPair(URBAN.planter, 0, 20, 2.2, 6);
   zPair(URBAN.planter, 0, 34, 2.2, 6);
 
-  // タクシー乗り場（広場の東・西縁に停車中）
+  // タクシー乗り場（広場の東・西縁に停車中）とバス停の市バス
   zPair(URBAN.taxi, 14, 4.9, 0);
-  zPair(URBAN.taxi, 19, 4.9, 0);
+  zPair(URBAN.bus, 27.5, 4.9, 0);
 
   // 路側駐車（実在色のセダン）
   zPair(URBAN.sedan, 4.9, 16, HALF, URBAN.M.sedanWhite);

@@ -223,7 +223,12 @@ function materials() {
     sedanWhite: L({ color: 0xc4c7cb }),
     sedanGrey: L({ color: 0x686e76 }),
     vanWhite: L({ color: 0xc2c5c9 }),
+    busBody: L({ color: 0xb8bcb6 }),
+    busBand: L({ color: 0x4a6b58 }),
     tire: L({ color: 0x1a1a1c }),
+    hubGrey: L({ color: 0x9aa0a6 }),
+    bikeBlue: L({ color: 0x2c3e50 }),
+    bikeRed: L({ color: 0x5c2e35 }),
     skyline: L({ color: 0x57516b }),
     lawnGreen: L({ color: 0x46582f }),
   };
@@ -475,35 +480,167 @@ function busStop(x, z, yaw) {
 }
 
 /**
- * 地下鉄入口（階段 kiosk。固体は 1 箱。内部の暗がり・手すり・
- * 案内灯は見た目のみ。オフィス街の象徴的な小さな構造物）
+ * 地下鉄入口（オープン階段型）。石枠に囲まれた開口から階段が
+ * 暗がりへ降りていく、丸の内系の地上出入口。欄干で中には入れない
+ * ので、降り口の階段は見た目だけにしても齟齬が出ない。
+ * 固体: 縁石3枚（0.45m）＋欄干（0.9m）＋標識柱。
+ * 屋根は shell（弾だけ当たる）。階段・手すり・案内板は見た目のみ。
+ * ※ ファサード用テクスチャ（窓つき）は小物には使わない。
  */
 function subwayEntrance(x, z, yaw) {
-  solid(x, z, 2.6, 2.2, 2.0, yaw, M.stoneGrey);
-  // 開口部の暗がり（前面）
-  const fx = Math.sin(yaw), fz = Math.cos(yaw);
-  deco(M.glassDark, 1.8, 1.7, 0.1, x + fx * 1.02, 0.85, z + fz * 1.02, yaw);
-  deco(glow(0xdfe8f2), 1.6, 0.28, 0.06, x + fx * 1.04, 1.92, z + fz * 1.04, yaw);
-  // 手すり
-  deco(M.steel, 0.06, 0.9, 1.6, x + fx * 1.3 + Math.cos(yaw) * 0.5, 0.45,
-    z + fz * 1.3 - Math.sin(yaw) * 0.5, yaw);
-  deco(M.steel, 0.06, 0.9, 1.6, x + fx * 1.3 - Math.cos(yaw) * 0.5, 0.45,
-    z + fz * 1.3 + Math.sin(yaw) * 0.5, yaw);
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const toWorld = (lx, lz) => ({
+    wx: x + lx * cos + lz * sin,
+    wz: z - lx * sin + lz * cos,
+  });
+  const put = (lx, lz, w, h, d, mat) => {
+    const p = toWorld(lx, lz);
+    solid(p.wx, p.wz, w, h, d, yaw, mat);
+  };
+  // 縁石（高さ 0.45m の石枠）: 奥・左右の3面
+  put(0, 1.475, 3.2, 0.45, 0.25, M.stoneTrim);
+  put(-1.475, 0, 0.25, 0.45, 2.7, M.stoneTrim);
+  put(1.475, 0, 0.25, 0.45, 2.7, M.stoneTrim);
+  // 欄干（0.9m。中は見えるが入れない）
+  put(0, -1.35, 2.7, 0.9, 0.12, M.darkSteel);
+  // 標識柱＋案内灯
+  put(1.9, -1.2, 0.14, 1.9, 0.14, M.steel);
+  const tp = toWorld(1.9, -1.2);
+  deco(M.darkSteel, 0.46, 0.4, 0.05, tp.wx, 1.62, tp.wz, yaw);
+  deco(glow(0xe8f0f8), 0.4, 0.32, 0.06, tp.wx, 1.62, tp.wz, yaw);
+
+  // 階段・内壁・手すり（見た目のみ。暗がりへ降りていく形）
+  const g = new THREE.Group();
+  for (let i = 0; i < 4; i++) {
+    const hh = 0.36 - i * 0.09;
+    const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, hh, 0.3), M.concrete);
+    step.position.set(0, hh / 2, -1.05 + i * 0.3);
+    g.add(step);
+  }
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.04, 1.5), M.glassDark);
+  floor.position.set(0, 0.02, 0.6);
+  g.add(floor);
+  for (const sx of [-1.36, 1.36]) {           // 内壁（暗がり）
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 2.7), M.glassDark);
+    wall.position.set(sx, 0.25, 0);
+    g.add(wall);
+  }
+  const back = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.5, 0.04), M.glassDark);
+  back.position.set(0, 0.25, 1.36);
+  g.add(back);
+  for (const sx of [-0.8, 0.8]) {             // 手すり（階段に沿って斜め）
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.35), M.steel);
+    rail.position.set(sx, 0.75, -0.6);
+    rail.rotation.x = -0.32;
+    g.add(rail);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.9, 0.05), M.steel);
+    post.position.set(sx, 0.45, -1.2);
+    g.add(post);
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = yaw;
+  mapGroup.add(g);
+
+  // 屋根（ポスト2本＋ガラス板と縁。頭上なので弾だけ当たる）
+  const cg = new THREE.Group();
+  for (const sx of [-1.2, 1.2]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.3, 0.1), M.steel);
+    post.position.set(sx, 1.15, -1.6);
+    cg.add(post);
+  }
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.06, 2.0), M.glassDark);
+  roof.position.set(0, 2.35, -0.7);
+  cg.add(roof);
+  for (const ez of [-1.68, 0.28]) {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.1, 0.12), M.darkSteel);
+    edge.position.set(0, 2.33, ez);
+    cg.add(edge);
+  }
+  cg.position.set(x, 0, z);
+  cg.rotation.y = yaw;
+  shell(cg);
+}
+
+/** 自転車1台（フレーム・ハンドル・サドル・前カゴつき。見た目のみ） */
+function bicycleFrame(px, pz, yaw, lean, mat) {
+  const g = new THREE.Group();
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  // a→b に円柱を張る（フレームの管材）
+  const tube = (a, b, r, m2) => {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), m2 || mat);
+    mesh.position.copy(a).addScaledVector(dir, 0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    g.add(mesh);
+  };
+  // ホイール（リム＋ハブ＋スポーク2本）
+  for (const wz of [-0.55, 0.55]) {
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 6, 16), M.darkSteel);
+    rim.rotation.y = HALF;
+    rim.position.set(0, 0.3, wz);
+    g.add(rim);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.07, 6), M.hubGrey);
+    hub.rotation.x = HALF;
+    hub.position.set(0, 0.3, wz);
+    g.add(hub);
+    for (const [sw, sh, sd] of [[0.012, 0.56, 0.012], [0.012, 0.012, 0.56]]) {
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(sw, sh, sd), M.hubGrey);
+      sp.position.set(0, 0.3, wz);
+      g.add(sp);
+    }
+  }
+  const bb = V(0, 0.32, 0.05);         // ボトムブラケット
+  const head = V(0, 0.78, -0.42);      // ヘッドチューブ上端
+  const seatTop = V(0, 0.74, 0.28);    // シート上端
+  tube(bb, head, 0.022);               // ダウンチューブ
+  tube(head, seatTop, 0.022);          // トップチューブ
+  tube(seatTop, bb, 0.022);            // シートチューブ
+  tube(head, V(0, 0.3, -0.55), 0.02);  // フォーク
+  tube(bb, V(0, 0.3, 0.55), 0.018);    // チェーンステー
+  tube(seatTop, V(0, 0.3, 0.55), 0.018); // シートステー
+  // ハンドル（ステム＋バー）
+  tube(head, V(0, 0.98, -0.45), 0.02, M.darkSteel);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.42, 6), M.darkSteel);
+  bar.rotation.z = HALF;
+  bar.position.set(0, 0.98, -0.45);
+  g.add(bar);
+  // サドル・ペダル
+  const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.24), M.darkSteel);
+  saddle.position.set(0, 0.8, 0.3);
+  g.add(saddle);
+  const crank = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.03, 0.05), M.darkSteel);
+  crank.position.set(0, 0.32, 0.05);
+  g.add(crank);
+  // 前カゴ（底＋4面の薄板）
+  const bw = 0.3, bh = 0.2, bd = 0.24;
+  const mk = (w, h, d, ox, oy, oz) => {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M.darkSteel);
+    p.position.set(ox, 0.78 + oy, -0.68 + oz);
+    g.add(p);
+  };
+  mk(bw, 0.02, bd, 0, -bh / 2, 0);
+  mk(bw, bh, 0.02, 0, 0, -bd / 2);
+  mk(bw, bh, 0.02, 0, 0, bd / 2);
+  mk(0.02, bh, bd, -bw / 2, 0, 0);
+  mk(0.02, bh, bd, bw / 2, 0, 0);
+  // スタンド
+  tube(V(0.06, 0.3, 0.45), V(0.16, 0.01, 0.55), 0.014, M.darkSteel);
+  g.position.set(px, 0, pz);
+  g.rotation.y = yaw;
+  g.rotation.z = lean;
+  mapGroup.add(g);
 }
 
 /** 自転車ラック（見た目のみ） */
 function bikeRack(x, z, yaw, n) {
   deco(M.steel, n * 0.62, 0.06, 0.06, x, 0.28, z, yaw);
+  const mats = [M.bikeBlue, M.hubGrey, M.darkSteel, M.bikeRed];
   for (let i = 0; i < n; i++) {
     const off = (i - (n - 1) / 2) * 0.62;
     const bx = x + Math.cos(yaw) * off, bz = z - Math.sin(yaw) * off;
-    for (const dz of [-0.5, 0.5]) {
-      const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.04, 4, 10), M.darkSteel);
-      wheel.position.set(bx + Math.sin(yaw) * dz, 0.31, bz + Math.cos(yaw) * dz);
-      wheel.rotation.y = yaw + HALF;
-      mapGroup.add(wheel);
-    }
-    deco(M.steel, 0.06, 0.5, 1.0, bx, 0.6, bz, yaw);
+    bicycleFrame(bx, bz, yaw + rand(-0.05, 0.05),
+      rand(0.05, 0.12) * (Math.random() < 0.5 ? 1 : -1), mats[i % mats.length]);
   }
 }
 
@@ -515,25 +652,101 @@ function manhole(x, z) {
 }
 
 /* ============================================================
-   車両（1台＝固体1つ。窓・タイヤ・灯火は見た目のみ）
+   車両
+   固体はボディ＋キャビンの2箱（セダン・タクシー）または1箱（バン）で、
+   見た目と当たりが一致する。worker/map-solids.js の uCar() と同じ寸法。
+   窓・灯火・ホイールは見た目のみ。
    ============================================================ */
 
-function carBody(x, z, yaw, w, h, d, mat, cabMat) {
-  solid(x, z, w, h, d, yaw, mat);
+/** 車の寸法。worker/map-solids.js の U_CAR_SIZE と一致させること */
+const CAR_DIMS = {
+  taxi: { body: [4.4, 0.72, 1.85], bodyY0: 0.28, cab: [2.1, 0.55, 1.66], cabX: -0.1 },
+  sedan: { body: [4.5, 0.72, 1.8], bodyY0: 0.28, cab: [2.2, 0.55, 1.62], cabX: -0.15 },
+  van: { body: [4.8, 1.9, 1.9], bodyY0: 0.3 },
+  bus: { body: [9.0, 2.7, 2.3], bodyY0: 0.3 },
+};
+
+/** 2トーンホイール（タイヤ＋小さなハブキャップ） */
+function wheel(g, wx, wy, wz, r) {
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.18, 14), M.tire);
+  tire.rotation.x = HALF;
+  tire.position.set(wx, wy, wz);
+  g.add(tire);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.45, r * 0.45, 0.19, 10), M.hubGrey);
+  hub.rotation.x = HALF;
+  hub.position.set(wx, wy, wz);
+  g.add(hub);
+}
+
+/** フラットな窓を面に貼る（傾斜させない。はみ出し三角の防止） */
+function flatGlass(g, w, h, d, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M.glassDark);
+  m.position.set(x, y, z);
+  g.add(m);
+}
+
+function carBody(x, z, yaw, kind, mat) {
+  const K = CAR_DIMS[kind];
+  const [bw, bh, bd] = K.body;
+  const y0 = K.bodyY0 || 0;
+  solid(x, z, bw, bh, bd, yaw, mat, y0);
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const top = y0 + bh;
   const g = new THREE.Group();
-  const cab = new THREE.Mesh(new THREE.BoxGeometry(w * 0.46, 0.48, d * 0.88), cabMat || mat);
-  cab.position.set(-w * 0.05, h + 0.22, 0);
-  g.add(cab);
-  const win = new THREE.Mesh(new THREE.BoxGeometry(w * 0.42, 0.32, d * 0.92), M.glassDark);
-  win.position.set(-w * 0.05, h + 0.24, 0);
-  g.add(win);
-  for (const [dx, dz] of [[w * 0.32, d * 0.5], [w * 0.32, -d * 0.5],
-                          [-w * 0.32, d * 0.5], [-w * 0.32, -d * 0.5]]) {
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 10), M.tire);
-    t.rotation.x = HALF;
-    t.position.set(dx, 0.32, dz);
-    g.add(t);
+
+  if (K.cab) {
+    const [cw, ch, cd] = K.cab;
+    // キャビンも固体（y0 = ボディ天面）
+    solid(x + K.cabX * cos, z - K.cabX * sin, cw, ch, cd, yaw, mat, top);
+    // フロント／リア／サイドの窓（キャビンの面にフラットに貼る）
+    flatGlass(g, 0.03, ch * 0.55, cd * 0.78, K.cabX + cw / 2 + 0.006, top + ch * 0.6, 0);
+    flatGlass(g, 0.03, ch * 0.5, cd * 0.72, K.cabX - cw / 2 - 0.006, top + ch * 0.58, 0);
+    for (const sz of [-1, 1]) {
+      flatGlass(g, cw * 0.7, ch * 0.45, 0.02, K.cabX, top + ch * 0.58, sz * (cd / 2 + 0.006));
+    }
+    // サイドミラー
+    for (const sz of [-1, 1]) {
+      const mr = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.09, 0.12), M.darkSteel);
+      mr.position.set(K.cabX + cw / 2 + 0.05, top + 0.12, sz * (bd / 2 + 0.05));
+      g.add(mr);
+    }
   }
+
+  // シャーシの影（車体下の暗がり。ホイール間を埋める）
+  const under = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.82, 0.16, bd * 0.72), M.darkSteel);
+  under.position.set(0, Math.max(y0 - 0.1, 0.1), 0);
+  g.add(under);
+
+  // バンパー・グリル
+  for (const sx of [-1, 1]) {
+    const bp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.3, bd * 0.96), M.darkSteel);
+    bp.position.set(sx * (bw / 2 - 0.07), y0 + 0.14, 0);
+    g.add(bp);
+  }
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, bd * 0.4), M.darkSteel);
+  grille.position.set(bw / 2 + 0.005, y0 + 0.24, 0);
+  g.add(grille);
+
+  // ヘッド／テールライト（控えめに）
+  for (const sz of [-1, 1]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.22), glow(0xf5e6c0));
+    hl.position.set(bw / 2 + 0.01, y0 + 0.26, sz * bd * 0.3);
+    g.add(hl);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.2), glow(0x6a1f1c));
+    tl.position.set(-bw / 2 - 0.01, y0 + 0.26, sz * bd * 0.3);
+    g.add(tl);
+  }
+
+  // フェンダー縁＋ホイール（ボディ面に納まる位置。黒いリムが見える）
+  for (const dx of [-bw * 0.33, bw * 0.33]) {
+    for (const sz of [-1, 1]) {
+      const arch = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.03), M.darkSteel);
+      arch.position.set(dx, y0 + bh - 0.26, sz * (bd / 2 + 0.002));
+      g.add(arch);
+      wheel(g, dx, 0.34, sz * (bd / 2 - 0.03), 0.34);
+    }
+  }
+
   g.position.set(x, 0, z);
   g.rotation.y = yaw || 0;
   mapGroup.add(g);
@@ -542,36 +755,128 @@ function carBody(x, z, yaw, w, h, d, mat, cabMat) {
 
 /** 黒塗りタクシー（琥珀色の行灯） */
 function taxi(x, z, yaw) {
-  const g = carBody(x, z, yaw, 4.4, 1.45, 1.85, M.taxiBlack);
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.22, 0.3), glow(0xffc76a));
-  sign.position.set(-0.2, 1.45 + 0.58, 0);
+  const g = carBody(x, z, yaw, 'taxi', M.taxiBlack);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.2, 0.28), glow(0xffc76a));
+  sign.position.set(CAR_DIMS.taxi.cabX, 1.66, 0);
   g.add(sign);
-  const lampM = glow(0xfff0cc);
-  for (const dz of [0.55, -0.55]) {
-    const l = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.26), lampM);
-    l.position.set(2.22, 0.75, dz);
-    g.add(l);
-  }
 }
 
 /** 一般セダン（白・黒・灰の実在色） */
 function sedan(x, z, yaw, mat) {
-  carBody(x, z, yaw, 4.5, 1.4, 1.8, mat);
+  carBody(x, z, yaw, 'sedan', mat);
 }
 
-/** 配送バン（白箱） */
+/** 配送バン（白箱。キャブと荷室が一体の1箱） */
 function van(x, z, yaw) {
-  solid(x, z, 4.8, 2.2, 1.9, yaw, M.vanWhite);
+  const K = CAR_DIMS.van;
+  const [bw, bh, bd] = K.body;
+  solid(x, z, bw, bh, bd, yaw, M.vanWhite, K.bodyY0);
   const g = new THREE.Group();
-  const win = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 1.7), M.glassDark);
-  win.position.set(1.85, 1.55, 0);
-  g.add(win);
-  for (const [dx, dz] of [[1.55, 0.95], [1.55, -0.95], [-1.55, 0.95], [-1.55, -0.95]]) {
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 10), M.tire);
-    t.rotation.x = HALF;
-    t.position.set(dx, 0.34, dz);
-    g.add(t);
+  // フロントガラスとサイドウィンドウ（面にフラットに）
+  flatGlass(g, 0.03, 0.5, bd * 0.72, bw / 2 + 0.006, 1.58, 0);
+  for (const sz of [-1, 1]) {
+    flatGlass(g, 1.0, 0.34, 0.02, 1.85, 1.62, sz * (bd / 2 + 0.006));
   }
+  // 荷室のパネルシーム（細く控えめに）
+  for (const px of [-0.4, -1.7]) {
+    for (const sz of [-1, 1]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.012), M.hubGrey);
+      seam.position.set(px, 1.2, sz * (bd / 2 + 0.004));
+      g.add(seam);
+    }
+  }
+  // シャーシの影
+  const under = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.82, 0.18, bd * 0.72), M.darkSteel);
+  under.position.set(0, 0.2, 0);
+  g.add(under);
+  // バンパー・ライト・ミラー
+  const bp = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.3, bd * 0.96), M.darkSteel);
+  bp.position.set(bw / 2 - 0.09, 0.45, 0);
+  g.add(bp);
+  for (const sz of [-1, 1]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.24), glow(0xf5e6c0));
+    hl.position.set(bw / 2 + 0.01, 0.62, sz * 0.58);
+    g.add(hl);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.16), glow(0x6a1f1c));
+    tl.position.set(-bw / 2 - 0.01, 0.75, sz * 0.72);
+    g.add(tl);
+    const mr = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.14), M.darkSteel);
+    mr.position.set(2.3, 1.5, sz * (bd / 2 + 0.06));
+    g.add(mr);
+  }
+  for (const dx of [-1.6, 1.6]) {
+    for (const sz of [-1, 1]) {
+      const arch = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.24, 0.03), M.darkSteel);
+      arch.position.set(dx, 0.72, sz * (bd / 2 + 0.002));
+      g.add(arch);
+      wheel(g, dx, 0.36, sz * (bd / 2 - 0.03), 0.36);
+    }
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = yaw || 0;
+  mapGroup.add(g);
+}
+
+/** 路線バス（バス停に停車中の市バス。固体は1箱） */
+function bus(x, z, yaw) {
+  const K = CAR_DIMS.bus;
+  const [bw, bh, bd] = K.body;
+  solid(x, z, bw, bh, bd, yaw, M.busBody, K.bodyY0);
+  const g = new THREE.Group();
+  for (const sz of [-1, 1]) {
+    // 側面のカラーバンド
+    const band = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.96, 0.32, 0.02), M.busBand);
+    band.position.set(0, 1.02, sz * (bd / 2 + 0.006));
+    g.add(band);
+    // 連続窓（6枚）
+    for (let i = 0; i < 6; i++) {
+      flatGlass(g, 1.05, 0.72, 0.02, -bw / 2 + 1.2 + i * 1.32, 2.2, sz * (bd / 2 + 0.006));
+    }
+    // 乗降ドア（前・中）
+    for (const dx of [bw * 0.32, -bw * 0.06]) {
+      const door = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.75, 0.02), M.glassDark);
+      door.position.set(dx, 1.25, sz * (bd / 2 + 0.006));
+      g.add(door);
+    }
+  }
+  // フロントガラス・行先表示・リアガラス
+  flatGlass(g, 0.03, 0.9, bd * 0.78, bw / 2 + 0.006, 2.05, 0);
+  const dest = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.2, 0.85), glow(0xdfe8c8));
+  dest.position.set(bw / 2 + 0.012, 2.72, 0);
+  g.add(dest);
+  flatGlass(g, 0.03, 0.65, bd * 0.68, -bw / 2 - 0.006, 2.1, 0);
+  // シャーシの影
+  const under = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.85, 0.2, bd * 0.7), M.darkSteel);
+  under.position.set(0, 0.2, 0);
+  g.add(under);
+  // バンパー・ライト・ミラー
+  const bp = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.32, bd * 0.94), M.darkSteel);
+  bp.position.set(bw / 2 - 0.1, 0.48, 0);
+  g.add(bp);
+  for (const sz of [-1, 1]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.13, 0.26), glow(0xf5e6c0));
+    hl.position.set(bw / 2 + 0.01, 0.6, sz * bd * 0.32);
+    g.add(hl);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.2), glow(0x6a1f1c));
+    tl.position.set(-bw / 2 - 0.01, 0.8, sz * bd * 0.36);
+    g.add(tl);
+    const mr = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.13, 0.2), M.darkSteel);
+    mr.position.set(bw / 2 + 0.05, 1.95, sz * (bd / 2 + 0.09));
+    g.add(mr);
+  }
+  // ホイール（前・後の2軸）
+  for (const dx of [bw * 0.32, -bw * 0.28]) {
+    for (const sz of [-1, 1]) {
+      const arch = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.3, 0.03), M.darkSteel);
+      arch.position.set(dx, 0.78, sz * (bd / 2 + 0.002));
+      g.add(arch);
+      wheel(g, dx, 0.42, sz * (bd / 2 - 0.03), 0.42);
+    }
+  }
+  // 屋上の冷房装置
+  const ac = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.36, 0.18, bd * 0.5), M.hubGrey);
+  ac.position.set(-bw * 0.04, 3.1, 0);
+  g.add(ac);
   g.position.set(x, 0, z);
   g.rotation.y = yaw || 0;
   mapGroup.add(g);
@@ -652,7 +957,7 @@ globalThis.URBAN = {
   towerGlass, towerStone, midGrid, lowPanel, pilotis,
   streetTree, planter, hedge, bench, bollardRow, streetLight, trafficSignal,
   busStop, subwayEntrance, bikeRack, manhole,
-  taxi, sedan, van,
+  taxi, sedan, van, bus,
   sidewalk, plazaFloor, crosswalk, centerDashes,
   skyline,
   HALF,
