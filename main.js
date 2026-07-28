@@ -53,9 +53,34 @@ function updateAmmoHUD() {
   const el = $('ammo');
   el.innerHTML = `${weapon.mag}<span class="reserve"> / ${weapon.reserve}</span>`;
   el.classList.toggle('empty', weapon.mag === 0);
-  const def = typeof activeDef === 'function' ? activeDef() : null;
-  if (def) $('firemode').textContent = def.mode;
+  updateWeaponSlotsHUD();
   updateGrenadeHUD();
+}
+
+const WEAPON_HUD_TAG = {
+  assault: 'AR', smg: 'SMG', shotgun: 'SG', sniper: 'SR', pistol: 'HG',
+  sr_surv: 'SR+', sg_surv: 'SG+', smg_surv: 'SMG+',
+};
+
+function updateWeaponSlotsHUD() {
+  const root = $('weaponslots');
+  if (!root || typeof ownedIds !== 'function') return;
+  const ids = ownedIds();
+  const active = typeof arsenal !== 'undefined' ? arsenal.activeId : null;
+  let html = '';
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    const def = WEAPON_DEFS[id];
+    const tag = WEAPON_HUD_TAG[id] || (def && def.mode) || id.slice(0, 3).toUpperCase();
+    const mode = def ? def.mode : '';
+    const on = id === active ? ' active' : '';
+    html += `<div class="wslot${on}" data-id="${id}">` +
+      `<span class="tag">${tag}</span>` +
+      `<span class="key">${i + 1}</span>` +
+      (mode ? `<span class="mode">${mode}</span>` : '') +
+      `</div>`;
+  }
+  root.innerHTML = html;
 }
 function updateGrenadeHUD() {
   const el = $('nadecount');
@@ -85,19 +110,9 @@ function updateHealthHUD() {
   updateArmorHUD();
 }
 function updateScoreHUD() {
-  updateKillsHUD();
-  const box = $('scorebox');
-  if (game.mode === 'tdm') {
-    if (box) box.style.display = 'none';
-    return;
-  }
-  if (box) box.style.display = '';
-  $('score').textContent = game.score;
+  /* 戦闘HUDから SCORE / 個人キル常時枠は撤去。累計はリザルト側 */
 }
-function updateKillsHUD() {
-  const el = $('killcount');
-  if (el) el.textContent = String(game.kills || 0);
-}
+function updateKillsHUD() {}
 function updateWaveHUD() {
   if (game.mode === 'tdm') return;
   const alive = enemies.filter(e => e.alive).length;
@@ -209,12 +224,16 @@ function setHudMode() {
   const surv = game.mode === 'survival';
   const tdmHud = $('tdmhud');
   if (tdmHud) tdmHud.style.display = surv ? 'none' : 'block';
-  const scorebox = $('scorebox');
-  if (scorebox) scorebox.style.display = surv ? '' : 'none';
-  if (surv) {
-    $('waveinfo').style.display = '';
-  } else {
-    $('waveinfo').textContent = '';
+  const wave = $('waveinfo');
+  if (wave) {
+    if (surv) {
+      wave.style.display = '';
+    } else {
+      wave.textContent = '';
+      wave.style.display = 'none';
+      updateTdmHUD();
+    }
+  } else if (!surv) {
     updateTdmHUD();
   }
 }

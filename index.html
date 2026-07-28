@@ -173,9 +173,36 @@
     color: #8eb4c8; text-shadow: 0 1px 2px #000;
   }
 
-  /* 弾薬 */
+  /* 下右: 武器スロット → 弾薬 → グレ／キット */
+  #weaponslots {
+    position: fixed; right: 30px; bottom: 156px; z-index: 15;
+    display: flex; gap: 5px; justify-content: flex-end; pointer-events: none;
+  }
+  #weaponslots .wslot {
+    min-width: 44px; padding: 5px 8px 4px;
+    border: 1px solid rgba(232, 226, 208, .26);
+    background: rgba(14, 13, 9, .55);
+    text-align: center; text-shadow: 0 1px 2px #000;
+    color: #a8a090; transition: border-color .12s, color .12s, background .12s;
+  }
+  #weaponslots .wslot.active {
+    border-color: rgba(216, 192, 138, .85);
+    background: rgba(216, 192, 138, .14);
+    color: #efe6c4;
+  }
+  #weaponslots .wslot .tag {
+    display: block; font-size: 12px; font-weight: 800; letter-spacing: .1em;
+    font-family: "Menlo", monospace; line-height: 1.15;
+  }
+  #weaponslots .wslot .key {
+    display: block; margin-top: 2px; font-size: 9px; letter-spacing: .16em; color: #8e8670;
+  }
+  #weaponslots .wslot.active .key { color: #cfc48a; }
+  #weaponslots .wslot .mode {
+    display: none; margin-top: 2px; font-size: 8px; letter-spacing: .22em; color: #b9b09a;
+  }
+  #weaponslots .wslot.active .mode { display: block; }
   #ammobox { position: fixed; right: 30px; bottom: 22px; text-align: right; z-index: 15; }
-  #firemode { font-size: 11px; letter-spacing: .3em; color: #b9b09a; text-shadow: 0 1px 2px #000; }
   #ammo { font-size: 38px; font-weight: 700; text-shadow: 0 1px 3px #000; line-height: 1.05; }
   #ammo .reserve { font-size: 17px; color: #b9b09a; font-weight: 400; }
   #ammo.empty { color: #ff5a44; }
@@ -199,30 +226,21 @@
   #healbar { width: 130px; height: 3px; background: rgba(255,255,255,.15); }
   #healfill { height: 100%; width: 0%; background: #7dcea0; }
 
-  /* 上部情報 */
+  /* 右上: 試合文脈（固定）→ キルフィード。上中央はコンパスのみ */
   #waveinfo {
-    position: fixed; top: 44px; left: 50%; transform: translateX(-50%); z-index: 15;
-    font-size: 13px; letter-spacing: .25em; color: #ddd3b4; text-shadow: 0 1px 3px #000; white-space: nowrap;
+    position: fixed; top: 18px; right: 28px; left: auto; transform: none; z-index: 15;
+    font-size: 12px; letter-spacing: .18em; color: #ddd3b4; text-shadow: 0 1px 3px #000;
+    white-space: nowrap; text-align: right;
   }
-  #scorebox { position: fixed; top: 18px; right: 104px; text-align: right; z-index: 15; }
-  #score { font-size: 24px; font-weight: 700; text-shadow: 0 1px 3px #000; }
-  #scorebox small { font-size: 10px; letter-spacing: .3em; color: #b9b09a; }
-  #killcountbox {
-    position: fixed; top: 18px; right: 28px; z-index: 15; min-width: 52px; text-align: right;
-    padding-left: 12px; border-left: 1px solid rgba(216,192,138,.28); text-shadow: 0 1px 3px #000;
-  }
-  #killcountbox small { display: block; font-size: 9px; letter-spacing: .24em; color: #b9b09a; }
-  #killcount { font-size: 24px; font-weight: 800; color: #efe6c4; }
-
   #tdmhud {
-    display: none; position: fixed; top: 40px; left: 50%; transform: translateX(-50%); z-index: 15;
-    text-align: center; text-shadow: 0 1px 3px #000;
+    display: none; position: fixed; top: 14px; right: 28px; left: auto; transform: none; z-index: 15;
+    text-align: right; text-shadow: 0 1px 3px #000;
   }
   #tdmtimer {
-    font-size: 22px; font-weight: 700; letter-spacing: .18em; color: #efe6c4;
+    font-size: 18px; font-weight: 700; letter-spacing: .16em; color: #efe6c4;
     font-family: "Menlo", monospace;
   }
-  #tdmscore { margin-top: 4px; font-size: 28px; font-weight: 800; letter-spacing: .08em; }
+  #tdmscore { margin-top: 2px; font-size: 22px; font-weight: 800; letter-spacing: .06em; }
   #tdmscore .blue { color: #6eb0e0; }
   #tdmscore .red { color: #e07060; }
 
@@ -319,8 +337,8 @@
     text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 10px rgba(0,0,0,.45);
   }
 
-  /* キルフィード */
-  #killfeed { position: fixed; top: 78px; right: 28px; text-align: right; font-size: 12px; z-index: 15; }
+  /* キルフィード（試合文脈の下） */
+  #killfeed { position: fixed; top: 72px; right: 28px; text-align: right; font-size: 12px; z-index: 15; }
   #killfeed .kf {
     margin-top: 5px; padding: 4px 9px; background: rgba(10,10,8,.55);
     border-right: 2px solid #cfc48a; color: #e8e2d0; animation: kfIn .18s ease-out;
@@ -563,12 +581,12 @@
     <div id="armorbadge">ARMOR −28%</div>
   </div>
 
+  <div id="weaponslots" aria-hidden="true"></div>
   <div id="invbox">
     <div id="nadebox">GRENADE <b id="nadecount">1</b></div>
     <div id="medbox">MEDKIT <b id="medcount">0</b></div>
   </div>
   <div id="ammobox">
-    <div id="firemode">AUTO</div>
     <div id="ammo">30<span class="reserve"> / 120</span></div>
   </div>
 
@@ -586,8 +604,6 @@
     <div id="tdmtimer" class="mono">5:00</div>
     <div id="tdmscore"><span class="blue">0</span> — <span class="red">0</span></div>
   </div>
-  <div id="scorebox"><small>SCORE</small><div id="score" class="mono">0</div></div>
-  <div id="killcountbox"><small>KILLS</small><div id="killcount" class="mono">0</div></div>
   <div id="killfeed"></div>
   <div id="killtoast" class="title-font"></div>
   <div id="banner" class="title-font"></div>
@@ -704,23 +720,23 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./i18n.js?v=arena22"></script>
-<script src="./shared/map-manifest.js?v=arena22"></script>
-<script src="./tdm-respawn.js?v=arena22"></script>
-<script src="./ai-steer.js?v=arena22"></script>
-<script src="./ground-support.js?v=arena22"></script>
-<script src="./audio.js?v=arena22"></script>
-<script src="./world.js?v=arena22"></script>
-<script src="./maps/desert.js?v=arena22"></script>
-<script src="./maps/jungle.js?v=arena22"></script>
-<script src="./maps/urban-kit.js?v=arena22"></script>
-<script src="./maps/tokyo.js?v=arena22"></script>
-<script src="./grenade-physics.js?v=arena22"></script>
-<script src="./effects.js?v=arena22"></script>
-<script src="./player.js?v=arena22"></script>
-<script src="./enemy.js?v=arena22"></script>
-<script src="./net.js?v=arena22"></script>
-<script src="./online.js?v=arena22"></script>
-<script src="./main.js?v=arena22"></script>
+<script src="./i18n.js?v=arena25"></script>
+<script src="./shared/map-manifest.js?v=arena25"></script>
+<script src="./tdm-respawn.js?v=arena25"></script>
+<script src="./ai-steer.js?v=arena25"></script>
+<script src="./ground-support.js?v=arena25"></script>
+<script src="./audio.js?v=arena25"></script>
+<script src="./world.js?v=arena25"></script>
+<script src="./maps/desert.js?v=arena25"></script>
+<script src="./maps/jungle.js?v=arena25"></script>
+<script src="./maps/urban-kit.js?v=arena25"></script>
+<script src="./maps/tokyo.js?v=arena25"></script>
+<script src="./grenade-physics.js?v=arena25"></script>
+<script src="./effects.js?v=arena25"></script>
+<script src="./player.js?v=arena25"></script>
+<script src="./enemy.js?v=arena25"></script>
+<script src="./net.js?v=arena25"></script>
+<script src="./online.js?v=arena25"></script>
+<script src="./main.js?v=arena25"></script>
 </body>
 </html>
