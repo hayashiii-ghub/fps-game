@@ -19,7 +19,7 @@ const game = {
   loadoutMain: 'assault',  // assault | smg | shotgun | sniper
   loadoutSub: 'smg',       // 同上（メインと重複不可）
   time: 0,
-  wave: 0, score: 0, kills: 0, headshots: 0, shots: 0, hits: 0,
+  wave: 0, score: 0, kills: 0, deaths: 0, headshots: 0, shots: 0, hits: 0,
   longestKill: 0, grenadeKills: 0,
   spawnQueue: 0, spawnT: 0, intermission: 0, boomT: 8,
   spawnKinds: [], waveConcurrent: 5, accMul: 1,
@@ -227,7 +227,7 @@ function resetGame() {
   $('killfeed').innerHTML = '';
 
   Object.assign(game, {
-    time: game.time, wave: 0, score: 0, kills: 0, headshots: 0, shots: 0, hits: 0,
+    time: game.time, wave: 0, score: 0, kills: 0, deaths: 0, headshots: 0, shots: 0, hits: 0,
     longestKill: 0, grenadeKills: 0,
     spawnQueue: 0, spawnT: 0, intermission: 0, boomT: rand(8, 20),
     spawnKinds: [], waveConcurrent: 5, accMul: 1,
@@ -359,6 +359,7 @@ function survivalVictory() {
 
 function onPlayerKilled(fromPos) {
   // TDM: オフラインは赤キル加算。オンラインはサーバー score が正
+  game.deaths = (game.deaths || 0) + 1;
   if (!game.online) {
     game.tdm.redKills++;
     updateTdmHUD();
@@ -432,7 +433,7 @@ function endTdmMatch() {
   showResult(title, sub, {
     'BLUE': String(b),
     'RED': String(r),
-    [t('stat.yourKills')]: String(game.kills),
+    [t('stat.yourKd')]: `${game.kills || 0} / ${game.deaths || 0}`,
     [t('stat.hs')]: String(game.headshots),
     [t('stat.hsRate')]: formatHsRate(),
     [t('stat.long')]: formatLongestKill(),

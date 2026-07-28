@@ -1153,13 +1153,14 @@ function updatePlayer(dt) {
 
   player.crouching = !!k.KeyC;
   const shiftHeld = !!(k.ShiftLeft || k.ShiftRight);
-  // しゃがみ中の Shift はスプリントではなくスコープ（C+Shift）
+  // V は右クリックと同じ構え（押しっぱなし）。しゃがみ中の Shift もスコープ（C+Shift）
+  const aimHeld = !!(input.rmb || k.KeyV);
   const bolting = isSniperBolting();
   player.sprinting = !player.healing && !player.nadeAim &&
-    shiftHeld && mz < 0 && !player.crouching && !weapon.reloading && !input.rmb;
+    shiftHeld && mz < 0 && !player.crouching && !weapon.reloading && !aimHeld;
   // ボルトコッキング中はスコープ不可（撃てないのに覗ける違和感を防ぐ）
   const wantAds = !player.nadeAim && !player.healing && !bolting &&
-    (input.rmb || (player.crouching && shiftHeld)) && !weapon.reloading && !player.sprinting;
+    (aimHeld || (player.crouching && shiftHeld)) && !weapon.reloading && !player.sprinting;
   weapon.ads = wantAds;
 
   player.targetEyeH = player.crouching ? 1.06 : 1.62;
