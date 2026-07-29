@@ -112,7 +112,9 @@ function updateHealthHUD() {
 function updateScoreHUD() {
   /* 戦闘HUDから SCORE / 個人キル常時枠は撤去。累計はリザルト側 */
 }
-function updateKillsHUD() {}
+function updateKillsHUD() {
+  if (game.mode === 'tdm') updateTdmHUD();
+}
 function updateWaveHUD() {
   if (game.mode === 'tdm') return;
   const alive = enemies.filter(e => e.alive).length;
@@ -121,12 +123,14 @@ function updateWaveHUD() {
 function updateTdmHUD() {
   const timer = $('tdmtimer');
   const score = $('tdmscore');
+  const kills = $('tdmkills');
   if (!timer || !score) return;
   const t = Math.max(0, game.tdm.timeLeft);
   const m = Math.floor(t / 60);
   const s = Math.floor(t % 60);
   timer.textContent = `${m}:${String(s).padStart(2, '0')}`;
   score.innerHTML = `<span class="blue">${game.tdm.blueKills}</span> — <span class="red">${game.tdm.redKills}</span>`;
+  if (kills) kills.innerHTML = `KILL <b>${game.kills || 0}</b>`;
 }
 function showHitmarker(kill) {
   const el = $('hitmarker');
