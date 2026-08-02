@@ -328,9 +328,12 @@ const Online = (() => {
     }
     const taken = [];
     const pickSpawn = (team) => {
-      const pool = (typeof TDM_SPAWNS !== 'undefined' ? TDM_SPAWNS[team] : [[0, 50]])
+      const all = typeof TDM_SPAWNS !== 'undefined'
+        ? (typeof groundSpawns === 'function' ? groundSpawns(TDM_SPAWNS[team]) : TDM_SPAWNS[team])
+        : [[0, 50]];
+      const pool = all
         .filter(([x, z]) => !taken.some(([tx, tz]) => Math.abs(tx - x) < 1.5 && Math.abs(tz - z) < 1.5));
-      const list = pool.length ? pool : (typeof TDM_SPAWNS !== 'undefined' ? TDM_SPAWNS[team] : [[0, 50]]);
+      const list = pool.length ? pool : all;
       return list[(Math.random() * list.length) | 0];
     };
     let n = 0;

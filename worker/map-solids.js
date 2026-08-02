@@ -23,8 +23,9 @@ function building(x, z, w, h, d, rotY) {
   return solid(x, h * 0.5, z, w * 0.5, h * 0.5, d * 0.5, snapYaw(rotY));
 }
 
-function container(x, z, rotY, baseY = 0) {
-  return solid(x, baseY + 1.3, z, 3.05, 1.3, 1.225, snapYaw(rotY));
+/** `freeYaw` は world.js の container() と対。丸めずに角度をそのまま使う */
+function container(x, z, rotY, baseY = 0, freeYaw = false) {
+  return solid(x, baseY + 1.3, z, 3.05, 1.3, 1.225, freeYaw ? (rotY || 0) : snapYaw(rotY));
 }
 
 /** world.js bigRock の明示 OBB と同式 */
@@ -236,7 +237,7 @@ const DESERT = [
   container(10.5, -24.5, 1.62),
   container(-16, 26, -0.2),
   container(-17, 32.5, 0.12),
-  container(-16.5, 29.2, 0.05, 2.6),
+  container(-24.2, 26.6, -0.5, 0, true),
   container(40, -34, 1.1),
   container(-44, 8, 0.9),
   container(-2, 2, 1.55),

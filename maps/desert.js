@@ -16,7 +16,7 @@ function buildDesertMap() {
   container(10.5, -24.5, 1.62, MAT.metalBlue);
   container(-16, 26, -0.2, MAT.metalGreen);
   container(-17, 32.5, 0.12, MAT.metalGrey);
-  container(-16.5, 29.2, 0.05, MAT.metalRed, 2.6);
+  container(-24.2, 26.6, -0.5, MAT.metalRed, 0, true);  // 緑の西隣に斜め置き（freeYaw: 角度を丸めない）
   container(40, -34, 1.1, MAT.metalBlue);
   container(-44, 8, 0.9, MAT.metalGreen);
 

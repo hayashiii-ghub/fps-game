@@ -1552,9 +1552,10 @@ function updateWeatherFx(dt) {
 }
 
 function pickSpawnPoint() {
-  const far = SPAWN_POINTS.filter(([x, z]) =>
+  const ground = groundSpawns(SPAWN_POINTS);
+  const far = ground.filter(([x, z]) =>
     Math.hypot(x - player.pos.x, z - player.pos.z) > 28);
-  const list = far.length ? far : SPAWN_POINTS;
+  const list = far.length ? far : ground;
   return list[(Math.random() * list.length) | 0];
 }
 
@@ -1592,7 +1593,7 @@ function startTdmMatch() {
   if (game.online) return;
   // 5v5: 青はプレイヤー＋味方AI4 / 赤は敵5（うち1は狙撃）
   const takeDistinct = (team, n) => {
-    const pool = TDM_SPAWNS[team].slice();
+    const pool = groundSpawns(TDM_SPAWNS[team]).slice();
     for (let i = pool.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
       const t = pool[i]; pool[i] = pool[j]; pool[j] = t;

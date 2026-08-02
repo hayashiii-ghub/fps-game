@@ -49,9 +49,27 @@ const TDM_SPAWNS = {
   ],
 };
 
+/**
+ * スポーン点が素の地面か。
+ *
+ * スポーン点は全マップ共通なので、マップ側の建物・コンテナと重なると
+ * `GroundSupport` がその天面へ持ち上げ、屋根の上に湧いてしまう。
+ * 固体の footprint に入る点は候補から外す。
+ */
+function spawnOnGround(x, z) {
+  if (typeof GroundSupport === 'undefined') return true;
+  return GroundSupport.supportHeightAt(colliders, x, z, 0.35, Infinity) <= 0.01;
+}
+
+/** 素の地面に立てる点だけ残す。全滅したら元の一覧に戻す（湧けないよりはまし） */
+function groundSpawns(list) {
+  const ok = list.filter(([x, z]) => spawnOnGround(x, z));
+  return ok.length ? ok : list;
+}
+
 /** 敵から最も遠いスポーンを選ぶ（リスキル対策） */
 function pickTdmSpawn(team) {
-  const list = TDM_SPAWNS[team] || TDM_SPAWNS.red;
+  const list = groundSpawns(TDM_SPAWNS[team] || TDM_SPAWNS.red);
   const foes = [];
   if (team === 'blue') {
     for (const e of enemies) if (e.alive && e.team === 'red') foes.push(e.pos);
@@ -449,10 +467,15 @@ function building(x, z, w, h, d, rotY) {
   return g;
 }
 
-/* コンテナ — 見た目寸法どおり1箱（回転は 0/90°） */
-function container(x, z, rotY, mat, y) {
+/**
+ * コンテナ — 見た目寸法どおり1箱。
+ * 既定では回転を 0/90° に丸める（列や壁として置く用）。
+ * `freeYaw` を立てたときだけ渡した角度をそのまま使う。見た目と OBB は同じ yaw なので
+ * 斜めでも当たりは一致するが、`worker/map-solids.js` 側も同じ指定にすること。
+ */
+function container(x, z, rotY, mat, y, freeYaw) {
   const baseY = y || 0;
-  const yaw = snapYawOrtho(rotY);
+  const yaw = freeYaw ? (rotY || 0) : snapYawOrtho(rotY);
   const m = new THREE.Mesh(new THREE.BoxGeometry(6.1, 2.6, 2.45), mat);
   m.position.set(x, baseY + 1.3, z);
   m.rotation.y = yaw;

@@ -269,8 +269,9 @@ function resetGame() {
   };
   if (typeof setAtmosphere === 'function') setAtmosphere();
 
+  const blueSpawns = groundSpawns(TDM_SPAWNS.blue);
   const spawn = game.mode === 'tdm'
-    ? TDM_SPAWNS.blue[(Math.random() * TDM_SPAWNS.blue.length) | 0]
+    ? blueSpawns[(Math.random() * blueSpawns.length) | 0]
     : [0, 50];
   player.pos.set(spawn[0], GroundSupport.supportHeightAt(colliders, spawn[0], spawn[1], player.radius, 6), spawn[1]);
   player.vel.set(0, 0, 0);
