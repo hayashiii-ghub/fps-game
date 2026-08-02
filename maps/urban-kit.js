@@ -90,6 +90,11 @@ const texPlaza = () => makeTex(256, (ctx, s) => {
  */
 const BAY_W = 1.8;      // 窓1枚ぶんの間口
 const FLOOR_H = 3.5;    // 階高
+/**
+ * ピロティの天井高。16m四方に対して 3.2m だと立体駐車場に見えたので上げた。
+ * 柱の固体高でもあるため、worker/map-solids.js の uPilotis() と必ず揃える。
+ */
+const PILOTIS_H = 5.0;
 
 /** ガラスカーテンウォール（方立・スラブ帯・点灯窓） */
 const texCurtain = (frame, glass, lit) => makeTex(128, (ctx, s) => {
@@ -693,11 +698,13 @@ function lowPanel(x, z, w, h, d, face) {
  * の urbanPilotis() と同じ配置にすること。
  */
 function pilotis(x, z, w, h, d, upperMat, face) {
-  const y0 = 3.2;
+  const y0 = PILOTIS_H;
   const g = 5.35;
-  for (const [lx, lz] of [[-g, -g], [g, -g], [-g, g], [g, g],
-                          [-g, 0], [g, 0], [0, -g], [0, g]]) {
+  const cols = [[-g, -g], [g, -g], [-g, g], [g, g], [-g, 0], [g, 0], [0, -g], [0, g]];
+  for (const [lx, lz] of cols) {
     solid(x + lx, z + lz, 0.7, y0, 0.7, 0, M.concrete);
+    deco(M.stoneTrim, 0.98, 0.26, 0.98, x + lx, 0.13, z + lz, 0);        // 柱脚
+    deco(M.stoneTrim, 0.9, 0.22, 0.9, x + lx, y0 - 0.62, z + lz, 0);     // 柱頭
   }
   solid(x, z, 3.4, h, 3.4, 0, M.stoneTrim);   // エレベータコアは全高
   // 上層（ガラスか石材）。弾は当たるが移動コライダは持たない
@@ -707,13 +714,29 @@ function pilotis(x, z, w, h, d, upperMat, face) {
   upper.position.set(x, y0 + (h - y0) / 2, z);
   shell(upper);
   facadeRelief(x, z, w, h - y0, d, y0);
-  // ピロティ天井（コアまわりのロビーはガラスの灯り）
-  deco(glow(0xffe9c4), 2.8, 2.2, 0.08, x, 1.15, z + 1.74, 0);
+
+  // 足元の石張り（素のアスファルトのままだと駐車場に見える）
+  paint(M.plaza, w - 0.6, d - 0.6, x, z, 0);
+
+  // 軒天の仕上げ ＋ 格子梁 ＋ ダウンライト
+  deco(M.concrete, w - 0.5, 0.22, d - 0.5, x, y0 - 0.13, z, 0);
+  for (const o of [-4.2, 0, 4.2]) {
+    deco(M.stoneTrim, w - 0.5, 0.28, 0.32, x, y0 - 0.38, z + o, 0);
+    deco(M.stoneTrim, 0.32, 0.28, d - 0.5, x + o, y0 - 0.38, z, 0);
+  }
+  for (const lx of [-6.2, -2.1, 2.1, 6.2]) {
+    for (const lz of [-6.2, -2.1, 2.1, 6.2]) {
+      deco(sign(0xffe4bc), 0.46, 0.05, 0.46, x + lx, y0 - 0.55, z + lz, 0);
+    }
+  }
+
+  // コアの足元をエントランスロビーに見せる（店舗と同じ作り）
+  shopfront(x, z, 3.4, 3.4, face, 'lobby', 0.9);
   rooftop(x, z, w, h, d);
-  // キャノピー
+  // 車寄せのキャノピー（建物の外、歩道の上）
   const [fx, fz] = face;
   const can = new THREE.Mesh(new THREE.BoxGeometry(fx ? 1.8 : 4, 0.22, fx ? 4 : 1.8), M.darkSteel);
-  can.position.set(x + fx * (w / 2 + 0.9), 2.95, z + fz * (d / 2 + 0.9));
+  can.position.set(x + fx * (w / 2 + 0.9), 3.3, z + fz * (d / 2 + 0.9));
   shell(can);
 }
 

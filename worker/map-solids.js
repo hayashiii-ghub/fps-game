@@ -137,7 +137,7 @@ function zPairLhtEw(fn, x, z, yaw, ...rest) {
 
 /** URBAN.pilotis — 柱 0.7角×8（1階高 3.2m）＋中央コア 3.4角（全高） */
 function uPilotis(x, z, w, h, d) {
-  const y0 = 3.2;
+  const y0 = 5.0;   // maps/urban-kit.js の PILOTIS_H と対
   const g = 5.35;
   const out = [];
   for (const [lx, lz] of [[-g, -g], [g, -g], [-g, g], [g, g],
