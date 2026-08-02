@@ -808,33 +808,47 @@ function bollardRow(x, z, yaw, n) {
 /** 街灯（白 LED のモダン型。ポールだけ固体） */
 function streetLight(x, z, yaw) {
   solid(x, z, 0.16, 5.2, 0.16, 0, M.steel);
-  const ax = x + Math.cos(yaw) * 0.9;
-  const az = z - Math.sin(yaw) * 0.9;
-  deco(M.steel, 1.9, 0.08, 0.08, ax, 5.0, az, yaw);
-  const hx = x + Math.cos(yaw) * 1.75;
-  const hz = z - Math.sin(yaw) * 1.75;
-  deco(M.darkSteel, 0.55, 0.1, 0.22, hx, 4.96, hz, yaw);
-  deco(glow(0xeef2ff), 0.46, 0.05, 0.16, hx, 4.9, hz, yaw);
+  const along = (t) => [x + Math.cos(yaw) * t, z - Math.sin(yaw) * t];
+  // 支柱と腕の付け根（テーパーの効いた根巻き）
+  deco(M.darkSteel, 0.3, 0.5, 0.3, x, 0.25, z, 0);
+  const [ax, az] = along(0.9);
+  deco(M.steel, 1.9, 0.09, 0.09, ax, 5.0, az, yaw);
+  const [bx, bz] = along(0.34);
+  deco(M.steel, 0.7, 0.09, 0.09, bx, 4.72, bz, yaw + 0.35);   // 斜めの控え
+  // 灯具（船形のハウジング＋下向きの発光面）
+  const [hx, hz] = along(1.75);
+  deco(M.darkSteel, 0.78, 0.16, 0.3, hx, 4.98, hz, yaw);
+  deco(M.steel, 0.62, 0.09, 0.24, hx, 4.86, hz, yaw);
+  deco(sign(0xf2f0e2), 0.5, 0.04, 0.18, hx, 4.79, hz, yaw);
 }
 
-/** 信号機（柱が固体。灯器は頭上で見た目のみ。青灯だけ点灯） */
+/**
+ * 信号機（車両用の横型3灯）。柱が固体で、灯器は頭上なので見た目のみ。
+ * 実物は庇（フード）付きの3灯が背面板に載る。青だけ点灯。
+ */
 function trafficSignal(x, z, yaw) {
   solid(x, z, 0.2, 4.8, 0.2, 0, M.steel);
   const armLen = 3.2;
-  const ax = x + Math.cos(yaw) * armLen / 2;
-  const az = z - Math.sin(yaw) * armLen / 2;
-  deco(M.steel, armLen, 0.13, 0.13, ax, 4.5, az, yaw);
-  const hx = x + Math.cos(yaw) * armLen;
-  const hz = z - Math.sin(yaw) * armLen;
-  deco(M.darkSteel, 1.4, 0.4, 0.24, hx, 4.26, hz, yaw);
-  // 青だけ点灯、赤黄は消灯
-  deco(glow(0x3fae62), 0.26, 0.26, 0.06,
-    hx - Math.cos(yaw) * 0.42 + Math.sin(yaw) * 0.14, 4.26,
-    hz + Math.sin(yaw) * 0.42 + Math.cos(yaw) * 0.14, yaw);
-  for (const off of [0, 0.42]) {
-    deco(M.glassDark, 0.26, 0.26, 0.06,
-      hx + Math.cos(yaw) * off + Math.sin(yaw) * 0.14, 4.26,
-      hz - Math.sin(yaw) * off + Math.cos(yaw) * 0.14, yaw);
+  const along = (t) => [x + Math.cos(yaw) * t, z - Math.sin(yaw) * t];
+  deco(M.darkSteel, 0.34, 0.55, 0.34, x, 0.28, z, 0);          // 根巻き
+  const [ax, az] = along(armLen / 2);
+  deco(M.steel, armLen, 0.14, 0.14, ax, 4.5, az, yaw);
+  const [sx2, sz2] = along(0.5);
+  deco(M.steel, 1.0, 0.1, 0.1, sx2, 4.16, sz2, yaw + 0.42);    // 斜めの控え
+  const [hx, hz] = along(armLen);
+
+  // 背面板 → 灯器本体 → 3灯 → 庇 の順に前へ重ねる
+  const face = (t, lat, out, w, h, dd, mat) => {
+    const px = hx + Math.cos(yaw) * t + Math.sin(yaw) * out;
+    const pz = hz - Math.sin(yaw) * t + Math.cos(yaw) * out;
+    deco(mat, w, h, dd, px, 4.26 + lat, pz, yaw);
+  };
+  face(0, 0.04, 0, 1.58, 0.52, 0.1, M.steel);                  // 背面板
+  face(0, 0, 0.07, 1.42, 0.42, 0.16, M.darkSteel);             // 灯器本体
+  const LAMPS = [[-0.44, sign(0x2fa85e)], [0, M.glassDark], [0.44, M.glassDark]];
+  for (const [t, mat] of LAMPS) {
+    face(t, 0, 0.16, 0.3, 0.3, 0.05, mat);
+    face(t, 0.16, 0.2, 0.34, 0.06, 0.14, M.darkSteel);         // 庇
   }
 }
 
@@ -1327,66 +1341,92 @@ function landmarkBox(mat, w, h, d, x, y, z) {
  * 東京スカイツリー風シルエット（錦糸町視点の北〜北西）。
  * 当たり判定なし。地理寄りスケール＋遠景用の軽い誇張。
  */
-function skyTree(x, z) {
-  const steel = landmarkMat(0x6a6578);
-  const shaft = landmarkMat(0x7e788c);
-  const deck = landmarkMat(0xb8b4c2);
-  const blue = landmarkMat(0x4a8fb0, { fog: false });
-  const tip = landmarkMat(0xff5555, { fog: false });
-  // 第1展望台より下: 下へ向かって段々太くなる円錐（直下の最細=4）
-  const cone = [
-    [7.0, 4.5, 2.25],
-    [6.2, 4.5, 6.75],
-    [5.5, 4.5, 11.25],
-    [4.9, 4.5, 15.75],
-    [4.4, 4.5, 20.25],
-    [4.0, 4.0, 24.5],
-  ];
-  for (const [w, h, cy] of cone) landmarkBox(steel, w, h, w, x, cy, z);
-  // 第1展望台
-  landmarkBox(deck, 7.2, 2.2, 7.2, x, 27.6, z);
-  landmarkBox(blue, 6.6, 1.1, 6.6, x, 29.25, z);
-  landmarkBox(steel, 5.2, 3.5, 5.2, x, 31.55, z);
-  landmarkBox(deck, 6.0, 1.6, 6.0, x, 34.1, z);
-  // 中間〜第2展望台〜アンテナ（総高 ~74）
-  landmarkBox(shaft, 2.1, 15, 2.1, x, 42.4, z);
-  landmarkBox(deck, 4.4, 1.8, 4.4, x, 51.3, z);
-  landmarkBox(blue, 4.0, 0.9, 4.0, x, 52.65, z);
-  landmarkBox(shaft, 1.2, 11, 1.2, x, 59.1, z);
-  landmarkBox(shaft, 0.6, 9, 0.6, x, 69.1, z);
-  landmarkBox(tip, 1.1, 1.1, 1.1, x, 74.1, z);
+/** 先細りの塔身を積む（w1→w2 へ n 段で絞る） */
+function taperStack(mat, x, z, y0, y1, w1, w2, n) {
+  const step = (y1 - y0) / n;
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    const w = w1 + (w2 - w1) * t;
+    landmarkBox(mat, w, step * 1.02, w, x, y0 + step * (i + 0.5), z);
+  }
 }
 
 /**
- * 東京タワー風シルエット（錦糸町視点の南西〜西南西・遠景）。
- * 当たり判定なし。小さく遠く、尖端だけ霧抜け。
+ * 東京スカイツリー風シルエット（錦糸町視点の北〜北西）。当たり判定なし。
+ *
+ * 遠景ビル群が最大58なので、ランドマークはその2倍以上ないと埋もれる。
+ * 総高 118。fog は切って距離感は色で作る（霧に任せると 8割方消えて、
+ * 遠景の箱と見分けが付かなくなる）。
+ */
+function skyTree(x, z) {
+  const base = landmarkMat(0x6f6b82, { fog: false });     // 脚元（濃い）
+  const shaft = landmarkMat(0x837e96, { fog: false });
+  const deck = landmarkMat(0xa9a4bb, { fog: false });
+  const lit = landmarkMat(0x7fa8d8, { fog: false });      // 夜間照明の帯
+  const tip = landmarkMat(0xff5555, { fog: false });
+
+  // 脚元から第1展望台まで、大きく絞る（この張り出しが一番の特徴）
+  taperStack(base, x, z, 0, 22, 15.5, 7.4, 6);
+  taperStack(shaft, x, z, 22, 66, 7.4, 4.2, 8);
+  // 第1展望台（天望デッキ）
+  landmarkBox(deck, 8.6, 3.4, 8.6, x, 67.9, z);
+  landmarkBox(lit, 8.0, 1.0, 8.0, x, 69.9, z);
+  // 中間の塔身
+  taperStack(shaft, x, z, 70.5, 88, 3.6, 3.0, 4);
+  // 第2展望台（天望回廊）
+  landmarkBox(deck, 6.2, 2.6, 6.2, x, 89.4, z);
+  landmarkBox(lit, 5.7, 0.8, 5.7, x, 90.9, z);
+  // ゲイン塔（アンテナ）
+  taperStack(shaft, x, z, 91, 108, 2.4, 1.1, 4);
+  taperStack(shaft, x, z, 108, 117, 0.9, 0.4, 3);
+  landmarkBox(tip, 0.9, 0.9, 0.9, x, 117.6, z);
+}
+
+/**
+ * 東京タワー風シルエット（錦糸町視点の西〜西南西）。当たり判定なし。
+ * 総高 84。4本の脚を外へ振って、あの末広がりのシルエットを作る。
  */
 function tokyoTower(x, z) {
-  const red = landmarkMat(0x9a4040);
-  const white = landmarkMat(0xb8b4c2);
-  const steel = landmarkMat(0x6a6578);
+  const red = landmarkMat(0xa8553f, { fog: false });
+  const white = landmarkMat(0xbdb8c6, { fog: false });
+  const steel = landmarkMat(0x6f6b82, { fog: false });
   const tip = landmarkMat(0xff4444, { fog: false });
-  const tipBand = landmarkMat(0xc05050, { fog: false });
-  // 総高 ~48。通り軸から頭出しできる程度
-  landmarkBox(red, 7.0, 1.1, 1.5, x, 0.55, z);
-  landmarkBox(red, 1.5, 1.1, 7.0, x, 0.55, z);
-  landmarkBox(red, 5.2, 4.8, 1.3, x, 3.5, z);
-  landmarkBox(red, 1.3, 4.8, 5.2, x, 3.5, z);
+
+  // 4本脚（下ほど外へ開く）。段ごとに内へ寄せて末広がりを作る
+  const LEGS = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+  const legSteps = 7;
+  for (const [sx, sz] of LEGS) {
+    for (let i = 0; i < legSteps; i++) {
+      const t0 = i / legSteps, t1 = (i + 1) / legSteps;
+      const y = 38 * (t0 + t1) / 2;
+      // 上へ行くほど中心へ。指数を効かせて展望台の直下だけくびれさせる
+      const off = 2.75 + 4.25 * Math.pow(1 - (t0 + t1) / 2, 1.15);
+      const w = 2.6 - 1.2 * ((t0 + t1) / 2);
+      landmarkBox(i % 2 ? white : red, w, 38 / legSteps * 1.02, w,
+        x + sx * off, y, z + sz * off);
+    }
+  }
+  // 脚をつなぐ水平材（下から見上げたときのトラス感）
+  for (const [yy, ww] of [[9, 11.8], [20, 9.2], [30, 7.0]]) {
+    landmarkBox(steel, ww, 0.5, 0.9, x, yy, z);
+    landmarkBox(steel, 0.9, 0.5, ww, x, yy, z);
+  }
+  // 大展望台
+  landmarkBox(white, 9.6, 3.2, 9.6, x, 39.6, z);
+  landmarkBox(red, 8.8, 1.0, 8.8, x, 41.7, z);
+  // 上部の塔身（赤白の交互帯）
   const bands = [
-    [red, 4.3, 4.2, 8.6],
-    [white, 3.6, 3.6, 12.5],
-    [red, 3.0, 3.6, 16.1],
-    [white, 2.55, 3.2, 19.5],
-    [red, 2.15, 3.0, 22.6],
-    [white, 1.8, 2.8, 25.5],
-    [tipBand, 1.5, 2.6, 28.2],
+    [red, 5.4, 5.0, 44.7], [white, 4.6, 4.6, 49.5],
+    [red, 3.9, 4.2, 53.9], [white, 3.3, 3.8, 57.9],
   ];
   for (const [mat, w, h, cy] of bands) landmarkBox(mat, w, h, w, x, cy, z);
-  landmarkBox(white, 3.2, 2.0, 3.2, x, 30.5, z);
-  landmarkBox(tipBand, 2.2, 1.4, 2.2, x, 32.2, z);
-  landmarkBox(steel, 0.85, 6.5, 0.85, x, 36.15, z);
-  landmarkBox(steel, 0.45, 5.5, 0.45, x, 42.15, z);
-  landmarkBox(tip, 0.95, 0.95, 0.95, x, 45.4, z);
+  // 特別展望台
+  landmarkBox(white, 5.0, 2.2, 5.0, x, 61.0, z);
+  landmarkBox(red, 4.4, 0.8, 4.4, x, 62.4, z);
+  // アンテナ
+  taperStack(steel, x, z, 63, 78, 1.5, 0.7, 4);
+  taperStack(steel, x, z, 78, 83, 0.5, 0.25, 2);
+  landmarkBox(tip, 0.8, 0.8, 0.8, x, 83.6, z);
 }
 
 /** 場外のオフィス群（夕靄に沈むシルエット。当たり判定なし） */
@@ -1425,8 +1465,9 @@ function skyline() {
   put(42, 135, 34); put(-48, 138, 30);
   put(-135, 35, 26); put(-130, -48, 24);
 
-  skyTree(Math.cos(SKYTREE_A) * 148, Math.sin(SKYTREE_A) * 148);
-  tokyoTower(Math.cos(TOWER_A) * 180, Math.sin(TOWER_A) * 180);
+  // 背を高くしたぶん距離も伸ばす（見込み角がおおよそ 30°/17° になる位置）
+  skyTree(Math.cos(SKYTREE_A) * 215, Math.sin(SKYTREE_A) * 215);
+  tokyoTower(Math.cos(TOWER_A) * 265, Math.sin(TOWER_A) * 265);
 }
 
 /* ============================================================
