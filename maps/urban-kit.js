@@ -854,8 +854,10 @@ function busStop(x, z, yaw) {
  * 地下鉄入口（オープン階段型）。石枠に囲まれた開口から階段が
  * 暗がりへ降りていく、丸の内系の地上出入口。欄干で中には入れない
  * ので、降り口の階段は見た目だけにしても齟齬が出ない。
- * 固体: 縁石3枚（0.45m）＋欄干（0.9m）＋標識柱。
- * 屋根は shell（弾だけ当たる）。階段・手すり・案内板は見た目のみ。
+ * 固体: 三方の腰壁（1.05m）＋入口脇の返し＋標識柱。正面は開けて階段口を見せる
+ * （以前は四方すべて壁で囲われていて、ただの黒い穴に見えていた）。
+ * 地面は y=0 の一枚板なので掘れない。降りていく感じは「開口 → 段を刻んだ床 →
+ * 奥から漏れる光」で作る。屋根は shell（弾だけ当たる）。階段・手すりは見た目のみ。
  * ※ ファサード用テクスチャ（窓つき）は小物には使わない。
  */
 function subwayEntrance(x, z, yaw) {
@@ -868,68 +870,76 @@ function subwayEntrance(x, z, yaw) {
     const p = toWorld(lx, lz);
     solid(p.wx, p.wz, w, h, d, yaw, mat);
   };
-  // 縁石（高さ 0.45m の石枠）: 奥・左右の3面
-  put(0, 1.475, 3.2, 0.45, 0.25, M.stoneTrim);
-  put(-1.475, 0, 0.25, 0.45, 2.7, M.stoneTrim);
-  put(1.475, 0, 0.25, 0.45, 2.7, M.stoneTrim);
-  // 欄干（0.9m。中は見えるが入れない）
-  put(0, -1.35, 2.7, 0.9, 0.12, M.darkSteel);
-  // 標識柱＋案内灯
-  put(1.9, -1.2, 0.14, 1.9, 0.14, M.steel);
-  const tp = toWorld(1.9, -1.2);
-  deco(M.darkSteel, 0.46, 0.4, 0.05, tp.wx, 1.62, tp.wz, yaw);
-  deco(glow(0xe8f0f8), 0.4, 0.32, 0.06, tp.wx, 1.62, tp.wz, yaw);
+  const at = (lx, ly, lz, mat, w, h, dd) => {
+    const p = toWorld(lx, lz);
+    deco(mat, w, h, dd, p.wx, ly, p.wz, yaw);
+  };
+  const RAIL = 1.05;   // 腰壁の高さ（実物どおり胸高）
 
-  // 階段・内壁・手すり（見た目のみ。暗がりへ降りていく形）
-  const g = new THREE.Group();
+  // 腰壁：奥・左右の三方。正面（-z）は入口なので開ける
+  put(0, 1.475, 3.2, RAIL, 0.25, M.stoneTrim);
+  put(-1.475, 0, 0.25, RAIL, 2.7, M.stoneTrim);
+  put(1.475, 0, 0.25, RAIL, 2.7, M.stoneTrim);
+  // 入口脇の返し（中央 1.6m を開口として残す）
+  put(-1.075, -1.35, 0.55, RAIL, 0.25, M.stoneTrim);
+  put(1.075, -1.35, 0.55, RAIL, 0.25, M.stoneTrim);
+  // 標識柱
+  put(1.9, -1.2, 0.14, 2.6, 0.14, M.steel);
+
+  // 腰壁の笠木（ステンレスの手すり）
+  at(0, RAIL + 0.05, 1.475, M.steel, 3.3, 0.1, 0.32);
+  at(-1.475, RAIL + 0.05, 0, M.steel, 0.32, 0.1, 2.8);
+  at(1.475, RAIL + 0.05, 0, M.steel, 0.32, 0.1, 2.8);
+  at(-1.075, RAIL + 0.05, -1.35, M.steel, 0.62, 0.1, 0.32);
+  at(1.075, RAIL + 0.05, -1.35, M.steel, 0.62, 0.1, 0.32);
+
+  // 内壁（暗いタイル）と、段を刻んだ床
+  for (const sx of [-1.3, 1.3]) at(sx, 0.5, 0.05, M.glassDark, 0.1, 1.0, 2.6);
+  at(0, 0.5, 1.3, M.glassDark, 2.6, 1.0, 0.1);
   for (let i = 0; i < 4; i++) {
-    const hh = 0.36 - i * 0.09;
-    const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, hh, 0.3), M.concrete);
-    step.position.set(0, hh / 2, -1.05 + i * 0.3);
-    g.add(step);
+    const top = 0.34 - i * 0.09;
+    at(0, top / 2, -0.95 + i * 0.34, M.concrete, 2.5, top, 0.34);
   }
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.04, 1.5), M.glassDark);
-  floor.position.set(0, 0.02, 0.6);
-  g.add(floor);
-  for (const sx of [-1.36, 1.36]) {           // 内壁（暗がり）
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 2.7), M.glassDark);
-    wall.position.set(sx, 0.25, 0);
-    g.add(wall);
-  }
-  const back = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.5, 0.04), M.glassDark);
-  back.position.set(0, 0.25, 1.36);
-  g.add(back);
-  for (const sx of [-0.8, 0.8]) {             // 手すり（階段に沿って斜め）
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.35), M.steel);
-    rail.position.set(sx, 0.75, -0.6);
-    rail.rotation.x = -0.32;
-    g.add(rail);
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.9, 0.05), M.steel);
-    post.position.set(sx, 0.45, -1.2);
-    g.add(post);
-  }
-  g.position.set(x, 0, z);
-  g.rotation.y = yaw;
-  mapGroup.add(g);
+  at(0, 0.02, 0.75, M.glassDark, 2.5, 0.04, 1.1);          // 踊り場（暗がり）
 
-  // 屋根（ポスト2本＋ガラス板と縁。頭上なので弾だけ当たる）
+  // 奥から漏れる光。ここが「下に駅がある」と読ませる一番の手がかり
+  at(0, 0.34, 1.24, sign(0xd8c49a), 2.3, 0.62, 0.06);
+  at(0, 0.06, 0.75, sign(0x8a7a5c), 2.2, 0.04, 1.0);
+
+  // 階段の手すり（開口から内へ下る）
+  for (const sx of [-0.85, 0.85]) {
+    const p = toWorld(sx, -0.5);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 1.9), M.steel);
+    rail.position.set(p.wx, 0.86, p.wz);
+    rail.rotation.set(-0.2, yaw, 0, 'YXZ');
+    mapGroup.add(rail);
+    at(sx, 0.5, -1.25, M.steel, 0.06, 1.0, 0.06);
+  }
+
+  // 屋根（開口の上だけを覆う軽い庇）＋駅名帯＋地下鉄マーク
   const cg = new THREE.Group();
-  for (const sx of [-1.2, 1.2]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.3, 0.1), M.steel);
-    post.position.set(sx, 1.15, -1.6);
+  for (const sx of [-1.45, 1.45]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, 2.6, 0.09), M.steel);
+    post.position.set(sx, 1.3, -1.62);
     cg.add(post);
   }
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.06, 2.0), M.glassDark);
-  roof.position.set(0, 2.35, -0.7);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.07, 2.2), M.glassDark);
+  roof.position.set(0, 2.66, -0.75);
   cg.add(roof);
-  for (const ez of [-1.68, 0.28]) {
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.1, 0.12), M.darkSteel);
-    edge.position.set(0, 2.33, ez);
-    cg.add(edge);
-  }
+  const fascia = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.34, 0.1), M.darkSteel);
+  fascia.position.set(0, 2.48, -1.82);
+  cg.add(fascia);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.2, 0.06), sign(0x2f5fa0));
+  band.position.set(0, 2.48, -1.88);
+  cg.add(band);
   cg.position.set(x, 0, z);
   cg.rotation.y = yaw;
   shell(cg);
+
+  // 標識柱の照明サイン（地下鉄マーク相当。文字やロゴは入れない）
+  at(1.9, 2.2, -1.2, M.darkSteel, 0.52, 0.52, 0.06);
+  at(1.9, 2.2, -1.26, sign(0x2f5fa0), 0.42, 0.42, 0.05);
+  at(1.9, 2.2, -1.29, sign(0xe8ecef), 0.18, 0.18, 0.04);
 }
 
 /** 自転車1台（フレーム・ハンドル・サドル・前カゴつき。見た目のみ） */
