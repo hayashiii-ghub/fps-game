@@ -76,13 +76,13 @@ function updateTracers(dt) {
 /* ---------- パーティクル（スプライトのプール） ---------- */
 const particles = [];
 function initParticles() {
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 150; i++) {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({
       color: 0xffffff, transparent: true, opacity: 1, depthWrite: false,
     }));
     s.visible = false;
     scene.add(s);
-    particles.push({ s, active: false, vel: new THREE.Vector3(), life: 0, maxLife: 0, grav: 0, size: 0.1 });
+    particles.push({ s, active: false, vel: new THREE.Vector3(), life: 0, maxLife: 0, grav: 0, size: 0.1, baseOpacity: 1 });
   }
 }
 function spawnBurst(pos, opt) {
@@ -93,7 +93,8 @@ function spawnBurst(pos, opt) {
     p.active = true;
     p.s.visible = true;
     p.s.material.color.setHex(opt.color);
-    p.s.material.opacity = opt.opacity !== undefined ? opt.opacity : 1;
+    p.baseOpacity = opt.opacity !== undefined ? opt.opacity : 1;
+    p.s.material.opacity = p.baseOpacity;
     p.s.position.copy(pos);
     p.vel.set(
       (Math.random() - 0.5) * 2 * opt.spread + (opt.dir ? opt.dir.x * opt.speed : 0),
@@ -115,7 +116,7 @@ function updateParticles(dt) {
     p.vel.y -= p.grav * dt;
     p.s.position.addScaledVector(p.vel, dt);
     const k = 1 - p.life / p.maxLife;
-    p.s.material.opacity = k;
+    p.s.material.opacity = k * p.baseOpacity;
     p.s.scale.setScalar(p.size * (0.6 + k * 0.6));
     if (p.s.position.y < 0.02 && p.vel.y < 0) { p.s.position.y = 0.02; p.vel.set(0, 0, 0); }
   }
@@ -166,12 +167,18 @@ function updateShells(dt) {
 }
 
 /* ---------- 着弾エフェクト ---------- */
+/* 着弾は「白熱の芯 → 散る火花 → 飛ぶ破片 → 残る粉塵」の4層で、当たった瞬間を読ませる */
 function impactFX(pos, surfaceColor) {
-  spawnBurst(pos, { color: surfaceColor || 0xbfae88, count: 7, speed: 0, spread: 1.6, up: 2.2, grav: 10, sizeMin: 0.02, sizeMax: 0.06, lifeMin: 0.15, lifeMax: 0.4 });
-  spawnBurst(pos, { color: 0xffd9a0, count: 2, speed: 0, spread: 3.5, up: 1.5, grav: 14, sizeMin: 0.012, sizeMax: 0.03, lifeMin: 0.05, lifeMax: 0.15 });
+  const dust = surfaceColor || 0xbfae88;
+  spawnBurst(pos, { color: 0xfff6de, count: 2, speed: 0, spread: 1.1, up: 0.8, grav: 5, sizeMin: 0.05, sizeMax: 0.1, lifeMin: 0.03, lifeMax: 0.07 });
+  spawnBurst(pos, { color: 0xffd9a0, count: 4, speed: 0, spread: 3.8, up: 1.6, grav: 14, sizeMin: 0.012, sizeMax: 0.03, lifeMin: 0.05, lifeMax: 0.16 });
+  spawnBurst(pos, { color: dust, count: 7, speed: 0, spread: 1.6, up: 2.2, grav: 10, sizeMin: 0.02, sizeMax: 0.06, lifeMin: 0.15, lifeMax: 0.4 });
+  spawnBurst(pos, { color: dust, count: 3, speed: 0, spread: 0.4, up: 0.6, grav: -0.5, opacity: 0.45, sizeMin: 0.09, sizeMax: 0.17, lifeMin: 0.25, lifeMax: 0.5 });
 }
+/* 血しぶきは飛沫＋着弾点に留まるミストで、どこに当てたかを見せる */
 function bloodFX(pos, dir) {
   spawnBurst(pos, { color: 0x7e1210, count: 9, dir, speed: 1.8, spread: 1.4, up: 1.2, grav: 11, sizeMin: 0.03, sizeMax: 0.085, lifeMin: 0.2, lifeMax: 0.5 });
+  spawnBurst(pos, { color: 0xb02a1e, count: 4, dir, speed: 0.5, spread: 0.5, up: 0.4, grav: 1.5, opacity: 0.5, sizeMin: 0.05, sizeMax: 0.12, lifeMin: 0.12, lifeMax: 0.3 });
 }
 
 /* ---------- グレネード（構え → 軌道プレビュー → クリック投擲） ---------- */

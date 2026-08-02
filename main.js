@@ -132,11 +132,13 @@ function updateTdmHUD() {
   score.innerHTML = `<span class="blue">${game.tdm.blueKills}</span> — <span class="red">${game.tdm.redKills}</span>`;
   if (kills) kills.innerHTML = `KILL <b>${game.kills || 0}</b>`;
 }
-function showHitmarker(kill) {
+/** ヒットマーカー。通常=白 / ヘッドショット=黄 / キル=赤（HSキルは赤のまま大きく弾む） */
+function showHitmarker(kill, part) {
   const el = $('hitmarker');
-  el.classList.remove('show', 'kill');
+  el.classList.remove('show', 'kill', 'head');
   void el.offsetWidth;
   if (kill) el.classList.add('kill');
+  if (part === 'head') el.classList.add('head');
   el.classList.add('show');
 }
 function addKillfeed(text, hs, team) {

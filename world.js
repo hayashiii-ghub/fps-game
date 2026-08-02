@@ -712,7 +712,7 @@ function decor() {
 function initWorld() {
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
@@ -731,7 +731,7 @@ function initWorld() {
   worldSun = new THREE.DirectionalLight(0xfff0d8, 1.05);
   worldSun.position.set(70, 95, 35);
   worldSun.castShadow = true;
-  worldSun.shadow.mapSize.set(2048, 2048);
+  worldSun.shadow.mapSize.set(4096, 4096);
   worldSun.shadow.camera.left = -85; worldSun.shadow.camera.right = 85;
   worldSun.shadow.camera.top = 85; worldSun.shadow.camera.bottom = -85;
   worldSun.shadow.camera.near = 20; worldSun.shadow.camera.far = 260;

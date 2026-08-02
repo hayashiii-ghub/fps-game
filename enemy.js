@@ -921,7 +921,8 @@ class Enemy {
     if (!this.alive) return;
     if (this.spawnProtT > 0) return;
     this.hp -= dmg;
-    this.hitReact = 1;
+    // 弱い弾は小さく、重い一撃とヘッドショットは大きくのけぞる
+    this.hitReact = clamp(0.4 + dmg / 80 + (part === 'head' ? 0.3 : 0), 0.4, 1.4);
     this.hitSide = dir && Number.isFinite(dir.x) && dir.x < 0 ? -1 : 1;
     bloodFX(point, dir);
     if (this.hp <= 0) {
@@ -1067,7 +1068,7 @@ function hitEnemy(enemy, part, point, dir) {
   const willKill = enemy.hp - dmg <= 0;
   AudioSys.hitmark(willKill);
   if (part === 'head') AudioSys.headshot();
-  showHitmarker(willKill);
+  showHitmarker(willKill, part);
   enemy.hit(dmg, part, point, dir, player);
 }
 

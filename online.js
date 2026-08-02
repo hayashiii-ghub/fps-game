@@ -541,7 +541,7 @@ const Online = (() => {
         AudioSys.hitmark(!!data.kill);
         if (hs) AudioSys.headshot();
       }
-      if (typeof showHitmarker === 'function') showHitmarker(!!data.kill);
+      if (typeof showHitmarker === 'function') showHitmarker(!!data.kill, data.part);
       if (data.kill) {
         game.kills++;
         if (data.weapon === 'grenade') game.grenadeKills = (game.grenadeKills || 0) + 1;
