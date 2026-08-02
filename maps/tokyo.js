@@ -104,6 +104,44 @@ function shopfronts() {
 }
 
 /* ============================================================
+   裏路地（街路壁の裏、幅4mのバックヤード）
+   ============================================================ */
+
+/**
+ * 街路壁の裏に設備を並べる。表通りの磨かれた顔と対比させる面。
+ *
+ * `sx` は建物の裏面の x、`dir` は路地側へ向かう向き（東の壁は +1 / 西は -1）。
+ * `sgn` は北向きを +1 とした並びの向きで、南側は -1 にして鏡像にする
+ * （設備は固体なので、南北で配置がずれると青赤の遮蔽が不公平になる）。
+ * 通路は約2.5m 残すので、回り込み経路は塞がない。
+ */
+function backAlley(sx, dir, zc, halfLen, sgn) {
+  const yaw = dir > 0 ? -HALF : HALF;
+  const wall = sx + dir * 0.15;
+  const line = sx + dir * 1.05;
+  const at = t => zc + sgn * t;
+  URBAN.fireStairs(wall + dir * 0.85, at(-halfLen + 2.2), yaw, 5.5);
+  URBAN.ductRun(wall + dir * 0.4, zc, yaw, Math.min(halfLen * 2 - 3, 9), 4.3);
+  URBAN.wallPipes(wall, at(halfLen - 1.4), yaw, 5.2);
+  URBAN.acBank(line, at(-2.6), yaw);
+  URBAN.dumpsterPen(line, at(2.4), yaw);
+  URBAN.loadDock(line + dir * 0.25, at(halfLen - 2.4), yaw);
+}
+
+function backAlleys() {
+  // 中環の街路壁の裏（壁面 x=±40、路地は ±[40,44]）
+  backAlley(40, 1, 16, 7.5, 1);
+  backAlley(40, 1, -16, 7.5, -1);
+  backAlley(-40, -1, 16, 7.5, 1);
+  backAlley(-40, -1, -16, 7.5, -1);
+  // 角の街路壁の裏
+  backAlley(40, 1, 37, 5.5, 1);
+  backAlley(40, 1, -37, 5.5, -1);
+  backAlley(-40, -1, 37, 5.5, 1);
+  backAlley(-40, -1, -37, 5.5, -1);
+}
+
+/* ============================================================
    中央広場（交差点 |x|,|z| <= 8 とその縁）
    ============================================================ */
 
@@ -258,6 +296,7 @@ function buildTokyoMap() {
   pavement();
   buildings();
   shopfronts();
+  backAlleys();
   plaza();
   avenues();
   parks();

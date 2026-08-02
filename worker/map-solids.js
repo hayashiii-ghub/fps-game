@@ -177,6 +177,23 @@ function uTerrace(x, z, w, h, d, face) {
   return out;
 }
 
+/* URBAN の裏路地設備。装飾は載せず、固体1箱ずつだけを写す */
+function uAcBank(x, z, yaw) { return slab(x, z, 2.6, 1.2, 1.0, yaw); }
+function uDumpster(x, z, yaw) { return slab(x, z, 2.2, 1.25, 1.1, yaw); }
+function uLoadDock(x, z, yaw) { return slab(x, z, 3.4, 0.55, 1.8, yaw); }
+
+/** maps/tokyo.js の backAlley() と同じ並び */
+function uBackAlley(sx, dir, zc, halfLen, sgn) {
+  const yaw = dir > 0 ? -HALF : HALF;
+  const line = sx + dir * 1.05;
+  const at = t => zc + sgn * t;
+  return [
+    uAcBank(line, at(-2.6), yaw),
+    uDumpster(line, at(2.4), yaw),
+    uLoadDock(line + dir * 0.25, at(halfLen - 2.4), yaw),
+  ];
+}
+
 /** URBAN.planter — 天面 0.5m は登れる段 */
 function uPlanter(x, z, w, d) {
   return slab(x, z, w, 0.5, d, 0);
@@ -453,6 +470,16 @@ const TOKYO = [
   zPair(uTerrace, -55.5, 38.5, 7, 7, 11, [1, 0]),
   zPair(slab, 55.5, 55.5, 6.5, 7, 6.5, 0),
   zPair(slab, -55.5, 55.5, 6.5, 6.5, 6.5, 0),
+
+  // ---- 裏路地（街路壁の裏） ----
+  uBackAlley(40, 1, 16, 7.5, 1),
+  uBackAlley(40, 1, -16, 7.5, -1),
+  uBackAlley(-40, -1, 16, 7.5, 1),
+  uBackAlley(-40, -1, -16, 7.5, -1),
+  uBackAlley(40, 1, 37, 5.5, 1),
+  uBackAlley(40, 1, -37, 5.5, -1),
+  uBackAlley(-40, -1, 37, 5.5, 1),
+  uBackAlley(-40, -1, -37, 5.5, -1),
 
   // ---- 中央広場 ----
   [[-10.5, -10.5], [-10.5, 10.5], [10.5, -10.5], [10.5, 10.5]]

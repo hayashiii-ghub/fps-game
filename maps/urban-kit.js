@@ -538,6 +538,81 @@ function streetTerrace(x, z, w, h, d, face, mats, shops) {
   }
 }
 
+/* ---- 裏側（バックヤード）の設え ----
+ * 表通りの磨かれた顔と対比させるための雑然とした面。
+ * 固体は solid() 1箱ずつに抑え、残りは deco で済ませる（裏路地は
+ * 回り込み経路なので、塞がずに遮蔽だけ足すのが狙い）。
+ * ローカル X を壁と平行な向きとして組み、yaw で世界へ回す。
+ */
+
+/** ローカル (lx, lz) を yaw 回転して世界座標へ（three.js の Y 回転と同じ規約） */
+function localTo(x, z, yaw, lx, lz) {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  return [x + lx * c + lz * s, z - lx * s + lz * c];
+}
+
+/** 室外機の集合。1.2m なので登れず、純粋な遮蔽になる */
+function acBank(x, z, yaw) {
+  solid(x, z, 2.6, 1.2, 1.0, yaw, M.steel);
+  for (const lx of [-0.8, 0, 0.8]) {
+    const [fx2, fz2] = localTo(x, z, yaw, lx, -0.52);
+    deco(M.darkSteel, 0.62, 0.62, 0.06, fx2, 0.72, fz2, yaw);   // ファンの枠
+  }
+  const [tx, tz] = localTo(x, z, yaw, 0, 0);
+  deco(M.darkSteel, 2.66, 0.08, 1.06, tx, 1.24, tz, yaw);       // 天板
+}
+
+/** ゴミ集積の囲い */
+function dumpsterPen(x, z, yaw) {
+  solid(x, z, 2.2, 1.25, 1.1, yaw, M.darkSteel);
+  const [lx, lz] = localTo(x, z, yaw, 0, -0.2);
+  deco(M.panel, 2.26, 0.1, 0.8, lx, 1.32, lz, yaw);             // 半開きの蓋
+  for (const o of [-0.9, 0.9]) {
+    const [px, pz] = localTo(x, z, yaw, o, 0.6);
+    deco(M.steel, 0.1, 1.4, 0.1, px, 0.7, pz, yaw);             // 支柱
+  }
+}
+
+/** 荷捌きの平台。0.55m なので乗れる（プレイヤーと AI で同じ足場判定） */
+function loadDock(x, z, yaw) {
+  solid(x, z, 3.4, 0.55, 1.8, yaw, M.concrete);
+  const [ex, ez] = localTo(x, z, yaw, 0, -0.86);
+  deco(M.darkSteel, 3.44, 0.12, 0.14, ex, 0.5, ez, yaw);        // 縁の当て板
+}
+
+/** 非常階段（見た目のみ。壁に沿って折り返す） */
+function fireStairs(x, z, yaw, h) {
+  const steps = Math.max(2, Math.round(h / 1.6));
+  for (let i = 0; i < steps; i++) {
+    const side = i % 2 ? 0.85 : -0.85;
+    const [px, pz] = localTo(x, z, yaw, side, 0);
+    deco(M.steel, 1.9, 0.09, 1.05, px, 1.7 + i * 1.55, pz, yaw);        // 踊り場
+    deco(M.darkSteel, 1.9, 0.5, 0.06, px, 2.1 + i * 1.55, pz - 0, yaw); // 手すり
+  }
+  for (const o of [-1.7, 1.7]) {
+    const [px, pz] = localTo(x, z, yaw, o, 0);
+    deco(M.steel, 0.12, h, 0.12, px, h / 2, pz, yaw);            // 柱
+  }
+}
+
+/** ダクト（見た目のみ。壁から少し浮かせて横引き） */
+function ductRun(x, z, yaw, len, y) {
+  deco(M.panel, len, 0.55, 0.55, x, y, z, yaw);
+  const n = Math.max(2, Math.round(len / 2.2));
+  for (let i = 0; i <= n; i++) {
+    const [bx, bz] = localTo(x, z, yaw, -len / 2 + (len * i) / n, 0);
+    deco(M.darkSteel, 0.08, 0.62, 0.62, bx, y, bz, yaw);         // 継ぎ手のリブ
+  }
+}
+
+/** 立ち上がりの配管（見た目のみ） */
+function wallPipes(x, z, yaw, h) {
+  for (const [o, r] of [[-0.3, 0.11], [0, 0.08], [0.34, 0.13]]) {
+    const [px, pz] = localTo(x, z, yaw, o, 0);
+    deco(M.steel, r * 2, h, r * 2, px, h / 2, pz, yaw);
+  }
+}
+
 /** 低層のアルミパネル棟 */
 function lowPanel(x, z, w, h, d, face) {
   solid(x, z, w, h, d, 0, M.panel);
@@ -1263,6 +1338,7 @@ globalThis.URBAN = {
   glow,
   solid, deco, paint, shell,
   towerGlass, towerStone, midGrid, lowPanel, pilotis, shopfront, streetTerrace, siteRand,
+  acBank, dumpsterPen, loadDock, fireStairs, ductRun, wallPipes,
   streetTree, planter, hedge, bench, bollardRow, streetLight, trafficSignal,
   busStop, subwayEntrance, bikeRack, manhole,
   taxi, sedan, van, bus,
