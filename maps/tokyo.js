@@ -42,24 +42,65 @@ function zPairLhtEw(fn, x, z, yaw, ...rest) {
    建物
    ============================================================ */
 
+/* 建物の素材は東=ガラスの金融街 / 西=石とコンクリートの官公庁街で分ける */
+const EAST_MATS = ['curtainBlue', 'curtainGrey', 'punched'];
+const WEST_MATS = ['stoneBeige', 'stoneGrey', 'punched', 'panel'];
+
+/*
+ * 1階のテナントは方角で固めない。実際のオフィス街は業種が混ざって並ぶので、
+ * 全街区で同じ一覧から siteRand で引く（棟ごとに位置が違えば別の業種になる）。
+ * coffee を2つ入れているのは、喫茶がこの街で一番多い業態だから。
+ */
+const SHOPS = [
+  'conveniA', 'conveniB', 'conveniC',
+  'burger', 'coffee', 'gyudon', 'ramen', 'soba', 'curry', 'bakery', 'izakaya', 'coffee',
+  'drug', 'mobile', 'books', 'bank', 'clinic', 'salon', 'gym', 'realty',
+  'lobby', 'shutter',
+];
+
 function buildings() {
   const M = URBAN.M;
   // 内側4街区: ピロティ型タワー（1階は柱列で歩き通せる）
   zPair(URBAN.pilotis, 16, 16, 16, 15, 16, M.curtainBlue, [-1, 0]);
   zPair(URBAN.pilotis, -16, 16, 16, 13, 16, M.stoneBeige, [1, 0]);
-  // 中環: 中層ビル（スポーンを避けて通り側に寄せる）
-  zPair(URBAN.midGrid, 35.5, 16, 7, 9, 8, [-1, 0]);
-  zPair(URBAN.midGrid, -35.5, 16, 7, 9, 8, [1, 0]);
+  // 中環: 環状通りに沿った街路壁。東はガラス系（金融）、西は石系（官公庁）
+  zPair(URBAN.streetTerrace, 36, 16, 8, 12, 15, [-1, 0], EAST_MATS, SHOPS);
+  zPair(URBAN.streetTerrace, -36, 16, 8, 11, 15, [1, 0], WEST_MATS, SHOPS);
   // 環内: 西は御影石タワー、東はポケットパーク（buildings ではなく parks()）
   zPair(URBAN.towerStone, -16, 38, 14, 10, 8, [0, -1]);
-  // 角: 中層ビル
-  zPair(URBAN.midGrid, 38, 37, 11, 8, 8, [-1, 0]);
-  zPair(URBAN.midGrid, -38, 37, 11, 8, 8, [1, 0]);
-  // 外れ: 低層パネル棟（スポーン帯の隙間ポケットにだけ）
-  zPair(URBAN.lowPanel, 56, 38.5, 6, 6.5, 8, [-1, 0]);
-  zPair(URBAN.lowPanel, -56, 38.5, 6, 6, 8, [1, 0]);
+  // 角: 環状通り沿いに並べる
+  zPair(URBAN.streetTerrace, 36, 37, 8, 10, 11, [-1, 0], EAST_MATS, SHOPS);
+  zPair(URBAN.streetTerrace, -36, 37, 8, 9, 11, [1, 0], WEST_MATS, SHOPS);
+  // 外れ: 外周の環状通りに面した低い街並み
+  // Survival スポーン (±54, ∓14) を塞がないよう z=15.5 以北に寄せる
+  zPair(URBAN.streetTerrace, 55.5, 19.5, 7, 8, 8, [-1, 0], EAST_MATS, SHOPS);
+  zPair(URBAN.streetTerrace, -55.5, 19.5, 7, 8, 8, [1, 0], WEST_MATS, SHOPS);
+  zPair(URBAN.streetTerrace, 55.5, 38.5, 7, 7, 11, [-1, 0], EAST_MATS, SHOPS);
+  zPair(URBAN.streetTerrace, -55.5, 38.5, 7, 7, 11, [1, 0], WEST_MATS, SHOPS);
   zPair(URBAN.midGrid, 55.5, 55.5, 6.5, 7, 6.5, [-1, 0]);
-  zPair(URBAN.midGrid, -55.5, 55.5, 6.5, 6.5, 6.5, [1, 0]);
+  zPair(URBAN.lowPanel, -55.5, 55.5, 6.5, 6.5, 6.5, [1, 0]);
+}
+
+/* ============================================================
+   1階のテナント（コンビニ・カフェ・ロビー・閉店シャッター）
+   ============================================================ */
+
+/**
+ * z 対称に置きつつ、面の向きも鏡像にする。
+ * zPair をそのまま使うと南側だけ通りに背を向けるので、法線の z 成分を反転する。
+ */
+function zPairShop(x, z, w, d, face, kind, span) {
+  URBAN.shopfront(x, z, w, d, face, kind, span);
+  URBAN.shopfront(x, -z, w, d, [face[0], -face[1]], kind, span);
+}
+
+/** 街路壁は streetTerrace が棟ごとに店を出すので、ここは単独棟だけを補う */
+function shopfronts() {
+  // 環内の御影石タワーは官公庁系なのでロビーだけ（間口は狭く）
+  zPairShop(-16, 38, 14, 8, [0, -1], 'lobby', 0.45);
+  // 外れの角（街の端が死んで見えないよう灯りを入れる）
+  zPairShop(55.5, 55.5, 6.5, 6.5, [-1, 0], 'ramen');
+  zPairShop(-55.5, 55.5, 6.5, 6.5, [1, 0], 'books');
 }
 
 /* ============================================================
@@ -216,6 +257,7 @@ function buildTokyoMap() {
   URBAN.skyline();
   pavement();
   buildings();
+  shopfronts();
   plaza();
   avenues();
   parks();

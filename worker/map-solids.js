@@ -148,6 +148,35 @@ function uPilotis(x, z, w, h, d) {
   return out;
 }
 
+/**
+ * URBAN.siteRand と同じ式。ここを変えると maps/urban-kit.js と分割がずれ、
+ * test-map-solids-parity が落ちる。
+ */
+function uSiteRand(x, z, salt) {
+  const s = Math.sin(x * 12.9898 + Math.abs(z) * 78.233 + (salt || 0) * 37.719) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/** URBAN.streetTerrace — 間口 4〜9m へ割った棟の列。分割式は urban-kit と対 */
+function uTerrace(x, z, w, h, d, face) {
+  const fx = face[0];
+  const span = fx ? d : w;
+  const dep = fx ? w : d;
+  const out = [];
+  let used = 0;
+  for (let i = 0; i < 8 && span - used > 3.2; i++) {
+    let bw = 4 + uSiteRand(x + used * 3.1, z, 60 + i) * 5;
+    if (span - used - bw < 3.2) bw = span - used;
+    const off = used + bw / 2 - span / 2;
+    const bx = x + (fx ? 0 : off);
+    const bz = z + (fx ? off : 0);
+    const bh = h * (0.72 + uSiteRand(bx, bz, 70) * 0.56);
+    out.push(slab(bx, bz, fx ? dep : bw, bh, fx ? bw : dep, 0));
+    used += bw;
+  }
+  return out;
+}
+
 /** URBAN.planter — 天面 0.5m は登れる段 */
 function uPlanter(x, z, w, d) {
   return slab(x, z, w, 0.5, d, 0);
@@ -413,13 +442,15 @@ const TOKYO = [
   // ---- 建物（内側ピロティ×4・中環・環内・角・外れ） ----
   zPair(uPilotis, 16, 16, 16, 15, 16),
   zPair(uPilotis, -16, 16, 16, 13, 16),
-  zPair(slab, 35.5, 16, 7, 9, 8, 0),
-  zPair(slab, -35.5, 16, 7, 9, 8, 0),
+  zPair(uTerrace, 36, 16, 8, 12, 15, [-1, 0]),
+  zPair(uTerrace, -36, 16, 8, 11, 15, [1, 0]),
   zPair(slab, -16, 38, 14, 10, 8, 0),
-  zPair(slab, 38, 37, 11, 8, 8, 0),
-  zPair(slab, -38, 37, 11, 8, 8, 0),
-  zPair(slab, 56, 38.5, 6, 6.5, 8, 0),
-  zPair(slab, -56, 38.5, 6, 6, 8, 0),
+  zPair(uTerrace, 36, 37, 8, 10, 11, [-1, 0]),
+  zPair(uTerrace, -36, 37, 8, 9, 11, [1, 0]),
+  zPair(uTerrace, 55.5, 19.5, 7, 8, 8, [-1, 0]),
+  zPair(uTerrace, -55.5, 19.5, 7, 8, 8, [1, 0]),
+  zPair(uTerrace, 55.5, 38.5, 7, 7, 11, [-1, 0]),
+  zPair(uTerrace, -55.5, 38.5, 7, 7, 11, [1, 0]),
   zPair(slab, 55.5, 55.5, 6.5, 7, 6.5, 0),
   zPair(slab, -55.5, 55.5, 6.5, 6.5, 6.5, 0),
 

@@ -247,6 +247,20 @@ function glow(color) {
   return glowCache.get(color);
 }
 
+/**
+ * 看板用の発光。`glow()` は色を linear 直指定なので彩度の高い色が破綻する。
+ * こちらは sRGB→linear 変換を通すので、見た目どおりの色で書ける。
+ */
+const signCache = new Map();
+function sign(color) {
+  if (!signCache.has(color)) {
+    const m = new THREE.MeshBasicMaterial({ color });
+    m.color.convertSRGBToLinear();
+    signCache.set(color, m);
+  }
+  return signCache.get(color);
+}
+
 /* ============================================================
    プリミティブ
    ============================================================ */
@@ -284,6 +298,16 @@ function shell(meshOrGroup) {
    建物
    ============================================================ */
 
+/**
+ * 敷地から決まる 0..1 の疑似乱数。
+ * `Math.random()` だと zPair の南北で違う結果になり、TDM の青/赤で見た目が
+ * 揃わない。`|z|` を使うことで南北が必ず鏡像になる。
+ */
+function siteRand(x, z, salt) {
+  const s = Math.sin(x * 12.9898 + Math.abs(z) * 78.233 + (salt || 0) * 37.719) * 43758.5453;
+  return s - Math.floor(s);
+}
+
 /** エントランス共通飾り（凹み・ガラスの灯り・キャノピー・銘板） */
 function entrance(x, z, w, d, face, bw) {
   const [fx, fz] = face;
@@ -302,16 +326,50 @@ function entrance(x, z, w, d, face, bw) {
     sx + fx * 0.1, 3.3, sz + fz * 0.1, yaw);
 }
 
-/** 屋上（パラペット＋設備） */
+/**
+ * 屋上（パラペット＋設備）。
+ * 台数・寸法・塔屋・水槽/アンテナを敷地ごとに変えて、遠景のスカイラインが
+ * コピペに見えないようにする。すべて deco なので当たりには影響しない。
+ */
 function rooftop(x, z, w, h, d) {
+  const r = n => siteRand(x, z, n);
   deco(M.concrete, w + 0.26, 0.5, d + 0.26, x, h + 0.22, z, 0);
-  deco(M.steel, 1.7, 1.0, 1.3, x + w * 0.22, h + 0.7, z - d * 0.2, 0);
-  deco(M.steel, 1.1, 0.7, 0.9, x - w * 0.26, h + 0.55, z + d * 0.24, 0);
+
+  // 空調室外機 1〜3 台
+  const units = 1 + Math.floor(r(1) * 3);
+  for (let i = 0; i < units; i++) {
+    const uw = 0.9 + r(10 + i) * 1.1;
+    const ud = 0.7 + r(20 + i) * 0.8;
+    const uh = 0.5 + r(30 + i) * 0.6;
+    deco(M.steel, uw, uh, ud,
+      x + (r(40 + i) - 0.5) * (w - uw - 0.8),
+      h + 0.45 + uh / 2,
+      z + (r(50 + i) - 0.5) * (d - ud - 0.8), 0);
+  }
+
+  // 塔屋（階段室）。小さすぎる屋上には載せない
+  if (w > 6 && d > 6 && r(2) < 0.6) {
+    const pw = Math.min(w * 0.32, 3.6), pd = Math.min(d * 0.32, 3.2);
+    deco(M.concrete, pw, 2.3, pd, x - w * 0.2, h + 1.6, z + d * 0.18, 0);
+  }
+
+  // 高置水槽（脚付き）かアンテナ柱のどちらか
+  if (r(3) < 0.5) {
+    const tx = x + w * 0.24, tz = z - d * 0.26;
+    for (const [lx, lz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
+      deco(M.steel, 0.14, 1.1, 0.14, tx + lx, h + 1.0, tz + lz, 0);
+    }
+    deco(M.panel, 1.7, 0.9, 1.4, tx, h + 2.0, tz, 0);
+  } else {
+    const mx = x - w * 0.28, mz = z - d * 0.22;
+    deco(M.steel, 0.12, 2.6 + r(4) * 1.8, 0.12, mx, h + 1.75 + r(4) * 0.9, mz, 0);
+    deco(M.steel, 1.0, 0.08, 0.08, mx, h + 2.4, mz, 0);
+  }
 }
 
 /** ガラスカーテンウォールのタワー（金融系）。固体は footprint×全高の1箱 */
 function towerGlass(x, z, w, h, d, face) {
-  solid(x, z, w, h, d, 0, Math.random() < 0.5 ? M.curtainBlue : M.curtainGrey);
+  solid(x, z, w, h, d, 0, siteRand(x, z, 7) < 0.5 ? M.curtainBlue : M.curtainGrey);
   rooftop(x, z, w, h, d);
   entrance(x, z, w, d, face, Math.min(w, d) * 0.4);
   if (h >= 14) {
@@ -323,7 +381,7 @@ function towerGlass(x, z, w, h, d, face) {
 
 /** 御影石ファサードのタワー（官公庁・老舗系） */
 function towerStone(x, z, w, h, d, face) {
-  solid(x, z, w, h, d, 0, Math.random() < 0.5 ? M.stoneBeige : M.stoneGrey);
+  solid(x, z, w, h, d, 0, siteRand(x, z, 8) < 0.5 ? M.stoneBeige : M.stoneGrey);
   rooftop(x, z, w, h, d);
   entrance(x, z, w, d, face, Math.min(w, d) * 0.36);
 }
@@ -333,6 +391,151 @@ function midGrid(x, z, w, h, d, face) {
   solid(x, z, w, h, d, 0, M.punched);
   rooftop(x, z, w, h, d);
   entrance(x, z, w, d, face, Math.min(w, d) * 0.4);
+}
+
+/**
+ * 1階のテナント（コンビニ／カフェ／オフィスロビー／閉店シャッター）。
+ *
+ * `band` はサインバンドの発光色、`inner` は店内の光。
+ * ネオン管・提灯・文字ロゴは使わず、光る帯と店内の明かりだけで業種を分ける
+ * （原色の看板を足すと観光地の記号になり、オフィス街に見えなくなる）。
+ */
+/*
+ * `bands` はサインバンドの帯色（上から順）。実在チェーンの配色を思わせる
+ * 組み合わせにして業態を色で読ませるが、**社名・ロゴ・書体は一切入れない**。
+ * 色と帯の本数だけで「コンビニ」「バーガー」「珈琲」と分かることを狙う。
+ * 色は sign() を通すので、見た目どおりの sRGB 値で書いてよい。
+ */
+const SHOP_KINDS = {
+  // ---- コンビニ（帯3本／2本で系統を分ける） ----
+  conveniA: { bands: [0xef7d1a, 0x1f8a4c, 0xcf3b32], inner: 0xa8b8c6, frame: 'panel' },
+  conveniB: { bands: [0x1f7a4d, 0xe8ecef, 0x2f5fa0], inner: 0xa8b8c6, frame: 'panel' },
+  conveniC: { bands: [0x1c4f9c, 0xe8ecef], inner: 0xa8b8c6, frame: 'panel' },
+  // ---- 飲食 ----
+  burger: { bands: [0xc0201c, 0xe8b21c], inner: 0xd8b070, frame: 'darkSteel', blade: true },
+  coffee: { bands: [0x14563c], inner: 0xb08a5e, frame: 'benchWood' },
+  gyudon: { bands: [0xdd7a18, 0x1c1c1e], inner: 0xd0a060, frame: 'darkSteel', blade: true },
+  ramen: { bands: [0xb02620, 0x141414], inner: 0xc89050, frame: 'darkSteel', blade: true },
+  soba: { bands: [0x1d3557, 0xe8ecef], inner: 0xa89060, frame: 'benchWood' },
+  curry: { bands: [0xd8a01c, 0x6b3b18], inner: 0xd0a058, frame: 'benchWood' },
+  bakery: { bands: [0x8a5a2c, 0xe8d8b0], inner: 0xd8b884, frame: 'benchWood' },
+  izakaya: { bands: [0x8f1f1f, 0x2a1a14], inner: 0xc07840, frame: 'benchWood', blade: true },
+  // ---- 物販・サービス ----
+  drug: { bands: [0xe8c81c, 0x1c4f9c], inner: 0xbcc8d0, frame: 'panel', blade: true },
+  mobile: { bands: [0xcf2020, 0xe8ecef], inner: 0xc0ccd4, frame: 'panel' },
+  books: { bands: [0xd06818, 0x3a2a18], inner: 0xc0a878, frame: 'benchWood' },
+  bank: { bands: [0x14406b], inner: 0xb8bcc0, frame: 'stoneTrim' },
+  clinic: { bands: [0x4fa8c8, 0xe8ecef], inner: 0xc8d4dc, frame: 'panel', blade: true },
+  salon: { bands: [0x1c1c1e, 0xc8b48c], inner: 0xc0a880, frame: 'darkSteel' },
+  gym: { bands: [0x1c1c1e, 0xd8d81c], inner: 0x9098a0, frame: 'darkSteel', blade: true },
+  realty: { bands: [0x1f7a3e, 0xe8ecef], inner: 0xb8c0b8, frame: 'panel' },
+  // ---- 非店舗 ----
+  lobby: { bands: [0x8f9aa6], inner: 0xbfae8e, frame: 'stoneTrim' },
+  shutter: { bands: null, inner: null, frame: 'darkSteel' },          // テナント募集中
+};
+
+/**
+ * 建物の通り側の壁を1階テナントに見せる。
+ *
+ * 壁そのものが既に固体なので、ここでは移動コライダを増やさない（庇だけ
+ * shell＝弾のみ）。`face` は法線 [x, z]、`span` は間口が壁幅に占める割合。
+ */
+function shopfront(x, z, w, d, face, kind, span) {
+  const k = SHOP_KINDS[kind] || SHOP_KINDS.lobby;
+  const [fx, fz] = face;
+  const len = (fx ? d : w) * (span || 0.82);   // 通りに平行な間口
+  const frame = M[k.frame];
+  const px = x + fx * (w / 2), pz = z + fz * (d / 2);
+  // out=壁からの手前方向、off=通りに平行な方向のずらし
+  const at = (mat, thick, hgt, wide, y, out, off) => deco(
+    mat, fx ? thick : wide, hgt, fx ? wide : thick,
+    px + fx * out + (fx ? 0 : off || 0), y,
+    pz + fz * out + (fx ? off || 0 : 0), 0);
+
+  if (kind === 'shutter') {
+    at(M.darkSteel, 0.1, 2.6, len, 1.3, 0.06, 0);
+    for (let i = 0; i < 6; i++) at(frame, 0.06, 0.05, len * 0.98, 0.35 + i * 0.44, 0.12, 0);
+  } else {
+    at(M.glassDark, 0.1, 2.5, len, 1.35, 0.06, 0);
+    // 店内の光。腰壁ぶん床から浮かせて、ガラスの下端が暗く締まるようにする
+    at(sign(k.inner), 0.06, 1.85, len * 0.93, 1.5, 0.12, 0);
+    // 棚・カウンターの影（一様な光の面を横に割る）
+    at(M.glassDark, 0.04, 0.14, len * 0.93, 1.12, 0.16, 0);
+    at(M.glassDark, 0.04, 0.1, len * 0.93, 2.02, 0.16, 0);
+    // 方立（ガラスを間仕切る縦桟）
+    const bays = Math.max(2, Math.round(len / 2.4));
+    for (let i = 1; i < bays; i++) {
+      at(frame, 0.14, 2.5, 0.14, 1.35, 0.18, -len / 2 + (len * i) / bays);
+    }
+  }
+  // サインバンド。帯の色と本数だけで業態を出す（文字・ロゴは入れない）
+  at(frame, 0.16, 0.52, len + 0.3, 3.02, 0.08, 0);
+  if (k.bands) {
+    const sh = 0.36 / k.bands.length;
+    k.bands.forEach((c, i) => {
+      at(sign(c), 0.08, sh, len + 0.1, 3.02 + 0.18 - sh * (i + 0.5), 0.18, 0);
+    });
+  }
+  // 庇（頭上なので弾だけ当たる）
+  const can = new THREE.Mesh(
+    new THREE.BoxGeometry(fx ? 1.2 : len + 0.6, 0.16, fx ? len + 0.6 : 1.2), M.darkSteel);
+  can.position.set(px + fx * 0.6, 2.7, pz + fz * 0.6);
+  shell(can);
+
+  // 袖看板（壁から直角に張り出す縦看板）。通りを見通したときの縦のリズムを作る。
+  // 上端 4.85m は間口の最低棟高（h*0.72）より低いので屋根を突き抜けない。
+  if (k.blade && k.bands) {
+    const off = len * 0.42;
+    const bx = px + fx * 0.6 + (fx ? 0 : off);
+    const bz = pz + fz * 0.6 + (fx ? off : 0);
+    deco(frame, fx ? 1.15 : 0.14, 1.4, fx ? 0.14 : 1.15, bx, 4.15, bz, 0);
+    // 板より少し厚くして、通りの左右どちらから見ても色面が出るようにする
+    deco(sign(k.bands[0]), fx ? 0.98 : 0.19, 1.2, fx ? 0.19 : 0.98, bx, 4.15, bz, 0);
+  }
+}
+
+/**
+ * 街路壁の間口割り。通りに平行な `span` を幅 4〜9m の間口へ分ける。
+ * 分割は siteRand で決まるので、worker/map-solids.js の uTerrace() と一致する
+ * （ここを変えたら必ず両方直すこと。test-map-solids-parity が落ちる）。
+ */
+function terraceBays(x, z, span, salt) {
+  const out = [];
+  let used = 0;
+  for (let i = 0; i < 8 && span - used > 3.2; i++) {
+    let bw = 4 + siteRand(x + used * 3.1, z, salt + i) * 5;
+    if (span - used - bw < 3.2) bw = span - used;   // 端数は最後の棟へ寄せる
+    out.push({ off: used + bw / 2 - span / 2, w: bw });
+    used += bw;
+  }
+  return out;
+}
+
+/**
+ * 街路壁（連続した街並み）。
+ *
+ * 大きな箱を1つ置くと、目線の高さでは「のっぺりした壁」1枚にしかならない。
+ * 間口を割って棟ごとに高さと素材を変えることで、通りに面が反復して街に見える。
+ * `mats` は素材キーの配列、`shops` は1階テナントの種別配列（空なら店を出さない）。
+ */
+function streetTerrace(x, z, w, h, d, face, mats, shops) {
+  const [fx, fz] = face;
+  const span = fx ? d : w;      // 通りに平行な辺
+  const dep = fx ? w : d;       // 奥行き
+  for (const b of terraceBays(x, z, span, 60)) {
+    const bx = x + (fx ? 0 : b.off);
+    const bz = z + (fx ? b.off : 0);
+    const bh = h * (0.72 + siteRand(bx, bz, 70) * 0.56);
+    const bw = fx ? dep : b.w;
+    const bd = fx ? b.w : dep;
+    solid(bx, bz, bw, bh, bd, 0, M[mats[Math.floor(siteRand(bx, bz, 80) * mats.length) % mats.length]]);
+    rooftop(bx, bz, bw, bh, bd);
+    if (shops && shops.length) {
+      shopfront(bx, bz, bw, bd, face, shops[Math.floor(siteRand(bx, bz, 90) * shops.length) % shops.length]);
+    } else {
+      entrance(bx, bz, bw, bd, face, Math.min(bw, bd) * 0.36);
+    }
+  }
 }
 
 /** 低層のアルミパネル棟 */
@@ -1059,7 +1262,7 @@ globalThis.URBAN = {
   texDuskSky,
   glow,
   solid, deco, paint, shell,
-  towerGlass, towerStone, midGrid, lowPanel, pilotis,
+  towerGlass, towerStone, midGrid, lowPanel, pilotis, shopfront, streetTerrace, siteRand,
   streetTree, planter, hedge, bench, bollardRow, streetLight, trafficSignal,
   busStop, subwayEntrance, bikeRack, manhole,
   taxi, sedan, van, bus,
