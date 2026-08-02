@@ -81,25 +81,35 @@ const texPlaza = () => makeTex(256, (ctx, s) => {
   speckle(ctx, s, 200, ['#7e7a74', '#9a968e'], 0.5, 1.8);
 });
 
-/** ガラスカーテンウォール（フロアごとのガラス帯＋点灯窓） */
+/* ---- ファサードのモジュール ----
+ * テクスチャ1枚 = 2窓 × 2階（= MODULE_W × MODULE_H メートル）。
+ * 建物ごとに scaleBoxUv() で実寸ぶんタイリングするので、どの大きさの棟でも
+ * 窓と階高が同じ実寸で揃う。以前は建物1面につき1枚を引き伸ばしていたため、
+ * 幅4mの棟にも幅16mの棟にも同じ6列が描かれ、階高0.8mのような絵になっていた。
+ * 4窓のうち1つだけ点灯させる。残りのばらつきは litWindows() が足す。
+ */
+const BAY_W = 1.8;      // 窓1枚ぶんの間口
+const FLOOR_H = 3.5;    // 階高
+
+/** ガラスカーテンウォール（方立・スラブ帯・点灯窓） */
 const texCurtain = (frame, glass, lit) => makeTex(128, (ctx, s) => {
   ctx.fillStyle = frame; ctx.fillRect(0, 0, s, s);
-  const cols = 6, rows = 8;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      // ガラスは面ごとにわずかに色むら（空の反射）
-      const v = 0.9 + Math.random() * 0.2;
-      const on = Math.random() < 0.22;
-      if (on) ctx.fillStyle = lit;
-      else {
-        const m = glass.match(/#(..)(..)(..)/);
-        ctx.fillStyle = `rgb(${parseInt(m[1], 16) * v | 0},${parseInt(m[2], 16) * v | 0},${parseInt(m[3], 16) * v | 0})`;
-      }
-      ctx.fillRect(c * (s / cols) + 2, r * (s / rows) + 2, s / cols - 4, s / rows - 4);
+  const h = s / 2;
+  const m = glass.match(/#(..)(..)(..)/);
+  const rgb = [1, 2, 3].map(i => parseInt(m[i], 16));
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 2; c++) {
+      const on = r === 0 && c === 1;                 // 4枚に1枚を点灯
+      const v = 0.92 + ((r + c) % 2) * 0.12;         // ガラスの色むら（空の反射）
+      ctx.fillStyle = on ? lit
+        : `rgb(${rgb[0] * v | 0},${rgb[1] * v | 0},${rgb[2] * v | 0})`;
+      ctx.fillRect(c * h + 5, r * h + 8, h - 10, h - 22);
+      // 腰のスパンドレル（不透明部）
+      ctx.fillStyle = 'rgba(20,25,32,.55)';
+      ctx.fillRect(c * h + 5, r * h + h - 14, h - 10, 10);
     }
-    // スラブ線
-    ctx.fillStyle = 'rgba(16,20,26,.5)';
-    ctx.fillRect(0, r * (s / rows), s, 2);
+    ctx.fillStyle = 'rgba(14,18,24,.75)';            // スラブ線
+    ctx.fillRect(0, r * h, s, 4);
   }
 });
 
@@ -107,18 +117,18 @@ const texCurtain = (frame, glass, lit) => makeTex(128, (ctx, s) => {
 const texStone = (base, joint, win, lit) => makeTex(128, (ctx, s) => {
   ctx.fillStyle = base; ctx.fillRect(0, 0, s, s);
   speckle(ctx, s, 420, ['rgba(90,80,66,.5)', 'rgba(210,200,180,.4)', 'rgba(70,64,54,.4)'], 0.4, 1.6);
-  // 縦長窓の列
-  const cols = 5;
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < 4; r++) {
-      ctx.fillStyle = Math.random() < 0.18 ? lit : win;
-      ctx.fillRect(c * (s / cols) + s / 14, r * (s / 4) + s / 12, s / 9, s / 6);
+  const h = s / 2;
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 2; c++) {
+      ctx.fillStyle = r === 1 && c === 0 ? lit : win;
+      ctx.fillRect(c * h + h * 0.28, r * h + h * 0.2, h * 0.44, h * 0.52);
+      ctx.fillStyle = 'rgba(255,255,255,.13)';       // 窓上の庇・見切り
+      ctx.fillRect(c * h + h * 0.24, r * h + h * 0.14, h * 0.52, 3);
     }
   }
-  // 目地
-  ctx.strokeStyle = joint; ctx.lineWidth = 1;
-  for (let i = 0; i <= 8; i++) {
-    const p = (i / 8) * s;
+  ctx.strokeStyle = joint; ctx.lineWidth = 1;        // 石の目地
+  for (let i = 0; i <= 4; i++) {
+    const p = (i / 4) * s;
     ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(s, p); ctx.stroke();
   }
 });
@@ -127,11 +137,13 @@ const texStone = (base, joint, win, lit) => makeTex(128, (ctx, s) => {
 const texPunched = (base, win, lit) => makeTex(128, (ctx, s) => {
   ctx.fillStyle = base; ctx.fillRect(0, 0, s, s);
   speckle(ctx, s, 260, ['rgba(70,74,80,.4)', 'rgba(160,164,170,.35)'], 0.5, 2);
-  const cols = 5, rows = 6;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      ctx.fillStyle = Math.random() < 0.16 ? lit : win;
-      ctx.fillRect(c * (s / cols) + 4, r * (s / rows) + 4, s / cols - 8, s / rows - 8);
+  const h = s / 2;
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 2; c++) {
+      ctx.fillStyle = 'rgba(0,0,0,.35)';             // 窓の落ち込み（見切り）
+      ctx.fillRect(c * h + h * 0.16, r * h + h * 0.2, h * 0.68, h * 0.5);
+      ctx.fillStyle = r === 0 && c === 0 ? lit : win;
+      ctx.fillRect(c * h + h * 0.2, r * h + h * 0.24, h * 0.6, h * 0.42);
     }
   }
 });
@@ -308,6 +320,56 @@ function siteRand(x, z, salt) {
   return s - Math.floor(s);
 }
 
+/**
+ * 面の実寸ぶんだけ UV を伸ばし、窓と階高をどの棟でも同じ実寸で揃える。
+ * テクスチャは共有のまま（clone しない）ので、描画コストは増えない。
+ * BoxGeometry の頂点は面ごとに4点、順は [+x, -x, +y, -y, +z, -z]。
+ */
+function scaleBoxUv(geo, w, h, d) {
+  const uv = geo.attributes.uv;
+  if (!uv) return;
+  // テクスチャ1枚 = 2窓 × 2階なので、タイル数は「枚数 ÷ 2」の 0.5 刻み。
+  // 半端はモジュールのちょうど中央で切れるため、窓や階の途中で切れない。
+  const bays = v => Math.max(1, Math.round(v / BAY_W)) / 2;
+  const floors = Math.max(1, Math.round(h / FLOOR_H)) / 2;
+  const perFace = [
+    [bays(d), floors], [bays(d), floors],   // ±x（側面）は奥行き × 高さ
+    [bays(w), bays(d)], [bays(w), bays(d)], // ±y（天地）は幅 × 奥行き
+    [bays(w), floors], [bays(w), floors],   // ±z（正背面）は幅 × 高さ
+  ];
+  for (let f = 0; f < 6; f++) {
+    const [ru, rv] = perFace[f];
+    for (let i = 0; i < 4; i++) {
+      const k = f * 4 + i;
+      uv.setXY(k, uv.getX(k) * ru, uv.getY(k) * rv);
+    }
+  }
+  uv.needsUpdate = true;
+}
+
+/** 実寸タイリングを効かせた建物本体。固体としては solid() と同じ1箱 */
+function facadeSolid(x, z, w, h, d, yaw, mat, y0) {
+  const m = solid(x, z, w, h, d, yaw, mat, y0);
+  scaleBoxUv(m.geometry, w, h, d);
+  return m;
+}
+
+/**
+ * ファサードの凹凸（床スラブの帯と角の柱型）。
+ * 平らな面は近づくと壁紙に見えるので、わずかな出っ張りで自己影を作る。
+ * すべて deco なので当たり判定は増えない。
+ */
+function facadeRelief(x, z, w, h, d, y0) {
+  const base = y0 || 0;
+  const floors = Math.max(1, Math.round(h / FLOOR_H));        // テクスチャの階割りに合わせる
+  for (let i = 1; i < floors; i++) {
+    deco(M.concrete, w + 0.14, 0.14, d + 0.14, x, base + (h * i) / floors, z, 0);
+  }
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    deco(M.concrete, 0.32, h, 0.32, x + sx * (w / 2), base + h / 2, z + sz * (d / 2), 0);
+  }
+}
+
 /** エントランス共通飾り（凹み・ガラスの灯り・キャノピー・銘板） */
 function entrance(x, z, w, d, face, bw) {
   const [fx, fz] = face;
@@ -369,7 +431,8 @@ function rooftop(x, z, w, h, d) {
 
 /** ガラスカーテンウォールのタワー（金融系）。固体は footprint×全高の1箱 */
 function towerGlass(x, z, w, h, d, face) {
-  solid(x, z, w, h, d, 0, siteRand(x, z, 7) < 0.5 ? M.curtainBlue : M.curtainGrey);
+  facadeSolid(x, z, w, h, d, 0, siteRand(x, z, 7) < 0.5 ? M.curtainBlue : M.curtainGrey);
+  facadeRelief(x, z, w, h, d);
   rooftop(x, z, w, h, d);
   entrance(x, z, w, d, face, Math.min(w, d) * 0.4);
   if (h >= 14) {
@@ -381,14 +444,16 @@ function towerGlass(x, z, w, h, d, face) {
 
 /** 御影石ファサードのタワー（官公庁・老舗系） */
 function towerStone(x, z, w, h, d, face) {
-  solid(x, z, w, h, d, 0, siteRand(x, z, 8) < 0.5 ? M.stoneBeige : M.stoneGrey);
+  facadeSolid(x, z, w, h, d, 0, siteRand(x, z, 8) < 0.5 ? M.stoneBeige : M.stoneGrey);
+  facadeRelief(x, z, w, h, d);
   rooftop(x, z, w, h, d);
   entrance(x, z, w, d, face, Math.min(w, d) * 0.36);
 }
 
 /** 中層の打ち放しコンクリートビル */
 function midGrid(x, z, w, h, d, face) {
-  solid(x, z, w, h, d, 0, M.punched);
+  facadeSolid(x, z, w, h, d, 0, M.punched);
+  facadeRelief(x, z, w, h, d);
   rooftop(x, z, w, h, d);
   entrance(x, z, w, d, face, Math.min(w, d) * 0.4);
 }
@@ -528,7 +593,8 @@ function streetTerrace(x, z, w, h, d, face, mats, shops) {
     const bh = h * (0.72 + siteRand(bx, bz, 70) * 0.56);
     const bw = fx ? dep : b.w;
     const bd = fx ? b.w : dep;
-    solid(bx, bz, bw, bh, bd, 0, M[mats[Math.floor(siteRand(bx, bz, 80) * mats.length) % mats.length]]);
+    facadeSolid(bx, bz, bw, bh, bd, 0, M[mats[Math.floor(siteRand(bx, bz, 80) * mats.length) % mats.length]]);
+    facadeRelief(bx, bz, bw, bh, bd);
     rooftop(bx, bz, bw, bh, bd);
     if (shops && shops.length) {
       shopfront(bx, bz, bw, bd, face, shops[Math.floor(siteRand(bx, bz, 90) * shops.length) % shops.length]);
@@ -615,7 +681,7 @@ function wallPipes(x, z, yaw, h) {
 
 /** 低層のアルミパネル棟 */
 function lowPanel(x, z, w, h, d, face) {
-  solid(x, z, w, h, d, 0, M.panel);
+  facadeSolid(x, z, w, h, d, 0, M.panel);
   deco(M.darkSteel, w + 0.2, 0.3, d + 0.2, x, h + 0.12, z, 0);
   entrance(x, z, w, d, face, Math.min(w, d) * 0.4);
 }
@@ -635,9 +701,12 @@ function pilotis(x, z, w, h, d, upperMat, face) {
   }
   solid(x, z, 3.4, h, 3.4, 0, M.stoneTrim);   // エレベータコアは全高
   // 上層（ガラスか石材）。弾は当たるが移動コライダは持たない
-  const upper = new THREE.Mesh(new THREE.BoxGeometry(w, h - y0, d), upperMat);
+  const upperGeo = new THREE.BoxGeometry(w, h - y0, d);
+  scaleBoxUv(upperGeo, w, h - y0, d);
+  const upper = new THREE.Mesh(upperGeo, upperMat);
   upper.position.set(x, y0 + (h - y0) / 2, z);
   shell(upper);
+  facadeRelief(x, z, w, h - y0, d, y0);
   // ピロティ天井（コアまわりのロビーはガラスの灯り）
   deco(glow(0xffe9c4), 2.8, 2.2, 0.08, x, 1.15, z + 1.74, 0);
   rooftop(x, z, w, h, d);
