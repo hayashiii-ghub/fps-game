@@ -88,13 +88,18 @@ function updateGrenadeHUD() {
   el.textContent = String(player.grenades);
   el.classList.toggle('empty', player.grenades <= 0);
   const box = $('nadebox');
-  if (box) box.classList.toggle('aiming', !!player.nadeAim);
+  if (box) {
+    box.classList.toggle('aiming', !!player.nadeAim);
+    box.classList.toggle('out', player.grenades <= 0);
+  }
 }
 function updateMedkitHUD() {
   const el = $('medcount');
   if (!el) return;
   el.textContent = String(player.medkits);
   el.classList.toggle('empty', player.medkits <= 0);
+  const box = $('medbox');
+  if (box) box.classList.toggle('out', player.medkits <= 0);
 }
 function updateArmorHUD() {
   const el = $('armorbadge');
@@ -102,7 +107,11 @@ function updateArmorHUD() {
   el.style.display = player.armor ? 'block' : 'none';
 }
 function updateHealthHUD() {
-  $('healthnum').innerHTML = `${Math.ceil(player.hp)}<small>HP</small>`;
+  const num = $('healthnum');
+  num.innerHTML = `${Math.ceil(player.hp)}<small>HP</small>`;
+  // 残量はバーだけでなく数字の色でも出す。危険域は点滅させる
+  num.classList.toggle('warn', player.hp <= 50 && player.hp > 25);
+  num.classList.toggle('crit', player.hp <= 25 && player.alive);
   const f = $('healthfill');
   f.style.width = `${player.hp}%`;
   f.style.background = player.hp > 50 ? '#cfc48a' : player.hp > 25 ? '#d89050' : '#c0392b';
@@ -190,8 +199,9 @@ function spawnFloater(text, hs) {
   const div = document.createElement('div');
   div.className = 'floater' + (hs ? ' hs' : '');
   div.textContent = text;
-  div.style.left = `${50 + rand(-4, 4)}%`;
-  div.style.top = `${46 + rand(-3, 3)}%`;
+  // クロスヘアの真上に重ねない。少し上と横へ散らす
+  div.style.left = `${50 + rand(-6, 6)}%`;
+  div.style.top = `${41 + rand(-3, 3)}%`;
   document.body.appendChild(div);
   setTimeout(() => div.remove(), 900);
 }
