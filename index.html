@@ -138,16 +138,11 @@
 
   /* ミニマップ */
   #minimap {
-    position: fixed; left: 20px; top: 18px; z-index: 15;
-    width: 148px; height: 148px;
-    border: 1px solid rgba(232, 226, 208, .38);
+    position: fixed; left: clamp(14px, 1.6vw, 26px); top: clamp(12px, 1.8vh, 22px); z-index: 15;
+    width: clamp(124px, 11vw, 200px); height: clamp(124px, 11vw, 200px);
+    border: 1px solid rgba(232, 226, 208, .42);
     background: rgba(18, 16, 10, .62);
     box-shadow: 0 2px 14px rgba(0, 0, 0, .55);
-    image-rendering: pixelated;
-  }
-  #minimaplabel {
-    position: fixed; left: 22px; top: 168px; z-index: 15;
-    font-size: 9px; letter-spacing: .28em; color: #a39a7e; text-shadow: 0 1px 2px #000;
   }
 
   /* 方位帯（視線方向が中央） */
@@ -637,8 +632,7 @@
   <div id="spawnprot"></div>
   <div id="lowhp"></div>
 
-  <canvas id="minimap" width="160" height="160" aria-label="minimap"></canvas>
-  <div id="minimaplabel" class="mono">MAP</div>
+  <canvas id="minimap" width="320" height="320" aria-label="minimap"></canvas>
 
   <div id="compass" aria-hidden="true">
     <div id="compasstrack"></div>

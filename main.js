@@ -976,8 +976,10 @@ function updateMinimap() {
 
   const toX = x => ((x + MINIMAP_HALF) / (MINIMAP_HALF * 2)) * W;
   const toY = z => ((z + MINIMAP_HALF) / (MINIMAP_HALF * 2)) * H;
+  const s = W / 160; // 描画寸法の基準（旧 160px キャンバス基準の値をそのまま使う）
 
-  ctx.fillStyle = 'rgba(88, 78, 58, 0.9)';
+  // 地物は背景よりはっきり明るくする。暗いまま重ねると地形が読めない
+  ctx.fillStyle = 'rgba(146, 134, 104, 0.92)';
   for (const b of colliders) {
     if (b.hx < 0.25 || b.hz < 0.25 || b.hy < 0.25) continue;
     if (b.hx > 40 || b.hz > 40) continue; // 境界土手は描かない
@@ -990,49 +992,71 @@ function updateMinimap() {
     ctx.restore();
   }
 
+  /** 暗い地物の上でも沈まないよう、点は必ず暗縁で囲む */
+  const dot = (x, y, r, fill) => {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 1.4 * s;
+    ctx.strokeStyle = 'rgba(12, 10, 6, 0.85)';
+    ctx.stroke();
+  };
+
   // 味方のみ表示（TDM の blue）。敵 red は出さない
   if (typeof enemies !== 'undefined') {
     for (const e of enemies) {
       if (!e.alive || e.team !== 'blue') continue;
-      ctx.beginPath();
-      ctx.fillStyle = '#6eb0e0';
-      ctx.arc(toX(e.pos.x), toY(e.pos.z), 2.6, 0, Math.PI * 2);
-      ctx.fill();
+      dot(toX(e.pos.x), toY(e.pos.z), 3.2 * s, '#7cc0f0');
     }
   }
 
   // 中央補給箱（TDM のみ）
   if (game.mode === 'tdm' && typeof SUPPLY_POS !== 'undefined' && supplyMesh) {
-    ctx.beginPath();
-    ctx.fillStyle = '#c9a24a';
-    ctx.arc(toX(SUPPLY_POS.x), toY(SUPPLY_POS.z), 3.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(20,16,10,0.55)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    dot(toX(SUPPLY_POS.x), toY(SUPPLY_POS.z), 3.6 * s, '#e0b955');
   }
 
   if (typeof player !== 'undefined' && player) {
-    const px = toX(player.pos.x);
-    const py = toY(player.pos.z);
     ctx.save();
-    ctx.translate(px, py);
+    ctx.translate(toX(player.pos.x), toY(player.pos.z));
     // yaw=0 で -Z（マップ上向き）。canvas は y 下向きなので -yaw
     ctx.rotate(-player.yaw);
-    ctx.fillStyle = player.alive ? '#efe6c4' : '#888';
+    // 視界コーン（どちらを向いているかを形で出す）
+    if (player.alive) {
+      const cone = ctx.createLinearGradient(0, 0, 0, -30 * s);
+      cone.addColorStop(0, 'rgba(239, 230, 196, 0.34)');
+      cone.addColorStop(1, 'rgba(239, 230, 196, 0)');
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 30 * s, -Math.PI / 2 - 0.62, -Math.PI / 2 + 0.62);
+      ctx.closePath();
+      ctx.fillStyle = cone;
+      ctx.fill();
+    }
     ctx.beginPath();
-    ctx.moveTo(0, -5.5);
-    ctx.lineTo(3.8, 4.5);
-    ctx.lineTo(0, 2.2);
-    ctx.lineTo(-3.8, 4.5);
+    ctx.moveTo(0, -6.5 * s);
+    ctx.lineTo(4.4 * s, 5 * s);
+    ctx.lineTo(0, 2.4 * s);
+    ctx.lineTo(-4.4 * s, 5 * s);
     ctx.closePath();
+    ctx.fillStyle = player.alive ? '#fff6d8' : '#8c8c8c';
     ctx.fill();
+    ctx.lineWidth = 1.4 * s;
+    ctx.strokeStyle = 'rgba(12, 10, 6, 0.85)';
+    ctx.stroke();
     ctx.restore();
   }
 
-  ctx.strokeStyle = 'rgba(232, 226, 208, 0.28)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+  // 北上固定なので、方角の基準として N を枠内に置く
+  ctx.font = `700 ${9 * s}px Menlo, monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(239, 230, 196, 0.55)';
+  ctx.fillText('N', W * 0.5, 4 * s);
+
+  ctx.strokeStyle = 'rgba(232, 226, 208, 0.32)';
+  ctx.lineWidth = 1 * s;
+  ctx.strokeRect(0.5 * s, 0.5 * s, W - s, H - s);
 }
 
 /* ---------- 方位帯（視線方向が中央。0=北・時計回りで東） ---------- */
