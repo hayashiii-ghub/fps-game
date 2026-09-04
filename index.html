@@ -500,7 +500,7 @@
   .menu-overlay > .menu-status,
   .menu-overlay > .menu-stack,
   .menu-overlay > .note,
-  .menu-overlay > .lang-toggle {
+  .menu-overlay > .pref-bar {
     flex-shrink: 0;
   }
   .menu-overlay > .menu-stack { flex-shrink: 1; }
@@ -584,7 +584,33 @@
   }
   .lang-btn:hover { color: #efe6c4; background: rgba(216,192,138,.1); }
   .lang-btn.sel { color: #14150f; background: #d8c08a; }
-  #pause .lang-toggle { margin-top: 18px; }
+  .pref-bar {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: 10px 16px;
+    margin-top: clamp(6px, 1vh, 12px);
+  }
+  .pref-bar .lang-toggle { margin-top: 0; }
+  .audio-row {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid rgba(216,192,138,.35);
+    padding: 0 8px 0 0;
+  }
+  .audio-mute {
+    padding: 5px 12px; background: transparent; border: none;
+    color: #a09880; cursor: pointer; font-family: inherit;
+    font-size: 11px; letter-spacing: .2em;
+  }
+  .audio-mute:hover { color: #efe6c4; background: rgba(216,192,138,.1); }
+  .audio-mute.sel { color: #14150f; background: #d8c08a; }
+  .audio-vol {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: #cfc7ad; font-size: 11px; letter-spacing: .18em;
+  }
+  .audio-slider {
+    width: clamp(88px, 12vh, 132px); height: 14px;
+    accent-color: #d8c08a; cursor: pointer;
+  }
+  #pause .pref-bar { margin-top: 18px; }
 
   #pause, #death, #result { display: none; }
   #pause .btn,
@@ -752,9 +778,18 @@
     </div>
   </div>
   <div class="note" data-i18n="note.audio">※ 音が出ます　※ マウスポインタがロックされます</div>
-  <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
-    <button type="button" class="lang-btn" data-lang="ja">JA</button>
-    <button type="button" class="lang-btn" data-lang="en">EN</button>
+  <div class="pref-bar">
+    <div class="audio-row mono" data-i18n-aria="audio.aria" role="group" aria-label="音声">
+      <button type="button" class="audio-mute" aria-pressed="false" data-i18n="audio.mute">消音</button>
+      <label class="audio-vol">
+        <span data-i18n="audio.volume">音量</span>
+        <input type="range" class="audio-slider" min="0" max="100" step="1" value="75">
+      </label>
+    </div>
+    <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
+      <button type="button" class="lang-btn" data-lang="ja">JA</button>
+      <button type="button" class="lang-btn" data-lang="en">EN</button>
+    </div>
   </div>
 </div>
 
@@ -766,9 +801,18 @@
   <div class="tagline" data-i18n="pause.tag">一 時 停 止</div>
   <button class="btn" id="resumeBtn" data-i18n="pause.resume">再 開</button>
   <button class="btn" id="restartBtn" data-i18n="pause.lobby">ロビーへ</button>
-  <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
-    <button type="button" class="lang-btn" data-lang="ja">JA</button>
-    <button type="button" class="lang-btn" data-lang="en">EN</button>
+  <div class="pref-bar">
+    <div class="audio-row mono" data-i18n-aria="audio.aria" role="group" aria-label="音声">
+      <button type="button" class="audio-mute" aria-pressed="false" data-i18n="audio.mute">消音</button>
+      <label class="audio-vol">
+        <span data-i18n="audio.volume">音量</span>
+        <input type="range" class="audio-slider" min="0" max="100" step="1" value="75">
+      </label>
+    </div>
+    <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
+      <button type="button" class="lang-btn" data-lang="ja">JA</button>
+      <button type="button" class="lang-btn" data-lang="en">EN</button>
+    </div>
   </div>
 </div>
 
@@ -800,12 +844,12 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./i18n.js?v=arena26"></script>
+<script src="./i18n.js?v=arena27"></script>
 <script src="./shared/map-manifest.js?v=arena26"></script>
 <script src="./tdm-respawn.js?v=arena26"></script>
 <script src="./ai-steer.js?v=arena26"></script>
 <script src="./ground-support.js?v=arena26"></script>
-<script src="./audio.js?v=arena26"></script>
+<script src="./audio.js?v=arena27"></script>
 <script src="./world.js?v=arena26"></script>
 <script src="./maps/desert.js?v=arena26"></script>
 <script src="./maps/jungle.js?v=arena26"></script>
@@ -817,6 +861,6 @@
 <script src="./enemy.js?v=arena26"></script>
 <script src="./net.js?v=arena26"></script>
 <script src="./online.js?v=arena26"></script>
-<script src="./main.js?v=arena26"></script>
+<script src="./main.js?v=arena27"></script>
 </body>
 </html>

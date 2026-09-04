@@ -2,8 +2,14 @@
 /* ============================================================
    手続き音響システム（Web Audio API で全音を合成）
    ============================================================ */
+const AUDIO_VOL_KEY = 'kgfps_audio_vol';
+const AUDIO_MUTE_KEY = 'kgfps_audio_mute';
+const AUDIO_DEFAULT_VOL = 0.75;
+
 const AudioSys = {
   ctx: null, master: null, noiseBuf: null,
+  volume: AUDIO_DEFAULT_VOL,
+  muted: false,
 
   /* 武器別の銃声シグネチャ（shot() の4層のパラメータ） */
   SHOT_DEFS: {
@@ -17,13 +23,64 @@ const AudioSys = {
     smg_surv: { crack: 4400, crackG: 0.46, bodyF: 2700, bodyEnd: 400, bodyDur: 0.11, bodyG: 0.7, thumpF: 130, thumpG: 0.38, tailG: 0.24, tailDur: 0.28 },
   },
 
+  loadPrefs() {
+    try {
+      const raw = localStorage.getItem(AUDIO_VOL_KEY);
+      if (raw != null && raw !== '') {
+        const n = parseFloat(raw);
+        if (Number.isFinite(n)) this.volume = Math.max(0, Math.min(1, n));
+      }
+      this.muted = localStorage.getItem(AUDIO_MUTE_KEY) === '1';
+    } catch (_) { /* ignore */ }
+    return this;
+  },
+
+  _savePrefs() {
+    try {
+      localStorage.setItem(AUDIO_VOL_KEY, String(this.volume));
+      localStorage.setItem(AUDIO_MUTE_KEY, this.muted ? '1' : '0');
+    } catch (_) { /* ignore */ }
+  },
+
+  effectiveGain() {
+    return this.muted ? 0 : this.volume;
+  },
+
+  _applyGain() {
+    if (!this.master) return;
+    this.master.gain.value = this.effectiveGain();
+  },
+
+  setVolume(v) {
+    const n = Number(v);
+    this.volume = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : this.volume;
+    this._applyGain();
+    this._savePrefs();
+    return this.volume;
+  },
+
+  setMuted(on) {
+    this.muted = !!on;
+    this._applyGain();
+    this._savePrefs();
+    return this.muted;
+  },
+
+  toggleMute() {
+    return this.setMuted(!this.muted);
+  },
+
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      this._applyGain();
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.75;
+    this.master.gain.value = this.effectiveGain();
     this.master.connect(this.ctx.destination);
 
     const len = this.ctx.sampleRate;
@@ -417,3 +474,5 @@ const AudioSys = {
     src.start(); lfo.start();
   },
 };
+
+AudioSys.loadPrefs();
