@@ -657,6 +657,45 @@ function uiBlip() {
   if (AudioSys.ok) AudioSys._clickAt(0, 1900, 0.06);
 }
 
+function syncAudioUI() {
+  const volPct = String(Math.round((AudioSys.volume || 0) * 100));
+  document.querySelectorAll('.audio-slider').forEach((el) => {
+    if (el.value !== volPct) el.value = volPct;
+  });
+  document.querySelectorAll('.audio-mute').forEach((el) => {
+    el.classList.toggle('sel', !!AudioSys.muted);
+    el.setAttribute('aria-pressed', AudioSys.muted ? 'true' : 'false');
+  });
+}
+
+function initAudioControls() {
+  if (typeof AudioSys !== 'undefined' && typeof AudioSys.loadPrefs === 'function') {
+    AudioSys.loadPrefs();
+  }
+  syncAudioUI();
+  document.querySelectorAll('.audio-mute').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const wasMuted = !!AudioSys.muted;
+      AudioSys.init();
+      AudioSys.toggleMute();
+      syncAudioUI();
+      if (wasMuted && !AudioSys.muted && AudioSys.ok) AudioSys._clickAt(0, 1900, 0.06);
+    });
+  });
+  document.querySelectorAll('.audio-slider').forEach((el) => {
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    el.addEventListener('input', () => {
+      AudioSys.init();
+      const v = Number(el.value) / 100;
+      if (AudioSys.muted && v > 0) AudioSys.setMuted(false);
+      AudioSys.setVolume(v);
+      syncAudioUI();
+    });
+  });
+}
+
 /** 出撃フェードを挟んで開始（ポインタロックはジェスチャ内で即要求） */
 function deployAndStart(mode, opts) {
   game.online = !!(opts && opts.online);
@@ -883,6 +922,7 @@ function initMenus() {
   });
   initOnlineLobby();
   renderMapCards();
+  initAudioControls();
   document.querySelectorAll('#mainWeaponRow .wchip').forEach(b =>
     b.addEventListener('click', () => { applyLoadoutSelection('main', b.dataset.w); uiBlip(); }));
   document.querySelectorAll('#subWeaponRow .wchip').forEach(b =>
