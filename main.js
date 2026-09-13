@@ -668,6 +668,31 @@ function syncAudioUI() {
   });
 }
 
+function syncLookSensUI() {
+  if (typeof LookSens === 'undefined') return;
+  const pct = String(LookSens.toPct());
+  document.querySelectorAll('.sens-slider').forEach((el) => {
+    if (el.value !== pct) el.value = pct;
+  });
+  document.querySelectorAll('.sens-val').forEach((el) => {
+    el.textContent = pct;
+  });
+}
+
+function initLookSensControls() {
+  if (typeof LookSens !== 'undefined' && typeof LookSens.loadPrefs === 'function') {
+    LookSens.loadPrefs();
+  }
+  syncLookSensUI();
+  document.querySelectorAll('.sens-slider').forEach((el) => {
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    el.addEventListener('input', () => {
+      LookSens.setPct(el.value);
+      syncLookSensUI();
+    });
+  });
+}
+
 function initAudioControls() {
   if (typeof AudioSys !== 'undefined' && typeof AudioSys.loadPrefs === 'function') {
     AudioSys.loadPrefs();
@@ -923,6 +948,7 @@ function initMenus() {
   initOnlineLobby();
   renderMapCards();
   initAudioControls();
+  initLookSensControls();
   document.querySelectorAll('#mainWeaponRow .wchip').forEach(b =>
     b.addEventListener('click', () => { applyLoadoutSelection('main', b.dataset.w); uiBlip(); }));
   document.querySelectorAll('#subWeaponRow .wchip').forEach(b =>
