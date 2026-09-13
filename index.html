@@ -606,9 +606,20 @@
     display: inline-flex; align-items: center; gap: 8px;
     color: #cfc7ad; font-size: 11px; letter-spacing: .18em;
   }
-  .audio-slider {
+  .audio-slider,
+  .sens-slider {
     width: clamp(88px, 12vh, 132px); height: 14px;
     accent-color: #d8c08a; cursor: pointer;
+  }
+  .sens-row {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid rgba(216,192,138,.35);
+    padding: 0 8px;
+  }
+  .sens-val {
+    min-width: 2.4em; color: #efe6c4; font-size: 11px;
+    letter-spacing: .08em; text-align: right;
+    text-shadow: 0 1px 0 #14150f, 0 0 6px rgba(0,0,0,.55);
   }
   #pause .pref-bar { margin-top: 18px; }
 
@@ -786,6 +797,13 @@
         <input type="range" class="audio-slider" min="0" max="100" step="1" value="75">
       </label>
     </div>
+    <div class="sens-row mono" data-i18n-aria="look.aria" role="group" aria-label="視点感度">
+      <label class="audio-vol">
+        <span data-i18n="look.sens">感度</span>
+        <input type="range" class="sens-slider" min="20" max="300" step="5" value="100">
+        <span class="sens-val">100</span>
+      </label>
+    </div>
     <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
       <button type="button" class="lang-btn" data-lang="ja">JA</button>
       <button type="button" class="lang-btn" data-lang="en">EN</button>
@@ -807,6 +825,13 @@
       <label class="audio-vol">
         <span data-i18n="audio.volume">音量</span>
         <input type="range" class="audio-slider" min="0" max="100" step="1" value="75">
+      </label>
+    </div>
+    <div class="sens-row mono" data-i18n-aria="look.aria" role="group" aria-label="視点感度">
+      <label class="audio-vol">
+        <span data-i18n="look.sens">感度</span>
+        <input type="range" class="sens-slider" min="20" max="300" step="5" value="100">
+        <span class="sens-val">100</span>
       </label>
     </div>
     <div class="lang-toggle mono" data-i18n-aria="lang.aria" role="group" aria-label="Language">
@@ -844,7 +869,7 @@
 <div id="err"></div>
 
 <script src="./three.min.js"></script>
-<script src="./i18n.js?v=arena27"></script>
+<script src="./i18n.js?v=arena28"></script>
 <script src="./shared/map-manifest.js?v=arena26"></script>
 <script src="./tdm-respawn.js?v=arena26"></script>
 <script src="./ai-steer.js?v=arena26"></script>
@@ -857,10 +882,10 @@
 <script src="./maps/tokyo.js?v=arena26"></script>
 <script src="./grenade-physics.js?v=arena26"></script>
 <script src="./effects.js?v=arena26"></script>
-<script src="./player.js?v=arena26"></script>
+<script src="./player.js?v=arena28"></script>
 <script src="./enemy.js?v=arena26"></script>
 <script src="./net.js?v=arena26"></script>
 <script src="./online.js?v=arena26"></script>
-<script src="./main.js?v=arena27"></script>
+<script src="./main.js?v=arena28"></script>
 </body>
 </html>

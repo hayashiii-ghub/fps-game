@@ -3,6 +3,50 @@
    プレイヤー / 武器 / 入力
    ============================================================ */
 
+const LOOK_SENS_KEY = 'kgfps_look_sens';
+const LOOK_SENS_DEFAULT = 1;
+const LOOK_SENS_MIN = 0.2;
+const LOOK_SENS_MAX = 3;
+/** スライダー 100% のときの yaw/pitch 係数（従来の固定値） */
+const LOOK_SENS_BASE = 0.0021;
+const LOOK_SWAY_BASE = 0.00008;
+
+const LookSens = {
+  value: LOOK_SENS_DEFAULT,
+
+  loadPrefs() {
+    try {
+      const raw = localStorage.getItem(LOOK_SENS_KEY);
+      if (raw != null && raw !== '') {
+        const n = parseFloat(raw);
+        if (Number.isFinite(n)) this.value = this._clamp(n);
+      }
+    } catch (_) { /* ignore */ }
+    return this;
+  },
+
+  _clamp(n) {
+    return Math.max(LOOK_SENS_MIN, Math.min(LOOK_SENS_MAX, n));
+  },
+
+  _save() {
+    try { localStorage.setItem(LOOK_SENS_KEY, String(this.value)); } catch (_) { /* ignore */ }
+  },
+
+  set(v) {
+    const n = Number(v);
+    this.value = Number.isFinite(n) ? this._clamp(n) : this.value;
+    this._save();
+    return this.value;
+  },
+
+  toPct() { return Math.round(this.value * 100); },
+
+  setPct(p) { return this.set(Number(p) / 100); },
+
+  scale() { return LOOK_SENS_BASE * this.value; },
+};
+
 const player = {
   pos: new THREE.Vector3(0, 0, 50),   // 足元
   vel: new THREE.Vector3(),
@@ -1430,11 +1474,12 @@ function initInput() {
   document.addEventListener('mousemove', e => {
     if (game.state !== 'playing' || document.pointerLockElement === null) return;
     const def = activeDef();
-    const sens = 0.0021 * (weapon.ads ? def.adsSens : 1);
+    const sens = LookSens.scale() * (weapon.ads ? def.adsSens : 1);
+    const sway = LOOK_SWAY_BASE * LookSens.value;
     player.yaw -= e.movementX * sens;
     player.pitch = clamp(player.pitch - e.movementY * sens, -1.45, 1.45);
-    weapon.swayX = clamp(weapon.swayX - e.movementX * 0.00008, -0.03, 0.03);
-    weapon.swayY = clamp(weapon.swayY + e.movementY * 0.00008, -0.03, 0.03);
+    weapon.swayX = clamp(weapon.swayX - e.movementX * sway, -0.03, 0.03);
+    weapon.swayY = clamp(weapon.swayY + e.movementY * sway, -0.03, 0.03);
   });
   addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
